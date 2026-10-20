@@ -1,0 +1,24 @@
+/* Pantalla de acceso y barra de la versión en línea */
+#nube-login{position:fixed;inset:0;z-index:9999;background:#EEE7D9;display:flex;align-items:center;justify-content:center;padding:16px;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#26241F}
+#nube-login .nl-card{width:100%;max-width:420px;background:#F6F1E6;border:1px solid #D8CFBE;border-top:4px solid #D7262B;border-radius:8px;padding:26px 26px 22px;box-shadow:0 10px 30px rgba(38,36,31,.08)}
+#nube-login .nl-brand{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#6F685C;margin-bottom:10px}
+#nube-login h1{font-family:Georgia,'Times New Roman',serif;font-weight:600;font-size:24px;margin:0 0 8px}
+#nube-login p{font-size:14px;line-height:1.45;margin:0 0 14px;color:#4d483f}
+#nube-login form{display:flex;flex-direction:column;gap:10px}
+#nube-login input{font:inherit;font-size:15px;padding:10px 12px;border:1px solid #BDB3A1;border-radius:6px;background:#fff;color:#26241F}
+#nube-login button{font:inherit;font-size:15px;font-weight:600;padding:10px 14px;border:0;border-radius:6px;background:#D7262B;color:#fff;cursor:pointer}
+#nube-login button:hover{filter:brightness(.95)}
+#nube-login .nl-msg{min-height:20px;margin:12px 0 0;font-size:13px}
+#nube-login .nl-msg.ok{color:#2F6B3F}
+#nube-login .nl-msg.err{color:#B02A2A}
+#nube-login .nl-bar{height:4px;background:#E2D9C8;border-radius:2px;overflow:hidden}
+#nube-login .nl-bar i{display:block;height:100%;width:40%;background:#D7262B;animation:nl-mov 1.1s ease-in-out infinite}
+@keyframes nl-mov{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+
+#nube-barra{position:fixed;right:12px;bottom:12px;z-index:9000;display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:calc(100vw - 24px);background:rgba(246,241,230,.97);border:1px solid #D8CFBE;border-radius:8px;padding:5px 8px;box-shadow:0 4px 14px rgba(38,36,31,.12);font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;color:#4d483f}
+#nube-barra .nb-dot{width:8px;height:8px;border-radius:50%;background:#4E9A55}
+#nube-barra .nb-user{margin-right:4px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#nube-barra button{font:inherit;font-size:11px;padding:4px 8px;border:1px solid #CFC5B2;border-radius:5px;background:#fff;color:#26241F;cursor:pointer}
+#nube-barra button:hover{border-color:#26241F}
+#nube-barra button:disabled{opacity:.5;cursor:wait}
+@media print{#nube-barra,#nube-login{display:none!important}}
