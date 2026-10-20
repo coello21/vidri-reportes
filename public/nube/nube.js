@@ -353,6 +353,7 @@
         el.innerHTML = el.innerHTML.replace(/Copia de consulta · Últimos 45 días \([^)]*\)/, 'En línea · base de datos');
       });
       barra();
+      if (window.VidriReporte) window.VidriReporte.ponerBotones();
       quitarPantalla();
       var nd = Object.keys(datos.history).length;
       if (!nd && !datos.pedidos.rows.length) {

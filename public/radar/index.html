@@ -3517,7 +3517,10 @@ function histHoy(){ const n=new Date(); return n.getFullYear()+'-'+String(n.getM
 async function radarDownloadJson(){
   try{
     try{ await pedEnsure(); }catch(e){}
-    const st=Object.assign({},STORE); delete st.seen; delete st.pending;
+    /* el respaldo lleva la lista de líneas ya contadas (seen) y las pendientes:
+       sin ellas, al importarlo y cargar un Excel se volverían a sumar líneas ya contadas */
+    if(typeof persistSeen==='function') persistSeen();
+    const st=Object.assign({},STORE);
     const ped=(typeof PED!=='undefined'&&PED.rows)?{cortes:PED.cortes,rows:[...PED.rows.values()]}:null;
     const payload={app:'radar-negados',formato:2,guardado:new Date().toISOString(),history:HISTORY,store:st,pedidos:ped};
     const name='Radar_datos_'+histHoy()+'.json';
@@ -3527,6 +3530,19 @@ async function radarDownloadJson(){
 }
 (function(){ const b=document.getElementById('downloadBtn'); if(b){ const nb=b.cloneNode(true); b.replaceWith(nb); nb.addEventListener('click',radarDownloadJson); } })();
 downloadJson=radarDownloadJson;
+/* Une la lista de líneas ya contadas de un respaldo con la actual (nunca quita llaves)
+   y agrega las pendientes que todavía no se han contado. */
+function radarMergeSeen(st){
+  if(!st||!st.seen) return;
+  ensureStore(); if(typeof persistSeen==='function'&&SEEN) persistSeen();
+  for(const d in st.seen){
+    const extra=st.seen[d]?String(st.seen[d]).split(','):[]; if(!extra.length) continue;
+    const cur=new Set(STORE.seen[d]?STORE.seen[d].split(','):[]);
+    extra.forEach(k=>cur.add(k)); STORE.seen[d]=Array.from(cur).join(',');
+  }
+  SEEN=null;
+  if(st.pending) for(const k in st.pending){ if(!(k in STORE.pending)&&!isSeen(k)) STORE.pending[k]=st.pending[k]; }
+}
 async function radarLoadHistJson(list){
   // Se ordenan del más reciente al más antiguo (por la fecha en que se guardó cada .json).
   // Un dato se agrega si no existe; si el .json es más reciente que lo que ya está en pantalla, lo reemplaza.
@@ -3539,6 +3555,7 @@ async function radarLoadHistJson(list){
   for(const {J,t} of files){
     const newer=t>t0;
     for(const d in J.history){ if(dDone.has(d)) continue; if(!(d in HISTORY)||newer){ if(!(d in HISTORY)) nd++; HISTORY[d]=J.history[d]; dDone.add(d); } }
+    if(J.store) radarMergeSeen(J.store);
     if(J.store) for(const k in J.store){ if(k==='seen'||k==='pending') continue; const v=J.store[k];
       if(Array.isArray(v)){ STORE[k]=Array.from(new Set([...(Array.isArray(STORE[k])?STORE[k]:[]),...v])).sort(); }
       else if(v&&typeof v==='object'){ if(!STORE[k]||typeof STORE[k]!=='object') STORE[k]={}; for(const kk in v) if(!(kk in STORE[k])||(newer&&!pDone.has(k+'|'+kk))){ STORE[k][kk]=v[kk]; pDone.add(k+'|'+kk); } }
@@ -3790,5 +3807,6 @@ vxSetTab((location.hash||'').slice(1));
 <link rel="stylesheet" href="../nube/nube.css">
 <script src="../vendor/supabase.js"></script>
 <script src="../config.js"></script>
+<script src="../nube/reporte.js"></script>
 <script src="../nube/nube.js"></script>
 </body></html>

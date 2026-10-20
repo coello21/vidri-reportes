@@ -10,7 +10,7 @@ Tableros de preparación del CD Nejapa (Radar de Negados y Pedidos CD) en **Type
 | 2 | Conexión a Supabase y login sobre los módulos nuevos | pendiente |
 | 3 | Pantallas: Resumen, Top negados, Pedidos CD | pendiente |
 | 4 | "Descargar HTML" de 45 días como archivo independiente | pendiente |
-| 5 | Reporte ejecutivo automático | pendiente |
+| 5 | Reporte ejecutivo automático (botón **Reporte ejecutivo** en el Radar: pedidos y negados; productividad cuando su tablero esté en la base) | ✅ parcial |
 
 Mientras se hacen los pasos 2–5, **el Radar actual sigue funcionando** (carpeta `public/radar/`, ya conectado a Supabase). Se publica junto con el proyecto en la misma dirección y se reemplaza cuando la versión nueva esté lista.
 
@@ -60,4 +60,4 @@ node scripts/fixture-desde-html.mjs "ruta/Radar_de_Negados_2026-10-19.html"
 
 ## Uso diario (mientras tanto)
 
-Abre `.../radar/`, entra con tu correo, carga los Excel y usa **Descargar HTML** para el correo, igual que antes. La primera vez usa **Importar respaldo** con tu último HTML del Radar para pasar el historial a la base.
+Abre `.../radar/`, entra con tu correo, carga los Excel y usa **Descargar HTML** para el correo, igual que antes. **Reporte ejecutivo** arma el PDF del día con los datos cargados (en la ventana de impresión elige «Guardar como PDF»). La primera vez usa **Importar respaldo** con tu último HTML del Radar para pasar el historial a la base.
