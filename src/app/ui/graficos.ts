@@ -125,3 +125,56 @@ export function globoEnPuntos(svg: SVGSVGElement, wrap: HTMLElement, tip: HTMLEl
     dot.addEventListener('mouseleave', () => { tip.style.opacity = '0'; });
   });
 }
+
+/** Texto corto de tendencia con flecha (para rankings). */
+export const tendenciaEtiqueta = (p: number | null): string => {
+  if (p == null) return '<span class="tr0">sin datos</span>';
+  const a = Math.abs(p);
+  if (a < 5) return '<span class="tr0">estable</span>';
+  return '<span class="' + (p > 0 ? 'trU' : 'trD') + '" title="Últimos 7 días contra los 7 anteriores">' + (p > 0 ? '↑ sube ' : '↓ baja ') + Math.round(a) + '%</span>';
+};
+
+export interface SerieLinea { name: string; color: string; vals: number[]; off?: number }
+/** Líneas por día con tendencia (SKUs entran vs atendidos). */
+export function lineas(el: HTMLElement, days: string[], series: SerieLinea[], opt: { partial?: Set<number> } = {}) {
+  const part = opt.partial || new Set<number>();
+  const W = Math.max(300, el.clientWidth || 900), H = 250, m = { l: 52, r: 58, t: 14, b: 28 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const max = nice(Math.max(1, ...series.flatMap((s) => s.vals)));
+  const x = (i: number) => m.l + (days.length < 2 ? iw / 2 : i * iw / (days.length - 1)), y = (v: number) => m.t + ih - (v / max) * ih;
+  let g = '';
+  for (let k = 0; k <= 4; k++) { const v = max * k / 4, yy = y(v).toFixed(1); g += '<line class="gl" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + yy + '" y2="' + yy + '"/><text class="ax" x="' + (m.l - 8) + '" y="' + (+yy + 3.5) + '" text-anchor="end">' + corto(v) + '</text>'; }
+  const step = Math.max(1, Math.ceil(days.length / Math.max(2, Math.floor(iw / 64))));
+  const lastL = Math.floor((days.length - 1) / step) * step, showL = (days.length - 1) === lastL || (x(days.length - 1) - x(lastL)) >= 60;
+  days.forEach((d, i) => { if (i % step === 0 || (i === days.length - 1 && showL)) g += '<text class="ax" x="' + x(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + etiquetaDia(d) + '</text>'; });
+  const idx = days.map((_, i) => i).filter((i) => !part.has(i));
+  series.forEach((s) => {
+    g += '<polyline fill="none" stroke="' + s.color + '" stroke-width="2" points="' + s.vals.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ') + '"/>';
+    s.vals.forEach((v, i) => { g += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="' + (days.length > 40 ? 1.8 : 3) + '" fill="' + s.color + '"' + (part.has(i) ? ' opacity=".45"' : '') + '><title>' + diaConSemana(days[i]) + ' · ' + s.name + ': ' + fmtInt(v) + ' SKUs</title></circle>'; });
+    const pts = tendenciaPuntos(idx.map((i) => s.vals[i]), (k) => x(idx[k]), y);
+    if (pts) g += '<polyline fill="none" points="' + pts + '" stroke="' + s.color + '" stroke-width="2" stroke-dasharray="6 4" opacity=".9"/>';
+    const li = s.vals.length - 1;
+    if (li >= 0) g += '<text class="lb" x="' + (x(li) + 8).toFixed(1) + '" y="' + (y(s.vals[li]) + (s.off || 0) + 4).toFixed(1) + '" fill="' + s.color + '">' + corto(s.vals[li]) + '</text>';
+  });
+  el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" height="' + H + '" role="img">' + g + '</svg>';
+}
+
+export interface ItemBarra { l: string; s?: string; v: number; p?: number | null; c?: string }
+/** Barras horizontales simples. */
+export function barras(el: HTMLElement, items: ItemBarra[], escapar: (s: string) => string) {
+  const max = Math.max(1, ...items.map((i) => i.v));
+  el.className = 'vx-bars';
+  el.innerHTML = items.length ? items.map((i) => '<div class="vb"><div class="vb-l"><b>' + escapar(i.l) + '</b>' + (i.s ? '<span>' + i.s + '</span>' : '') + '</div><div class="vb-t"><i style="width:' + Math.max(i.v ? 1 : 0, i.v / max * 100) + '%;background:' + (i.c || 'var(--blue)') + '"></i></div><div class="vb-n">' + fmtInt(i.v) + (i.p != null ? '<span>' + i.p + '%</span>' : '') + '</div></div>').join('') : '<p class="q">Sin datos en el periodo.</p>';
+}
+
+function miniTendencia(vals: number[], col?: string) {
+  const W = 96, H = 24, max = Math.max(1, ...vals), n = vals.length;
+  if (n < 2) return '';
+  const x = (i: number) => i * (W - 2) / (n - 1) + 1, y = (v: number) => H - 2 - (v / max) * (H - 4), tp = tendenciaPuntos(vals, x, y);
+  return '<svg class="spk" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '"><polyline fill="none" stroke="' + (col || '#3A76B0') + '" stroke-width="1" opacity=".55" points="' + vals.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ') + '"/>' + (tp ? '<polyline fill="none" points="' + tp + '" stroke="#26241F" stroke-width="1.5"/>' : '') + '</svg>';
+}
+export interface ItemRanking extends ItemBarra { series: number[]; tr: number | null }
+/** Ranking con minigráfico diario y tendencia. */
+export function ranking(el: HTMLElement, items: ItemRanking[], escapar: (s: string) => string, lim?: number) {
+  const max = Math.max(1, ...items.map((i) => i.v)), show = lim ? items.slice(0, lim) : items;
+  el.innerHTML = show.length ? '<div class="rk-h"><span></span><span></span><span>Pedidos</span><span>Tendencia diaria</span></div>' + show.map((i) => '<div class="rk"><div class="rk-l"><b>' + escapar(i.l) + '</b>' + (i.s ? '<span>' + i.s + '</span>' : '') + '</div><div class="vb-t"><i style="width:' + Math.max(i.v ? 1 : 0, i.v / max * 100) + '%;background:' + (i.c || 'var(--blue)') + '"></i></div><div class="vb-n">' + fmtInt(i.v) + (i.p != null ? '<span>' + i.p + '%</span>' : '') + '</div><div class="rk-t">' + miniTendencia(i.series, i.c) + tendenciaEtiqueta(i.tr) + '</div></div>').join('') + (lim && items.length > lim ? '<p class="q" style="margin-top:8px">y ' + (items.length - lim) + ' más…</p>' : '') : '<p class="q">Sin datos en el periodo.</p>';
+}

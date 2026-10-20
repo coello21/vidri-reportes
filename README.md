@@ -8,7 +8,8 @@ Tableros de preparación del CD Nejapa (Radar de Negados y Pedidos CD) en **Type
 |---|---|---|
 | 1 | Cálculos en TypeScript (negados y pedidos) con pruebas contra el tablero original y contra números reales | ✅ |
 | 2 | Conexión a Supabase y login sobre los módulos nuevos (`src/nube`, `src/app`, página `/app/`) | ✅ |
-| 3 | Pantallas: Resumen, Top negados, Pedidos CD | pendiente |
+| 3 | Pantallas: Resumen, Top negados, Pedidos CD (solo lectura; misma apariencia, comparadas contra el Radar original) | ✅ |
+| 3b | Cargar Excel, Excel por preparador y Reporte ejecutivo en la versión nueva | pendiente |
 | 4 | "Descargar HTML" de 45 días como archivo independiente | pendiente |
 | 5 | Reporte ejecutivo automático (botón **Reporte ejecutivo** en el Radar: pedidos y negados; productividad cuando su tablero esté en la base) | ✅ parcial |
 

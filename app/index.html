@@ -17,6 +17,7 @@
   <div class="navrow">
     <nav id="vxNav" aria-label="Secciones"><a href="#resumen" data-tab="resumen" class="on">Resumen</a><a href="#top" data-tab="top">Top negados</a><a href="#pedidos" data-tab="pedidos">Pedidos CD</a></nav>
     <div class="acts">
+      <button class="lnk" id="pedXlsBtn" type="button" data-show="pedidos" hidden title="Pendientes por tipo y fecha, con el detalle de pedidos">Pendientes en Excel</button>
       <a class="lnk" href="../radar/" title="El Radar que sigues usando para cargar los Excel">Radar actual</a>
       <button class="lnk" id="salir" type="button">Salir</button>
     </div>
@@ -215,10 +216,65 @@
 </section>
 
 <section class="tab" id="tab-pedidos" hidden>
-  <div class="eyebrow">Pedidos CD</div>
-  <h2 class="h2">Pantalla en construcción</h2>
-  <p class="lead">Mientras tanto, usa el <a href="../radar/#pedidos">Radar actual</a>.</p>
+  <div class="eyebrow">Asignación diaria de pedidos · reporte de transferencias</div>
+  <h2 class="h2" id="pdTitle">Cargando pedidos…</h2>
+  <p class="lead" id="pdLead"></p>
+  <div class="pd-empty" id="pdEmpty" hidden>Todavía no se ha cargado el reporte de transferencias de pedidos. Quien edita el tablero puede cargarlo con «Cargar Excel» en esta pestaña.</div>
+  <div id="pdBody" hidden>
+    <div class="pd-days-wrap"><div class="pd-days" id="pdDays"></div></div>
+    <div class="pd-period">
+      <span hidden><div id="pdChips" class="chips"></div><select id="pdFrom"></select><select id="pdTo"></select></span>
+      <span class="lbl2">Bodega</span><div id="pdBod" class="chips"></div>
+      <span class="cut" id="pdCut"></span>
+    </div>
+    <section class="kpis" aria-label="Balance del día">
+      <div class="kpi"><div class="lbl" id="pdK1L">Venían de días anteriores</div><div class="val" id="pdK1">—</div><div class="foot" id="pdK1F"></div></div>
+      <div class="kpi"><div class="lbl" id="pdK2L">+ Entraron ese día</div><div class="val" id="pdK2">—</div><div class="foot" id="pdK2F"></div></div>
+      <div class="kpi"><div class="lbl" id="pdK3L">− Se terminaron</div><div class="val" id="pdK3">—</div><div class="foot" id="pdK3F"></div></div>
+      <div class="kpi"><div class="lbl" id="pdK4L">= Sin terminar</div><div class="val acc" id="pdK4">—</div><div class="foot" id="pdK4F"></div></div>
+    </section>
+    <div class="vgrid">
+      <div class="chart full pd-chart"><h3 id="pdAsigT">Pedidos asignados por día y motivo</h3><p class="q">Últimos 15 días según la fecha del pedido. Clic en una barra para ver ese día (se marca, el gráfico no se mueve); clic de nuevo para volver a hoy. Línea discontinua = tendencia (promedio de 7 días); el día en curso se ve más claro y no cuenta. Lunes y martes resaltados.</p>
+        <div class="leg"><span><i style="background:#3A76B0"></i>Existencia</span><span><i style="background:#DE7A2C"></i>B2B</span><span><i style="background:#4B9A5A"></i>Rotación</span><span><i style="background:#9A927F"></i>Otros</span><span><i class="dash"></i>Tendencia (promedio de 7 días)</span></div><div id="pdAsig"></div></div>
+      <div class="chart full"><h3 id="pdArrT">Balance diario</h3><p class="q">Cada fila es un día, del más antiguo al más reciente: venían de días anteriores + entraron ese día − se terminaron = quedaron para el día siguiente. Lo que queda un día es lo que viene al siguiente. ▲ el pendiente creció · ▼ bajó. El día elegido va resaltado.</p><div id="pdArr"></div></div>
+    </div>
+    <div class="pd-coh">
+      <h3 id="pdCohT">—</h3>
+      <p class="q" id="pdCohQ"></p>
+      <section class="kpis k3" aria-label="Avance de los pedidos del día">
+        <div class="kpi"><div class="lbl">Recibidos sin empezar</div><div class="val acc" id="pdC2">—</div><div class="foot" id="pdC2F"></div></div>
+        <div class="kpi"><div class="lbl">En proceso</div><div class="val" id="pdC3">—</div><div class="foot" id="pdC3F"></div></div>
+        <div class="kpi"><div class="lbl">Actualizados</div><div class="val" id="pdC4">—</div><div class="foot" id="pdC4F"></div></div>
+      </section>
+      <div class="vgrid">
+        <div class="chart pd-chart"><h3>¿En qué estado están los pedidos de cada día?</h3><p class="q">Pedidos según el día en que cayeron y su estado al último corte. Naranja y azul es lo que falta; verde ya se terminó. Clic en una barra para ver ese día.</p>
+          <div class="leg"><span><i style="background:#4B9A5A"></i>Actualizados</span><span><i style="background:#3A76B0"></i>En proceso</span><span><i style="background:#DE7A2C"></i>Recibidos sin empezar</span></div><div id="pdProg"></div></div>
+        <div class="chart pd-chart"><h3 id="pdBurnT">Pedidos sin terminar</h3><p class="q">Cuántos pedidos de ese día siguen sin terminar (recibidos o en proceso), hora por hora desde que empezó el día. La línea debe ir bajando; la discontinua es el mismo día de la semana anterior, para comparar el ritmo.</p>
+          <div class="leg" id="pdBurnLeg"></div><div id="pdBurn"></div></div>
+      </div>
+    </div>
+    <div class="vgrid">
+      <div class="chart"><h3>Motivo del pedido</h3><p class="q">Pedidos del día elegido (o de los 15 días) por motivo: B2B, Existencia, Rotación y Otros. A la derecha, su comportamiento diario y tendencia.</p><div id="pdMot"></div></div>
+      <div class="chart"><h3>Bodega que prepara</h3><p class="q">Pedidos por bodega de preparación: Nejapa, Bazinni y Mobu (MOP y otras no se cuentan).</p><div id="pdBodR"></div></div>
+      <div class="chart full"><h3 id="pdSucT">Sucursal destino</h3><p class="q">Cuántos pedidos recibió cada sucursal, de qué motivo y de qué bodega salen. La barra compara el volumen entre sucursales.</p><div class="pd-tbl" id="pdSucMotT"></div><div id="pdSuc" hidden></div><div id="pdDow" hidden></div></div>
+    </div>
+    <div class="pd-sec">
+      <div class="eyebrow">Pendiente al último corte</div>
+      <h2 class="h2" id="pdPendT">—</h2>
+    </div>
+    <div class="vgrid">
+      <div class="chart full pd-chart"><h3 id="pdFlowT">Entran vs atendidos</h3><p class="q">SKUs por día. Entran = pedidos por su fecha; atendidos = pedidos por su fecha de actualizado. Líneas discontinuas = tendencia.</p><div class="leg"><span><i style="background:var(--blue)"></i>Entran</span><span><i style="background:var(--orange)"></i>Atendidos</span></div><div id="pdFlow"></div></div>
+      <div class="chart"><h3>¿Cuánto tiempo lleva el pendiente?</h3><p class="q">SKUs en recibido (sin asignar a un preparador), por horas desde que el CD recibió el pedido.</p><div id="pdAge"></div></div>
+      <div class="chart"><h3>¿De qué motivo es el pendiente?</h3><p class="q">SKUs pendientes sin asignar (Recibido) por motivo del pedido.</p><div id="pdBkType"></div></div>
+      <div class="chart full"><div class="cardhead"><div><h3>SKUs pendientes por motivo y fecha del pedido</h3><p class="q">Filas = motivo · columnas = fecha del pedido. En naranja, lo que tiene 2 días o más.</p></div></div>
+        <div class="pd-est" id="pdEstSel"><label><input type="checkbox" data-e="R" checked>Recibido</label><label><input type="checkbox" data-e="P">Procesando</label><label><input type="checkbox" data-e="E">Enviar</label></div>
+        <div class="pd-tbl" id="pdTbl"></div></div>
+    </div>
+    <p class="pd-note" id="pdNote"></p>
+  </div>
+  <footer class="vxf">Fuente: reporte de transferencias de pedidos (Document.xlsx) · Bodegas Nejapa, Bazinni y Mobu; MOP y otras se descartan al cargar · Un pedido = Número Pedido + Origen; la sucursal destino es el Origen del reporte · Asignación = fecha del pedido · Pendiente del día anterior = creado antes de ese día y sin actualizar al iniciarlo · Pendiente actual = RECIBIDO o PROCESANDO en el último corte · Tendencia = promedio móvil de 7 días completos (con menos de 10 días, recta de ajuste); “sube/baja %” = últimos 7 días contra los 7 anteriores · Son pedidos y SKUs; no se mezclan con las líneas del Radar de negados</footer>
 </section>
+
 <footer class="vxf" data-show="radar">Generado a partir de "Rpt_OrdenesPreparacion.xlsx" &middot; Solo líneas en estado A (listas para despacho); P y R se muestran como pendientes &middot; Día = Fecha Actualizado &middot; Duplicados: mismo Pedido + SKU (en reasignaciones se toma la orden en A) y misma Orden + SKU idéntica &middot; Negado = Cantidad Preparada igual a 0 &middot; Exactitud de picking = líneas mandadas completas ÷ líneas preparadas (meta ≥ 99,5%) &middot; Fill rate B2B = pedidos con Razón "Venta corporativa" en alguna de sus filas, con todas sus líneas completas ÷ pedidos corporativos cerrados</footer>
 </div>
 <script type="module" src="../src/app/main.ts"></script>
