@@ -1,55 +1,69 @@
+import './radar.css';
 import './estilos.css';
 import { RadarNegados } from '../core/negados/radar';
 import { PedidosCD } from '../core/pedidos/cd';
-import { DIAS_LARGO, MESES_CORTO, diaDeMin } from '../core/comun/fechas';
 import { CONFIG } from '../nube/config';
 import { BaseSupabase } from '../nube/base';
 import { Almacen } from '../nube/almacen';
-import { crearCliente, iniciarSesion, cargando, quitarPantalla, esc } from './sesion';
-
-const fmt = (v: number) => new Intl.NumberFormat('es-SV').format(Math.round(v || 0));
-const pct = (a: number, b: number) => (b ? (a / b * 100).toFixed(1).replace('.', ',') + '%' : '–');
-const fecha = (d: string | null) => d ? DIAS_LARGO[new Date(d + 'T00:00:00Z').getUTCDay()] + ' ' + (+d.slice(8)) + ' ' + MESES_CORTO[+d.slice(5, 7) - 1] : '–';
-const hora = (min: number) => { const x = new Date(min * 60000); let h = x.getUTCHours(); const ap = h < 12 ? 'a. m.' : 'p. m.'; h = h % 12 || 12; return h + ':' + String(x.getUTCMinutes()).padStart(2, '0') + ' ' + ap; };
+import { crearCliente, iniciarSesion, cargando, quitarPantalla } from './sesion';
+import { Resumen } from './resumen';
+import { $ } from './ui/formato';
 
 /** Estado de la aplicación: los mismos módulos que ya están probados contra el tablero original. */
-export interface App { radar: RadarNegados; pedidos: PedidosCD; almacen: Almacen; usuario: string }
+export interface App { radar: RadarNegados; pedidos: PedidosCD; almacen: Almacen; usuario: string; resumen: Resumen }
 
-function tarjeta(l: string, v: string, s: string) {
-  return '<div class="k"><div class="l">' + esc(l) + '</div><div class="v">' + esc(v) + '</div><div class="s">' + esc(s) + '</div></div>';
+const PESTANAS = ['resumen', 'top', 'pedidos'] as const;
+type Pestana = typeof PESTANAS[number];
+
+function ponerPestana(app: App, t: string) {
+  const p: Pestana = (PESTANAS as readonly string[]).includes(t) ? t as Pestana : 'resumen';
+  document.querySelectorAll<HTMLElement>('#vxNav a').forEach((a) => a.classList.toggle('on', a.dataset.tab === p));
+  PESTANAS.forEach((x) => { $('tab-' + x).hidden = x !== p; });
+  const radar = p !== 'pedidos';
+  document.querySelectorAll<HTMLElement>('[data-show="radar"]').forEach((e) => { e.hidden = !radar; });
+  document.querySelectorAll<HTMLElement>('[data-show="pedidos"]').forEach((e) => { e.hidden = radar; });
+  try { if (location.hash !== '#' + p) history.replaceState(null, '', '#' + p); } catch { /* sin historial */ }
+  if (p === 'resumen' && app.resumen.vm) app.resumen.renderMotivo(app.resumen.vm);
 }
 
-function verificacion(app: App) {
-  const { radar, pedidos } = app;
-  const dias = radar.dias(), ult = dias[dias.length - 1] || null, vd = ult ? radar.vistaDia(ult) : null, m = vd?.meta || {};
-  const lc = pedidos.ultimoCorte(), bal = pedidos.balance(), hoy = bal[bal.length - 1];
-  const sinAsig = pedidos.pendientes(['R']).ok.length;
-  document.getElementById('contenido')!.innerHTML =
-    '<div class="eb">Versión nueva · en construcción</div>' +
-    '<h1>Datos leídos de la base con los módulos en TypeScript</h1>' +
-    '<p class="lead">Esta página todavía no tiene las pantallas del Radar: sirve para comprobar que la versión nueva lee lo mismo. ' +
-    'Compara estos números con el <a href="../radar/">Radar actual</a>; si coinciden, el siguiente paso son las pantallas. ' +
-    'Sigue cargando los Excel en el Radar actual.</p>' +
-    '<div class="kpis">' +
-    tarjeta('Días de negados cargados', fmt(dias.length), dias.length ? 'del ' + fecha(dias[0]) + ' al ' + fecha(ult) : 'sin datos') +
-    tarjeta('Negados · ' + fecha(ult), vd ? pct(m.totalNegados, m.totalFinal) : '–', vd ? fmt(m.totalNegados) + ' de ' + fmt(m.totalFinal) + ' líneas' + (ult && radar.isPartialDay(ult) ? ' · día parcial' : '') : '') +
-    tarjeta('Pedidos cargados', fmt(pedidos.rows.size), lc ? 'último corte: ' + fecha(diaDeMin(lc)) + ', ' + hora(lc) : 'sin cortes') +
-    tarjeta('Sin terminar al corte', hoy ? fmt(hoy.fin) : '–', hoy ? 'empezó en ' + fmt(hoy.ini) + ' · +' + fmt(hoy.ent) + ' · −' + fmt(hoy.ter) + ' · ' + fmt(sinAsig) + ' sin asignar' : '') +
-    '</div>';
+/** Solo en desarrollo (npm run dev, ?prueba=1): abre la página con los datos locales de prueba, sin iniciar sesión. */
+async function arrancarPrueba(): Promise<boolean> {
+  if (!import.meta.env.DEV || !new URLSearchParams(location.search).get('prueba')) return false;
+  const r = await fetch(import.meta.env.BASE_URL + 'tests/fixtures/radar-2026-10-19.local.json.gz');
+  const buf = new Uint8Array(await r.arrayBuffer()); // el servidor de desarrollo a veces ya lo entrega descomprimido
+  const txt = buf[0] === 0x1f && buf[1] === 0x8b ? await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text() : new TextDecoder().decode(buf);
+  const E = JSON.parse(txt);
+  const radar = new RadarNegados(E.history, E.store);
+  const app = { radar, pedidos: new PedidosCD(E.pedidos), almacen: null as unknown as Almacen, usuario: 'prueba', resumen: new Resumen(radar) };
+  (window as unknown as { __APP: App }).__APP = app;
+  document.querySelectorAll<HTMLAnchorElement>('#vxNav a').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); ponerPestana(app, a.dataset.tab || ''); }));
+  quitarPantalla();
+  ponerPestana(app, (location.hash || '').slice(1));
+  app.resumen.iniciar();
+  return true;
 }
 
 async function arrancar() {
+  if (await arrancarPrueba()) return;
   const sb = crearCliente();
   await iniciarSesion(sb, async (s) => {
     const almacen = new Almacen(new BaseSupabase(sb));
     const todo = !!new URLSearchParams(location.search).get('todo');
     const datos = await almacen.leer({ diasRadar: CONFIG.DIAS_RADAR, diasPedidos: CONFIG.DIAS_PEDIDOS, todo }, (e, p) => cargando(e + '… ' + p + '%'));
-    const app: App = { radar: new RadarNegados(datos.history, datos.store), pedidos: new PedidosCD(datos.pedidos), almacen, usuario: s.user?.email || '' };
+    cargando('Armando el tablero…');
+    const radar = new RadarNegados(datos.history, datos.store);
+    const app: App = { radar, pedidos: new PedidosCD(datos.pedidos), almacen, usuario: s.user?.email || '', resumen: new Resumen(radar) };
     (window as unknown as { __APP: App }).__APP = app;
-    document.getElementById('usuario')!.textContent = app.usuario;
-    document.getElementById('salir')!.addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
-    verificacion(app);
+
+    $('usuario').textContent = app.usuario;
+    $('salir').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+    document.getElementById('downloadFillRateBtn')?.setAttribute('hidden', '');
+    document.querySelectorAll<HTMLAnchorElement>('#vxNav a').forEach((a) => a.addEventListener('click', (e) => {
+      e.preventDefault(); ponerPestana(app, a.dataset.tab || ''); window.scrollTo({ top: 0, behavior: 'smooth' });
+    }));
     quitarPantalla();
+    ponerPestana(app, (location.hash || '').slice(1));
+    app.resumen.iniciar();
   });
 }
 
