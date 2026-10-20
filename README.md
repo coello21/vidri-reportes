@@ -7,7 +7,7 @@ Tableros de preparación del CD Nejapa (Radar de Negados y Pedidos CD) en **Type
 | Paso | Qué | Estado |
 |---|---|---|
 | 1 | Cálculos en TypeScript (negados y pedidos) con pruebas contra el tablero original y contra números reales | ✅ |
-| 2 | Conexión a Supabase y login sobre los módulos nuevos | pendiente |
+| 2 | Conexión a Supabase y login sobre los módulos nuevos (`src/nube`, `src/app`, página `/app/`) | ✅ |
 | 3 | Pantallas: Resumen, Top negados, Pedidos CD | pendiente |
 | 4 | "Descargar HTML" de 45 días como archivo independiente | pendiente |
 | 5 | Reporte ejecutivo automático (botón **Reporte ejecutivo** en el Radar: pedidos y negados; productividad cuando su tablero esté en la base) | ✅ parcial |
@@ -25,6 +25,8 @@ tests/                   Pruebas (Vitest)
   original/              Copia del código del tablero HTML original, para comparar resultados
   helpers/               Generador de reportes sintéticos con todos los casos raros
   fixtures/              Datos reales SOLO en tu computadora (*.local.*, no se suben)
+src/nube/                Lectura y guardado en Supabase (solo lo que cambió)
+src/app/                 Versión nueva de la página (/app/)
 public/                  Lo que se publica tal cual (Radar actual, config.js, librería de Supabase)
 supabase/                SQL de las tablas y la seguridad
 scripts/                 Utilidades (sacar datos de prueba de un HTML del Radar)
