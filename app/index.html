@@ -120,9 +120,100 @@
 
 <section class="tab" id="tab-top" hidden>
   <div class="eyebrow">Top negados</div>
-  <h2 class="h2">Pantalla en construcción</h2>
-  <p class="lead">Mientras tanto, usa el <a href="../radar/#top">Radar actual</a>.</p>
+  <h2 class="h2" id="tpTitle">—</h2>
+  <p class="lead" id="tpLead"></p>
+  
+  <div class="vgrid">
+    <div class="chart full">
+      <div class="cardhead"><div><div class="rk-eb">Ranking 1</div><h3>Top 10 por cantidad de veces negado</h3><p class="q">Del día o rango elegido. Unidades = cantidad solicitada en las líneas negadas. Con existencia = % de las veces en que el sistema mostraba stock. Tendencia = veces negado por día en la ventana; la línea discontinua es su promedio.</p></div>
+      <button class="btn" id="downloadTopCodesBtn" type="button" title="Un solo Excel: Top 10 por veces negado y, en otra pestaña, Top 5 por unidades negadas">Descargar Excel</button></div>
+      <div id="topBars"></div>
+    </div>
+    <div class="chart full pd-chart" hidden>
+      <h3 id="vxTopTrendT">Tendencia del Top 10</h3>
+      <p class="q">Veces negadas por día de los 10 códigos del ranking. La línea discontinua es el promedio diario (sin contar el día en curso). Clic en una barra para ver ese día.</p>
+      <div id="vxTopTrend"></div>
+    </div>
+    <div class="chart full">
+      <div class="rk-eb">Ranking 2</div><h3>Top 5 por cantidad de unidades negadas</h3>
+      <p class="q">Separado por unidad de medida, porque un paquete, un metro y una unidad no se pueden sumar entre sí. <span id="vxR2Note"></span></p>
+      <div id="vxR2" class="r2grid"></div>
+    </div>
+    <div class="chart">
+        <h3>Motivo del rechazo</h3>
+        <p class="cardsub">Líneas negadas según la existencia en sistema</p>
+        <div class="donutwrap">
+          <svg id="donutSvg" width="150" height="150" viewBox="0 0 150 150"></svg>
+          <div class="legend" id="donutLegend"></div>
+        </div>
+      </div>
+    <div class="chart">
+        <h3>Negados por sucursal</h3>
+        <p class="cardsub">Ranking de tiendas por líneas negadas</p>
+        <div id="storeBars"></div>
+      </div>
+    <div class="chart full tablecard">
+        <div class="cardhead">
+          <div>
+            <h3>Detalle de códigos negados</h3>
+            <p class="cardsub">Código, descripción y veces negado. Puedes elegir uno o varios motivos.</p>
+          </div>
+          <button class="btn" id="detailDlBtn" type="button" title="Descarga en Excel lo que ves en la tabla: fechas y motivos elegidos">Descargar Excel</button>
+        </div>
+        <div class="table-controls">
+          <div class="search">
+            <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <input type="text" id="searchInput" placeholder="Buscar código o descripción…">
+          </div>
+          <div class="seg" id="bucketFilter" role="group" aria-label="Filtrar por disponibilidad">
+            <button data-bucket="all" class="active">Todos</button>
+            <button data-bucket="positivo">Error en el proceso</button>
+            <button data-bucket="cero">Sin existencia</button>
+            <button data-bucket="negativo">Inventario negativo</button>
+          </div>
+        </div>
+        <div class="tablescroll">
+          <table id="detailTable">
+            <thead>
+              <tr>
+                <th data-key="sku" style="width:110px;"><span class="th-label">Código</span></th>
+                <th data-key="desc"><span class="th-label">Descripción</span></th>
+                <th data-key="bucket" style="width:170px;"><span class="th-label">Motivo</span></th>
+                <th data-key="count" style="width:90px;text-align:right;"><span class="th-label">Veces</span></th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+        <div class="table-meta">
+          <span id="tableCount">—</span>
+          <span>Clic en un encabezado para ordenar</span>
+        </div>
+      </div>
+    
+    
+    
+    <div hidden><div class="chart">
+        <h3>Negados por hora del día</h3>
+        <p class="cardsub">Hora en que se confirmó el negado (Fecha Actualizado). Días de la versión anterior usan la hora de creación.</p>
+        <div class="spark-wrap" id="sparkWrap">
+          <svg id="sparkSvg" viewBox="0 0 400 130" preserveAspectRatio="none"></svg>
+          <div class="spark-tip" id="sparkTip"></div>
+        </div>
+      </div> <div class="chart full" id="categoriaCard">
+    <div class="cardhead">
+      <div>
+        <h3>Top 20 códigos negados por categoría</h3>
+        <p class="cardsub" id="catBarsSub">Elige una categoría para ver sus 20 códigos más negados</p>
+      </div>
+    </div>
+    <div class="seg cat-tabs" id="catTabs" role="group" aria-label="Filtrar por categoría"></div>
+    <div class="barlist-title"><span></span><span></span><span style="text-align:right">Veces</span></div>
+    <div id="catBars"></div>
+  </div></div>
+  </div>
 </section>
+
 <section class="tab" id="tab-pedidos" hidden>
   <div class="eyebrow">Pedidos CD</div>
   <h2 class="h2">Pantalla en construcción</h2>
