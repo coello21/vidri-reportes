@@ -3859,51 +3859,40 @@ function lnCards(vm){
 }
 (function(){ const _lnR = render; render = function(vm){ _lnR(vm); try{ lnCards(vm); }catch(e){ console.error(e); } }; })();
 
-// Pedidos preparados = pedidos distintos con "Fecha Enviado Revisión" en el día o rango (criterio del área de preparación).
-// Se guarda por día en STORE.rev y se va juntando con cada Excel que se carga.
+// Líneas preparadas = líneas (Pedido + SKU) entregadas al revisador ("Fecha Enviado Revisión"), criterio del área de preparación.
+// Se cuentan una sola vez aunque vengan en varios Excel. Se guarda:
+//   STORE.revN = día -> líneas (para siempre; un número por día)
+//   STORE.revK = día -> llaves "pedido|sku" contadas ese día (solo los últimos KEEP_DAYS días, para no contar doble)
+//   STORE.revX = día -> llaves que se quitaron por devolución (mismos días), para que un Excel viejo no las vuelva a sumar
+// Si un Excel más nuevo trae la línea con otra Fecha Enviado Revisión, se mueve de día; si ya no la trae
+// (se devolvió al preparador y perdió la fecha), se quita de su día.
 (function(){ const _ir = integrateRecords; integrateRecords = function(records){
-  // Por día de envío a revisión: pedido -> [líneas, negadas, con stock, en 0, negativas, completas].
-  // Un archivo más nuevo manda: los pedidos que trae se recalculan (si la orden se devolvió al preparador y perdió la fecha, sale de ese día).
-  try{ ensureStore(); STORE.rev = STORE.rev || {}; const add = {}, inFile = new Set(); let corte = 0;
+  try{ ensureStore(); STORE.revN = STORE.revN || {}; STORE.revK = STORE.revK || {}; delete STORE.rev; delete STORE.revT;
+    let corte = 0; const by = new Map();
     (records || []).forEach(r => { [r.FechaAct, r.FechaRevision, r.Fecha].forEach(x => { const v = timeOf(x); if(v > corte) corte = v; });
-      if(r.Pedido == null || r.Pedido === '') return; const p = String(r.Pedido); inFile.add(p);
-      const f = r.FechaRevision; if(!f) return; const d = ymd(f);
-      const D = add[d] || (add[d] = {}), P = D[p] || (D[p] = new Map()), k = String(r.SKU), o = P.get(k);
-      if(!o || (r.Estado === 'A' && o.Estado !== 'A')) P.set(k, r); });
-    const newer = corte >= (STORE.revT || 0), touched = new Set();
-    const calc = M => { const a = [0,0,0,0,0,0]; M.forEach(r => { a[0]++; const cp = r.CantPrep || 0;
-      if(cp === 0){ a[1]++; const dv = r.Disponible || 0; if(dv > 0) a[2]++; else if(dv === 0) a[3]++; else a[4]++; }
-      else if(r.Cantidad != null && cp >= r.Cantidad) a[5]++; }); return a; };
-    if(newer){
-      for(const d in STORE.rev){ const cur = STORE.rev[d]; if(Array.isArray(cur)){ STORE.rev[d] = {}; continue; }
-        for(const p in cur) if(inFile.has(p) && !(add[d] && add[d][p])){ delete cur[p]; touched.add(d); } }
-      STORE.revT = corte;
-    }
-    for(const d in add){ let cur = STORE.rev[d]; if(!cur || Array.isArray(cur)) cur = STORE.rev[d] = {};
-      for(const p in add[d]){ const a = calc(add[d][p]), old = cur[p];
-        if(newer || !Array.isArray(old)){ if(JSON.stringify(old) !== JSON.stringify(a)){ cur[p] = a; touched.add(d); } } } }
-    touched.forEach(d => { const m = d.slice(0,7); if(typeof TOUCH !== 'undefined' && Object.keys(HISTORY).some(k => k.slice(0,7) === m)) TOUCH.add(m); });
+      if(r.Pedido == null || r.Pedido === '' || r.SKU == null) return; const k = r.Pedido + '|' + r.SKU, o = by.get(k);
+      if(!o || (r.Estado === 'A' && o.Estado !== 'A') || (!o.FechaRevision && r.FechaRevision)) by.set(k, r); });
+    const newer = corte >= (STORE.revKT || 0);
+    const leer = o => { const M = new Map(); for(const d in (o || {})) (o[d] ? o[d].split(',') : []).forEach(k => M.set(k, d)); return M; };
+    const K = leer(STORE.revK), X = leer(STORE.revX); // X = líneas que se devolvieron: un Excel más viejo no las vuelve a sumar
+    const touched = new Set(), add = (d, n) => { STORE.revN[d] = (STORE.revN[d] || 0) + n; if(STORE.revN[d] <= 0) delete STORE.revN[d]; touched.add(d); };
+    by.forEach((r, k) => { const old = K.get(k), d = r.FechaRevision ? ymd(r.FechaRevision) : null;
+      if(d && !old){ if(!newer && X.has(k)) return; K.set(k, d); X.delete(k); add(d, 1); }
+      else if(d && old !== d && newer){ K.set(k, d); add(old, -1); add(d, 1); }
+      else if(!d && old && newer){ K.delete(k); X.set(k, old); add(old, -1); } });
+    if(newer) STORE.revKT = corte;
+    const days = [...new Set(K.values())].sort(), keep = days.length ? addDays(days[days.length-1], -KEEP_DAYS) : null;
+    const guardar = M => { const G = {}; M.forEach((d, k) => { if(keep && d < keep) return; (G[d] || (G[d] = [])).push(k); }); const o = {}; for(const d in G) o[d] = G[d].join(','); return o; };
+    STORE.revK = guardar(K); STORE.revX = guardar(X);
+    if(touched.size && typeof TOUCH !== 'undefined'){ const ds = Object.keys(HISTORY).sort(); if(ds.length) TOUCH.add(ds[ds.length-1].slice(0,7)); }
   }catch(e){ console.error(e); }
   return _ir.apply(this, arguments); }; })();
 function pedPrepCard(vm){
-  // Base: líneas (Pedido + SKU) enviadas a revisión en el día o rango (Fecha Enviado Revisión), criterio del área.
   const $ = id => document.getElementById(id); if(!$('kpiTotal')) return;
-  const R = (STORE && STORE.rev) || {}, from = vm.date || vm.rangeFrom, to = vm.date || vm.rangeTo;
-  const s = [0,0,0,0,0,0]; let has = false, full = true;
-  Object.keys(R).forEach(d => { if(d < from || d > to || Array.isArray(R[d])) return; has = true;
-    for(const p in R[d]){ const v = R[d][p]; if(Array.isArray(v)) v.forEach((x,i) => s[i] += x); else { s[0] += v; full = false; } } });
-  $('kpiTotal').textContent = has ? fmtInt(s[0]) : '—';
+  const N = (STORE && STORE.revN) || {}, from = vm.date || vm.rangeFrom, to = vm.date || vm.rangeTo;
+  let s = 0, has = false; for(const d in N){ if(d < from || d > to) continue; has = true; s += N[d]; }
+  $('kpiTotal').textContent = has ? fmtInt(s) : '—';
   const pf = $('kpiDupesFoot'); if(pf) pf.textContent = '';
-  return;   // solo Líneas preparadas va por Fecha Enviado Revisión; lo demás sigue por Fecha Actualizado
-  const [n, ng, pos, z, neg, ex] = s, pp = n ? ng / n * 100 : 0, prep = n - ng;
-  $('kpiNegados').textContent = fmtInt(ng);
-  $('kpiPct').parentNode.innerHTML = 'de <b>' + fmtInt(n) + '</b> líneas (<b id="kpiPct">' + fmtPct(pp) + '</b>)';
-  $('kpiFalloProceso').textContent = fmtInt(pos);
-  $('vxFalloFoot').innerHTML = '<b>' + (ng ? Math.round(pos / ng * 100) : 0) + '%</b> de las negadas · había stock';
-  $('vxSinStock').textContent = fmtInt(z + neg);
-  $('vxSinStockFoot').innerHTML = '<b>' + (ng ? 100 - Math.round(pos / ng * 100) : 0) + '%</b> · ' + fmtInt(z) + ' en 0 y ' + fmtInt(neg) + ' negativo';
-  if(prep){ const pc = ex / prep * 100, c = $('kpiExactCard'); $('kpiExact').textContent = fmtPct(pc); c.classList.remove('ok','bad'); c.classList.add(pc >= EXACTITUD_META ? 'ok' : 'bad');
-    $('kpiExactFoot').innerHTML = '<b>' + fmtInt(ex) + '</b> de ' + fmtInt(prep) + ' completas <span class="meta-tag">meta ≥ 99,5%</span>'; }
 }
 (function(){ const _pr = render; render = function(vm){ _pr(vm); try{ pedPrepCard(vm); }catch(e){ console.error(e); } }; })();
 
