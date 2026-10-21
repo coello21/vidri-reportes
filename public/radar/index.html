@@ -3868,33 +3868,33 @@ function lnCards(vm){
 }
 (function(){ const _lnR = render; render = function(vm){ _lnR(vm); try{ lnCards(vm); }catch(e){ console.error(e); } }; })();
 
-// Líneas preparadas = líneas (Pedido + Orden + SKU) entregadas al revisador ("Fecha Enviado Revisión"), criterio del área de preparación.
-// Misma llave que usa el área: si a una línea le hacen una orden nueva y se manda otra vez a revisión, cuenta en cada orden.
+// Líneas preparadas = líneas (Pedido + Código) entregadas al revisador ("Fecha Enviado Revisión"), criterio del área de preparación.
+// Cada línea cuenta UNA vez, en el día de su última entrega al revisador: si la reasignan (orden nueva) y la entregan otro día,
+// se quita del día anterior y se suma al día nuevo. Si se entregó un día y se actualizó al día siguiente, se queda en el día de la entrega.
 // Se cuentan una sola vez aunque vengan en varios Excel. Se guarda:
 //   STORE.revN = día -> líneas (para siempre; un número por día)
-//   STORE.revK = día -> llaves "pedido|orden|sku" contadas ese día (solo los últimos KEEP_DAYS días, para no contar doble)
+//   STORE.revK = día -> llaves "pedido|sku" contadas ese día (solo los últimos KEEP_DAYS días, para no contar doble)
 //   STORE.revX = día -> llaves que se quitaron por devolución (mismos días), para que un Excel viejo no las vuelva a sumar
 // Si un Excel más nuevo trae la línea con otra Fecha Enviado Revisión, se mueve de día; si la trae sin fecha
-// (se devolvió al preparador), se quita de su día. Las órdenes que no vienen en el Excel se quedan como estaban.
-// Llaves viejas "pedido|sku" (del 20 y 21 oct): se pasan a la llave nueva la primera vez que aparece la línea.
+// (se devolvió al preparador), se quita de su día. Las líneas que no vienen en el Excel se quedan como estaban.
+// Llaves "pedido|orden|sku" (20 y 21 oct): se pasan a "pedido|sku" al leerlas (no había líneas repetidas en dos órdenes).
 (function(){ const _ir = integrateRecords; integrateRecords = function(records){
   try{ ensureStore(); STORE.revN = STORE.revN || {}; STORE.revK = STORE.revK || {}; delete STORE.rev; delete STORE.revT;
-    let corte = 0; const by = new Map();
+    let corte = 0; const by = new Map(), tr = x => x ? x.getTime() : 0;
     (records || []).forEach(r => { [r.FechaAct, r.FechaRevision, r.Fecha].forEach(x => { const v = timeOf(x); if(v > corte) corte = v; });
-      if(r.Pedido == null || r.Pedido === '' || r.SKU == null) return; const k = r.Pedido + '|' + (r.Orden == null ? '' : r.Orden) + '|' + r.SKU, o = by.get(k);
-      if(!o || (r.Estado === 'A' && o.Estado !== 'A') || (!o.FechaRevision && r.FechaRevision)) by.set(k, r); });
+      if(r.Pedido == null || r.Pedido === '' || r.SKU == null) return; const k = r.Pedido + '|' + r.SKU, o = by.get(k);
+      // varias órdenes de la misma línea: manda la última entrega al revisador
+      if(!o || tr(r.FechaRevision) > tr(o.FechaRevision) || (tr(r.FechaRevision) === tr(o.FechaRevision) && r.Estado === 'A' && o.Estado !== 'A')) by.set(k, r); });
     const newer = corte >= (STORE.revKT || 0);
-    const leer = o => { const M = new Map(), V = new Map(); for(const d in (o || {})) (o[d] ? o[d].split(',') : []).forEach(k => (k.split('|').length === 2 ? V : M).set(k, d)); return [M, V]; };
-    const [K, K2] = leer(STORE.revK), [X, X2] = leer(STORE.revX); // X = líneas que se devolvieron: un Excel más viejo no las vuelve a sumar
+    const leer = o => { const M = new Map(); for(const d in (o || {})) (o[d] ? o[d].split(',') : []).forEach(k => { const p = k.split('|'), k2 = p.length === 3 ? p[0] + '|' + p[2] : k, e = M.get(k2); if(!e || d > e) M.set(k2, d); }); return M; };
+    const K = leer(STORE.revK), X = leer(STORE.revX); // X = líneas que se devolvieron: un Excel más viejo no las vuelve a sumar
+    X.forEach((d, k) => { if(K.has(k)) X.delete(k); });
     const touched = new Set(), add = (d, n) => { STORE.revN[d] = (STORE.revN[d] || 0) + n; if(STORE.revN[d] <= 0) delete STORE.revN[d]; touched.add(d); };
-    by.forEach((r, k) => { const p = k.split('|'), k2 = p[0] + '|' + p[2];
-      if(!K.has(k) && K2.has(k2)){ K.set(k, K2.get(k2)); K2.delete(k2); }
-      if(!X.has(k) && X2.has(k2)){ X.set(k, X2.get(k2)); X2.delete(k2); }
+    by.forEach((r, k) => {
       const old = K.get(k), d = r.FechaRevision ? ymd(r.FechaRevision) : null;
       if(d && !old){ if(!newer && X.has(k)) return; K.set(k, d); X.delete(k); add(d, 1); }
       else if(d && old !== d && newer){ K.set(k, d); add(old, -1); add(d, 1); }
       else if(!d && old && newer){ K.delete(k); X.set(k, old); add(old, -1); } });
-    K2.forEach((d, k) => K.set(k, d)); X2.forEach((d, k) => X.set(k, d));
     if(newer) STORE.revKT = corte;
     const days = [...new Set(K.values())].sort(), keep = days.length ? addDays(days[days.length-1], -KEEP_DAYS) : null;
     const guardar = M => { const G = {}; M.forEach((d, k) => { if(keep && d < keep) return; (G[d] || (G[d] = [])).push(k); }); const o = {}; for(const d in G) o[d] = G[d].join(','); return o; };

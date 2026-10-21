@@ -25,41 +25,44 @@ function corteDe(records: Registro[]): number {
 }
 
 /**
- * Cuenta cada línea (Pedido + Orden + SKU) una sola vez en el día de su Fecha Enviado Revisión (misma llave que usa el área:
- * si a una línea le hacen una orden nueva y se manda otra vez a revisión, cuenta en cada orden).
+ * Cuenta cada línea (Pedido + Código) una sola vez, en el día de su última "Fecha Enviado Revisión" (criterio del área):
+ * si la reasignan (orden nueva) y la entregan otro día, se quita del día anterior y se suma al nuevo; si se entregó un día
+ * y se actualizó al siguiente, se queda en el día de la entrega.
  * Guarda el total por día (revN) y las llaves de los últimos `keepDays` días (revK) para no contar doble;
  * si un Excel más nuevo trae otra fecha, la mueve de día; si la trae sin fecha (se devolvió), la quita y la
- * anota en revX para que un Excel más viejo no la vuelva a sumar. Las llaves viejas "pedido|sku" se pasan a la
- * llave nueva la primera vez que aparece la línea. Devuelve los días que cambiaron.
+ * anota en revX para que un Excel más viejo no la vuelva a sumar. Las llaves "pedido|orden|sku" guardadas
+ * se leen como "pedido|sku". Devuelve los días que cambiaron.
  */
 export function contarRevision(store: StoreRadar, records: Registro[], keepDays: number): Set<string> {
   const S = store as Store;
   S.revN = S.revN || {}; S.revK = S.revK || {};
   delete S.rev; delete S.revT;
   const corte = corteDe(records), by = new Map<string, Registro>();
+  const tr = (x?: Date | null) => (x ? x.getTime() : 0);
   records.forEach((r) => {
     if (r.Pedido == null || r.Pedido === '' || r.SKU == null) return;
-    const k = r.Pedido + '|' + (r.Orden == null ? '' : r.Orden) + '|' + r.SKU, o = by.get(k);
-    if (!o || (r.Estado === 'A' && o.Estado !== 'A') || (!o.FechaRevision && r.FechaRevision)) by.set(k, r);
+    const k = r.Pedido + '|' + r.SKU, o = by.get(k);
+    // varias órdenes de la misma línea: manda la última entrega al revisador
+    if (!o || tr(r.FechaRevision) > tr(o.FechaRevision) || (tr(r.FechaRevision) === tr(o.FechaRevision) && r.Estado === 'A' && o.Estado !== 'A')) by.set(k, r);
   });
   const newer = corte >= (S.revKT || 0);
-  const leer = (o?: Record<string, string>): [Map<string, string>, Map<string, string>] => {
-    const M = new Map<string, string>(), V = new Map<string, string>();
-    for (const d in o || {}) (o![d] ? o![d].split(',') : []).forEach((k) => (k.split('|').length === 2 ? V : M).set(k, d));
-    return [M, V];
+  const leer = (o?: Record<string, string>): Map<string, string> => {
+    const M = new Map<string, string>();
+    for (const d in o || {}) (o![d] ? o![d].split(',') : []).forEach((k) => {
+      const p = k.split('|'), k2 = p.length === 3 ? p[0] + '|' + p[2] : k, e = M.get(k2);
+      if (!e || d > e) M.set(k2, d);
+    });
+    return M;
   };
-  const [K, K2] = leer(S.revK), [X, X2] = leer(S.revX), N = S.revN, touched = new Set<string>();
+  const K = leer(S.revK), X = leer(S.revX), N = S.revN, touched = new Set<string>();
+  X.forEach((_d, k) => { if (K.has(k)) X.delete(k); });
   const add = (d: string, n: number) => { N[d] = (N[d] || 0) + n; if (N[d] <= 0) delete N[d]; touched.add(d); };
   by.forEach((r, k) => {
-    const p = k.split('|'), k2 = p[0] + '|' + p[2];
-    if (!K.has(k) && K2.has(k2)) { K.set(k, K2.get(k2)!); K2.delete(k2); }
-    if (!X.has(k) && X2.has(k2)) { X.set(k, X2.get(k2)!); X2.delete(k2); }
     const old = K.get(k), d = r.FechaRevision ? ymd(r.FechaRevision) : null;
     if (d && !old) { if (!newer && X.has(k)) return; K.set(k, d); X.delete(k); add(d, 1); }
     else if (d && old && old !== d && newer) { K.set(k, d); add(old, -1); add(d, 1); }
     else if (!d && old && newer) { K.delete(k); X.set(k, old); add(old, -1); }
   });
-  K2.forEach((d, k) => K.set(k, d)); X2.forEach((d, k) => X.set(k, d));
   if (newer) S.revKT = corte;
   const days = [...new Set(K.values())].sort(), keep = days.length ? addDays(days[days.length - 1], -keepDays) : null;
   const guardar = (M: Map<string, string>) => {

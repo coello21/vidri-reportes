@@ -36,17 +36,34 @@ describe('Líneas preparadas (Fecha Enviado Revisión)', () => {
   });
 });
 
-describe('Líneas preparadas: llave pedido + orden + código', () => {
-  it('cuenta en cada orden y pasa sin duplicar las llaves viejas pedido|sku', () => {
-    const st = {} as StoreRadar & { revK?: Record<string, string> };
-    // una línea reasignada a otra orden y mandada otra vez a revisión el mismo día: cuenta 2
-    contarRevision(st, [rec(1, 'a', '2026-10-20T10:00:00', 'A', { Orden: 'O1' }), rec(1, 'a', '2026-10-20T15:00:00', 'A', { Orden: 'O2' })], 10);
-    expect(lineasPreparadas(st, '2026-10-20', '2026-10-20')).toBe(2);
-    // datos guardados con la llave vieja (pedido|sku): al volver a venir la línea no se suma otra vez
-    const viejo = { revN: { '2026-10-20': 2 }, revK: { '2026-10-20': '5|a,6|b' }, revKT: 0 } as unknown as StoreRadar;
+describe('Líneas preparadas: reasignación (pedido + código)', () => {
+  it('una línea reasignada cuenta una vez, en el día de su última entrega al revisador', () => {
+    const st = {} as StoreRadar;
+    // martes: entregada en la orden O1
+    contarRevision(st, [conCorte(rec(1, 'a', '2026-10-20T10:00:00', 'P', { Orden: 'O1' }), '2026-10-20T17:00:00')], 10);
+    expect(lineasPreparadas(st, '2026-10-20', '2026-10-20')).toBe(1);
+    // miércoles: reasignada (orden O2) pero aún sin entregar: se queda en el martes
+    contarRevision(st, [rec(1, 'a', '2026-10-20T10:00:00', 'P', { Orden: 'O1' }), conCorte(rec(1, 'a', null, 'P', { Orden: 'O2' }), '2026-10-21T08:00:00')], 10);
+    expect(lineasPreparadas(st, '2026-10-20', '2026-10-20')).toBe(1);
+    // miércoles: O2 entregada: se quita del martes y se suma al miércoles
+    contarRevision(st, [rec(1, 'a', '2026-10-20T10:00:00', 'P', { Orden: 'O1' }), conCorte(rec(1, 'a', '2026-10-21T11:00:00', 'A', { Orden: 'O2' }), '2026-10-21T12:00:00')], 10);
+    expect(lineasPreparadas(st, '2026-10-20', '2026-10-20')).toBeNull();
+    expect(lineasPreparadas(st, '2026-10-21', '2026-10-21')).toBe(1);
+  });
+
+  it('entregada un día y actualizada al siguiente: se queda en el día de la entrega', () => {
+    const st = {} as StoreRadar;
+    contarRevision(st, [conCorte(rec(1, 'a', '2026-10-20T16:00:00'), '2026-10-20T17:00:00')], 10);
+    contarRevision(st, [{ ...rec(1, 'a', '2026-10-20T16:00:00', 'A'), FechaAct: D('2026-10-21T09:00:00') }], 10);
+    expect(lineasPreparadas(st, '2026-10-20', '2026-10-20')).toBe(1);
+    expect(lineasPreparadas(st, '2026-10-21', '2026-10-21')).toBeNull();
+  });
+
+  it('lee las llaves guardadas pedido|orden|sku como pedido|sku sin sumar otra vez', () => {
+    const viejo = { revN: { '2026-10-20': 2 }, revK: { '2026-10-20': '5|O9|a,6|O9|b' }, revKT: 0 } as unknown as StoreRadar;
     contarRevision(viejo, [rec(5, 'a', '2026-10-20T10:00:00', 'A', { Orden: 'O9' }), rec(6, 'b', '2026-10-20T11:00:00', 'P', { Orden: 'O9' })], 10);
     expect(lineasPreparadas(viejo, '2026-10-20', '2026-10-20')).toBe(2);
-    expect((viejo as unknown as { revK: Record<string, string> }).revK['2026-10-20'].split(',').sort()).toEqual(['5|O9|a', '6|O9|b']);
+    expect((viejo as unknown as { revK: Record<string, string> }).revK['2026-10-20'].split(',').sort()).toEqual(['5|a', '6|b']);
   });
 });
 
