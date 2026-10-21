@@ -10,6 +10,7 @@ import { Resumen } from './resumen';
 import { TopNegados } from './top';
 import { PedidosVista } from './pedidos';
 import { $ } from './ui/formato';
+import { cargarNegados, cargarPedidos, type Contexto } from './carga';
 
 /** Estado de la aplicación: los mismos módulos que ya están probados contra el tablero original. */
 export interface App { radar: RadarNegados; pedidos: PedidosCD; almacen: Almacen; usuario: string; resumen: Resumen; top: TopNegados; ped: PedidosVista }
@@ -33,6 +34,22 @@ function ponerPestana(app: App, t: string) {
 function conectarPestanas(app: App) {
   app.resumen.alCambiar = (vm) => app.top.render(vm);
   $('pedXlsBtn').addEventListener('click', () => app.ped.excel());
+  // Cargar Excel
+  const ctx: Contexto = {
+    radar: app.radar, pedidos: app.pedidos, almacen: app.almacen,
+    redibujar: (dia) => {
+      const r = app.resumen;
+      if (dia) r.elegir(dia, dia); else if (r.desde && r.hasta) r.elegir(r.desde, r.hasta); else r.iniciar();
+      app.ped.render();
+    },
+  };
+  const archivo = (btn: string, inp: string, fn: (c: Contexto, f: File[]) => Promise<void>) => {
+    const i = $(inp) as HTMLInputElement;
+    $(btn).addEventListener('click', () => i.click());
+    i.addEventListener('change', () => { const fs = Array.from(i.files || []); i.value = ''; if (fs.length) fn(ctx, fs); });
+  };
+  archivo('selectBtn', 'fileInput', cargarNegados);
+  archivo('pedSelectBtn', 'pedFile', cargarPedidos);
 }
 
 /** Solo en desarrollo (npm run dev, ?prueba=1): abre la página con los datos locales de prueba, sin iniciar sesión. */
