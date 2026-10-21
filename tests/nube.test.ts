@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Almacen } from '../src/nube/almacen';
-import type { BaseDatos, Meta } from '../src/nube/base';
+import type { BaseDatos, Meta, FiltroPedidos } from '../src/nube/base';
 import { aFilaBase, aPedido, type FilaPedido } from '../src/nube/filas';
 import type { Pedido } from '../src/core/pedidos/catalogos';
 import type { Dia } from '../src/core/negados/tipos';
@@ -13,9 +13,12 @@ class BaseMemoria implements BaseDatos {
   meta: Meta | null = null;
   llamadas: string[] = [];
   cargas: unknown[] = [];
-  async leerDias(desde: string) { return [...this.dias].filter(([f]) => f >= desde).map(([fecha, data]) => ({ fecha, data: structuredClone(data) })); }
+  async leerDias(desde: string, _p?: unknown, antesDe?: string) { return [...this.dias].filter(([f]) => f >= desde && (!antesDe || f < antesDe)).map(([fecha, data]) => ({ fecha, data: structuredClone(data) })); }
   async leerStore() { return this.store ? structuredClone(this.store) as object : null; }
-  async leerPedidos(desdeMin: number) { return [...this.pedidos.values()].filter((r) => r.fecha_min >= desdeMin).map((r) => ({ ...r })); }
+  async leerPedidos(desdeMin: number, _p?: unknown, o: FiltroPedidos = {}) {
+    return [...this.pedidos.values()].filter((r) => r.fecha_min >= desdeMin && (o.antesDeMin == null || r.fecha_min < o.antesDeMin) &&
+      (!o.sinTerminar || r.estado !== 'A') && (o.actualizadoDesdeMin == null || (r.actualizado_min || 0) >= o.actualizadoDesdeMin)).map((r) => ({ ...r }));
+  }
   async leerMeta() { return this.meta ? structuredClone(this.meta) : null; }
   async guardarDias(f: { fecha: string; data: Dia }[]) { if (f.length) this.llamadas.push('dias:' + f.map((r) => r.fecha).join(',')); f.forEach((r) => this.dias.set(r.fecha, r.data)); }
   async borrarDias(f: string[]) { if (f.length) this.llamadas.push('borrar:' + f.join(',')); f.forEach((d) => this.dias.delete(d)); }
@@ -79,6 +82,31 @@ describe('Almacen', () => {
     expect(r2.diasQuitados).toBe(1);
     expect(b.dias.has('2026-10-18')).toBe(false);
     expect(b.dias.has('2026-01-01')).toBe(true); // de otro mes: no se toca
+  });
+
+  it('abre rápido con la última semana y después completa el resto sin repetir', async () => {
+    const b = new BaseMemoria();
+    for (let n = 1; n <= 40; n++) { const f = new Date(2026, 9, 20 - n); b.dias.set(f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0') + '-' + String(f.getDate()).padStart(2, '0'), dia(n + 10)); }
+    const nuevo: Pedido = [1, 67, MIN_HOY - 2 * 1440, 'A', 3, 'exi', MIN_HOY - 1440, 0, MIN_HOY, 'N'];          // de la ventana
+    const pend: Pedido = [2, 67, MIN_HOY - 30 * 1440, 'R', 3, 'exi', 0, 0, MIN_HOY, 'N'];                      // viejo sin terminar
+    const cerroHoy: Pedido = [3, 67, MIN_HOY - 25 * 1440, 'A', 3, 'exi', MIN_HOY - 60, 0, MIN_HOY, 'N'];        // viejo, terminado en la ventana
+    const viejo: Pedido = [4, 67, MIN_HOY - 40 * 1440, 'A', 3, 'exi', MIN_HOY - 39 * 1440, 0, MIN_HOY, 'N'];    // viejo terminado: después
+    [nuevo, pend, cerroHoy, viejo].forEach((x) => b.pedidos.set(x[0] + '-67', aFilaBase(x)));
+    b.store = { skus: {} }; b.meta = { cortes: [], asg_pend: {} };
+    const a = new Almacen(b);
+    const d = await a.leer({ diasRadar: 120, diasPedidos: 62, hoy: HOY, rapido: { dias: 8, pedidos: 16 } });
+    expect(Object.keys(d.history).length).toBe(8);
+    expect(d.pedidos.rows.map((x) => x[0]).sort()).toEqual([1, 2, 3]);
+    expect(a.incompleto).toBe(true);
+    const r = await a.completar();
+    expect(Object.keys(r.history).length).toBe(32);
+    expect(r.rows.map((x) => x[0])).toEqual([4]);
+    expect(a.incompleto).toBe(false);
+    // con todo leído, guardar sin cambios no manda nada
+    Object.assign(d.history, r.history); d.pedidos.rows.push(...r.rows);
+    b.llamadas = [];
+    await a.guardar(d, 'prueba');
+    expect(b.llamadas).toEqual([]);
   });
 
   it('si la base falla no actualiza la foto (se vuelve a intentar)', async () => {

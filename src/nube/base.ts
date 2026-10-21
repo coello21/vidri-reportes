@@ -5,15 +5,22 @@ import type { FilaPedido } from './filas';
 
 export interface Meta { cortes: Corte[]; asg_pend: Record<string, number> }
 export type Progreso = (etiqueta: string, pct: number) => void;
+export interface FiltroPedidos { antesDeMin?: number; sinTerminar?: boolean; actualizadoDesdeMin?: number }
+
+/** Consulta de supabase-js (sus tipos encadenados son muy largos para escribirlos aquí). */
+// deno-lint-ignore no-explicit-any
+type Consulta = any;
 
 /**
  * Lo que la aplicación necesita de la base. Hay una versión con Supabase (abajo)
  * y otra en memoria para las pruebas.
  */
 export interface BaseDatos {
-  leerDias(desde: string, progreso?: Progreso): Promise<{ fecha: string; data: Dia }[]>;
+  /** Días desde `desde` (y antes de `antesDe`, si se da). */
+  leerDias(desde: string, progreso?: Progreso, antesDe?: string): Promise<{ fecha: string; data: Dia }[]>;
   leerStore(): Promise<Partial<StoreRadar> | null>;
-  leerPedidos(desdeMin: number, progreso?: Progreso): Promise<FilaPedido[]>;
+  /** Pedidos con fecha desde `desdeMin`; `opc` acota más (antes de, solo sin terminar, terminados desde). */
+  leerPedidos(desdeMin: number, progreso?: Progreso, opc?: FiltroPedidos): Promise<FilaPedido[]>;
   leerMeta(): Promise<Meta | null>;
   guardarDias(filas: { fecha: string; data: Dia }[]): Promise<void>;
   borrarDias(fechas: string[]): Promise<void>;
@@ -46,13 +53,13 @@ export class BaseSupabase implements BaseDatos {
   constructor(private sb: SupabaseClient) {}
 
   /** Lee una consulta grande en páginas, varias a la vez. */
-  private async paginado<R>(tabla: string, columnas: string, filtro: { col: string; desde: string | number },
+  private async paginado<R>(tabla: string, columnas: string, filtro: (q: Consulta) => Consulta,
     orden: string[], tam: number, etiqueta: string, progreso?: Progreso): Promise<R[]> {
-    const c = revisar(await this.sb.from(tabla).select(orden[0], { count: 'exact', head: true }).gte(filtro.col, filtro.desde), etiqueta);
+    const c = revisar(await filtro(this.sb.from(tabla).select(orden[0], { count: 'exact', head: true })), etiqueta);
     const paginas = Math.max(1, Math.ceil((c.count || 0) / tam));
     let hechas = 0;
     const tareas = Array.from({ length: paginas }, (_, p) => async () => {
-      let q = this.sb.from(tabla).select(columnas).gte(filtro.col, filtro.desde);
+      let q = filtro(this.sb.from(tabla).select(columnas));
       for (const o of orden) q = q.order(o);
       const r = revisar(await q.range(p * tam, p * tam + tam - 1), etiqueta);
       hechas++;
@@ -62,15 +69,23 @@ export class BaseSupabase implements BaseDatos {
     return (await enParalelo(tareas, 6)).flat();
   }
 
-  leerDias(desde: string, progreso?: Progreso) {
-    return this.paginado<{ fecha: string; data: Dia }>('radar_dias', 'fecha,data', { col: 'fecha', desde }, ['fecha'], 10, 'Negados por día', progreso);
+  leerDias(desde: string, progreso?: Progreso, antesDe?: string) {
+    const f = (q: Consulta) => { q = q.gte('fecha', desde); return antesDe ? q.lt('fecha', antesDe) : q; };
+    return this.paginado<{ fecha: string; data: Dia }>('radar_dias', 'fecha,data', f, ['fecha'], 10, 'Negados por día', progreso);
   }
   async leerStore() {
     const r = revisar(await this.sb.from('radar_store').select('data').eq('id', 1).maybeSingle(), 'Catálogo');
     return r.data ? (r.data as { data: Partial<StoreRadar> }).data : null;
   }
-  leerPedidos(desdeMin: number, progreso?: Progreso) {
-    return this.paginado<FilaPedido>('pedidos', '*', { col: 'fecha_min', desde: desdeMin }, ['numero', 'origen'], 1000, 'Pedidos', progreso);
+  leerPedidos(desdeMin: number, progreso?: Progreso, opc: FiltroPedidos = {}) {
+    const f = (q: Consulta) => {
+      q = q.gte('fecha_min', desdeMin);
+      if (opc.antesDeMin != null) q = q.lt('fecha_min', opc.antesDeMin);
+      if (opc.sinTerminar) q = q.neq('estado', 'A');
+      if (opc.actualizadoDesdeMin != null) q = q.gte('actualizado_min', opc.actualizadoDesdeMin);
+      return q;
+    };
+    return this.paginado<FilaPedido>('pedidos', '*', f, ['numero', 'origen'], 1000, 'Pedidos', progreso);
   }
   async leerMeta() {
     const r = revisar(await this.sb.from('pedidos_meta').select('cortes,asg_pend').eq('id', 1).maybeSingle(), 'Cortes');

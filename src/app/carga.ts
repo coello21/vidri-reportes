@@ -21,6 +21,8 @@ export interface Contexto {
   radar: RadarNegados;
   pedidos: PedidosCD;
   almacen: Almacen | null;
+  /** Se cumple cuando ya se leyeron los días anteriores (false si falló). Cargar un Excel espera a que estén. */
+  listo?: () => Promise<boolean>;
   /** Vuelve a dibujar las pantallas; `dia` = día de negados a mostrar. */
   redibujar: (dia: string | null) => void;
 }
@@ -35,6 +37,19 @@ const corteTxt = (min: number) => {
 };
 
 let ocupado = false;
+
+/** Antes de cargar un Excel deben estar todos los días leídos (si no, al guardar se podrían pisar datos). */
+async function esperar(ctx: Contexto): Promise<boolean> {
+  if (!ctx.listo) return true;
+  const p = ctx.listo();
+  let hecho = false;
+  void p.then(() => { hecho = true; });
+  await Promise.resolve();
+  if (!hecho) aviso('ok', 'Terminando de cargar los días anteriores; el Excel se carga en cuanto terminen…', 120000);
+  const ok = await p;
+  if (!ok) aviso('err', 'No se pudieron cargar los días anteriores. Recarga la página y vuelve a cargar el Excel.', 30000);
+  return ok;
+}
 
 /** Guarda en Supabase lo que cambió. Devuelve el resultado o null si falló (y ya avisó). */
 async function guardar(ctx: Contexto, previo: string): Promise<ResultadoGuardar | null> {
@@ -65,6 +80,7 @@ export async function cargarNegados(ctx: Contexto, files: File[]) {
   if (!xs.length) { aviso('err', 'Selecciona el Excel Rpt_OrdenesPreparacion (ayer + hoy).', 10000); return; }
   ocupado = true;
   try {
+    if (!(await esperar(ctx))) return;
     const dias = ctx.radar.dias(), ult = dias.length ? dias[dias.length - 1] : null, lim = ult ? addDays(ult, -1) : null;
     const hist: { f: File; info: LecturaAsignacion }[] = [], act: { f: File; buf: Uint8Array; info: LecturaAsignacion | null }[] = [];
     for (const f of xs) {
@@ -116,6 +132,7 @@ export async function cargarPedidos(ctx: Contexto, files: File[]) {
   if (ocupado || !files.length) return;
   ocupado = true;
   try {
+    if (!(await esperar(ctx))) return;
     let n = 0, nuevos = 0, cambios = 0, corte = 0, viejos = 0, otras = 0;
     const asg = { a: 0, p: 0, f: 0 };
     for (const f of files) {

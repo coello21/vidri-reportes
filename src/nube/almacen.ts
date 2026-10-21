@@ -29,21 +29,62 @@ export class Almacen {
 
   constructor(private base: BaseDatos) {}
 
-  async leer(opc: { diasRadar: number; diasPedidos: number; todo?: boolean; hoy?: Date }, progreso?: Progreso): Promise<Datos> {
+  /** Lo que falta leer después de abrir rápido (ver `leer` con `rapido`). */
+  private falta: { desde: string; antesDe: string; pedDesde: number; pedAntesDe: number } | null = null;
+
+  /**
+   * Lee los datos de la base.
+   * Con `rapido`, primero lee solo lo necesario para mostrar la página (los últimos días de negados y,
+   * de pedidos, los de la ventana de la pestaña más los que siguen sin terminar); el resto se lee
+   * después con `completar()`. Así la página se abre en segundos.
+   */
+  async leer(opc: { diasRadar: number; diasPedidos: number; todo?: boolean; hoy?: Date; rapido?: { dias: number; pedidos: number } }, progreso?: Progreso): Promise<Datos> {
     const hoy = opc.hoy || new Date();
-    const desde = opc.todo ? '1900-01-01' : isoLocal(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - opc.diasRadar));
+    const dia = (n: number) => isoLocal(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - n));
+    const desde = opc.todo ? '1900-01-01' : dia(opc.diasRadar);
     const corteMin = minutosLocales(hoy) - opc.diasPedidos * 1440;
-    const [dias, store, ped, meta] = await Promise.all([
-      this.base.leerDias(desde, progreso), this.base.leerStore(), this.base.leerPedidos(corteMin, progreso), this.base.leerMeta(),
-    ]);
+    const R = opc.rapido && !opc.todo ? opc.rapido : null;
+    const dDesde = R ? dia(R.dias) : desde, pDesde = R ? minutosLocales(hoy) - R.pedidos * 1440 : corteMin;
+    const pedidos = R
+      ? Promise.all([
+        this.base.leerPedidos(pDesde, progreso),
+        this.base.leerPedidos(corteMin, undefined, { antesDeMin: pDesde, sinTerminar: true }),
+        this.base.leerPedidos(corteMin, undefined, { antesDeMin: pDesde, actualizadoDesdeMin: pDesde }),
+      ]).then((a) => a.flat())
+      : this.base.leerPedidos(corteMin, progreso);
+    const [dias, store, ped, meta] = await Promise.all([this.base.leerDias(dDesde, progreso), this.base.leerStore(), pedidos, this.base.leerMeta()]);
+    this.falta = R ? { desde, antesDe: dDesde, pedDesde: corteMin, pedAntesDe: pDesde } : null;
     const history: Historial = {};
     dias.forEach((r) => { history[r.fecha] = r.data; this.fDias.set(r.fecha, JSON.stringify(r.data)); });
     this.fStore = store ? JSON.stringify(store) : null;
-    const rows = ped.map(aPedido);
-    rows.forEach((x) => this.fPed.set(clavePed(x), JSON.stringify(x)));
+    const rows = this.sinRepetir(ped.map(aPedido));
     const cortes = (meta && meta.cortes) || [], asgP = (meta && meta.asg_pend) || {};
     this.fMeta = meta ? JSON.stringify({ cortes, asg: asgP }) : null;
     return { history, store: store || {}, pedidos: { rows, cortes, asgP } };
+  }
+
+  /** Pedidos nuevos para la foto (los que ya se habían leído se ignoran). */
+  private sinRepetir(rows: Pedido[]): Pedido[] {
+    const out: Pedido[] = [];
+    rows.forEach((x) => { const k = clavePed(x); if (this.fPed.has(k)) return; this.fPed.set(k, JSON.stringify(x)); out.push(x); });
+    return out;
+  }
+
+  /** ¿Falta leer días o pedidos anteriores? */
+  get incompleto(): boolean { return !!this.falta; }
+
+  /** Lee lo que quedó pendiente al abrir rápido: días de negados anteriores y pedidos terminados anteriores. */
+  async completar(progreso?: Progreso): Promise<{ history: Historial; rows: Pedido[] }> {
+    const F = this.falta;
+    if (!F) return { history: {}, rows: [] };
+    const [dias, ped] = await Promise.all([
+      this.base.leerDias(F.desde, progreso, F.antesDe),
+      this.base.leerPedidos(F.pedDesde, undefined, { antesDeMin: F.pedAntesDe }),
+    ]);
+    const history: Historial = {};
+    dias.forEach((r) => { if (this.fDias.has(r.fecha)) return; history[r.fecha] = r.data; this.fDias.set(r.fecha, JSON.stringify(r.data)); });
+    this.falta = null;
+    return { history, rows: this.sinRepetir(ped.map(aPedido)) };
   }
 
   /**
