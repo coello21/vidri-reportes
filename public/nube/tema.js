@@ -87,7 +87,13 @@
     programar();
     return true;
   }
+  // En el HTML que se comparte (copia con los datos adentro) solo quedan Cargar Excel y Descargar HTML.
+  function marcarCopia() {
+    var e = document.getElementById('emb');
+    if (e && e.textContent.trim() && e.textContent.trim() !== '[EMB]') document.documentElement.classList.add('copia');
+  }
   function iniciar() {
+    marcarCopia();
     botones();
     if (!observar()) { var n = 0, t = setInterval(function () { if (observar() || ++n > 100) clearInterval(t); }, 200); }
   }

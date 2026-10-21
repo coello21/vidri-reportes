@@ -2896,6 +2896,14 @@ async function gzB64(str){
   const buf=new Uint8Array(await new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
   let s=''; for(let i=0;i<buf.length;i+=0x8000) s+=String.fromCharCode.apply(null,buf.subarray(i,i+0x8000)); return btoa(s);
 }
+/* El HTML que se comparte lleva el diseño (tema.css y tema.js) adentro, porque fuera de la página no encuentra esos archivos. */
+async function vxInlineTema(tpl){
+  const leer=async u=>{ try{ const r=await fetch(u,{cache:'no-store'}); return r.ok?await r.text():null; }catch(e){ return null; } };
+  const css=await leer('../nube/tema.css'), js=await leer('../nube/tema.js');
+  if(css) tpl=tpl.replace(/<link[^>]*href="\.\.\/nube\/tema\.css"[^>]*>/,()=>'<style id="tema-css">'+css+'</style>');
+  if(js) tpl=tpl.replace(/<script[^>]*src="\.\.\/nube\/tema\.js"[^>]*><\/script>/,()=>'<script>'+js.replace(/<\/script/gi,'<\\/script')+'<\/script>');
+  return tpl;
+}
 async function downloadShare(ev){
   const btn=(ev&&ev.currentTarget)?ev.currentTarget:((ev&&ev.tagName)?ev:document.getElementById('shareBtn')), t0=btn.textContent; btn.disabled=true; btn.textContent='Preparando…';
   try{
@@ -2904,6 +2912,7 @@ async function downloadShare(ev){
       let b0=window.__B0; const ci=b0.lastIndexOf('<script>window.__B0'); if(ci>=0) b0=b0.slice(0,ci);
       b0=b0.replace(/Últimos 45 días \([^)]*\)/,'Últimos 45 días (__RANGO__)');
       tpl='<!doctype html><html lang="es">'+document.head.outerHTML+'<body>'+b0+'<script>window.__B0=document.body.innerHTML;<\/script><script type="text/plain" id="emb">__EMB_B64__<\/script><script>'+window.__APP+'<\/script></body></html>'; }
+    tpl=await vxInlineTema(tpl);
     const days=Object.keys(HISTORY).sort(), last=days[days.length-1], from=addDays(last,-44), H={};
     days.filter(d=>d>=from).forEach(d=>H[d]=HISTORY[d]);
     const st=Object.assign({},STORE); delete st.seen; delete st.pending;
