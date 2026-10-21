@@ -32,14 +32,26 @@ export async function leerB64(b64: string): Promise<DatosCopia> {
   return JSON.parse(await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
 }
 
-/** Datos de los últimos 45 días. Lleva las líneas ya contadas para que "Cargar Excel" en la copia no cuente doble. */
+/** Días de pedidos terminados que lleva la copia (la pestaña Pedidos CD muestra 15; uno más para el arrastre del primer día). */
+export const DIAS_PEDIDOS_COPIA = 16;
+
+/**
+ * Datos de la copia:
+ *  - negados: los 45 días, sin el detalle de códigos preparados por preparador (solo sirve para el Excel de preparadores);
+ *  - pedidos: los pendientes y los de los últimos 16 días (de ahí salen los conteos por día de la pestaña);
+ *  - las líneas ya contadas, para que "Cargar Excel" en la copia no cuente doble.
+ */
 export function datosCopia(radar: RadarNegados, pedidos: PedidosCD): { datos: DatosCopia; desde: string; hasta: string } {
   radar.persistSeen();
   const dias = radar.dias(), hasta = dias[dias.length - 1], desde = addDays(hasta, -(DIAS_COPIA - 1));
   const history: DatosCopia['history'] = {};
-  dias.filter((d) => d >= desde).forEach((d) => { history[d] = radar.history[d]; });
-  const fm = Date.UTC(+desde.slice(0, 4), +desde.slice(5, 7) - 1, +desde.slice(8, 10)) / 60000;
-  const rows = [...pedidos.rows.values()].filter((x) => x[2] >= fm || x[3] !== 'A');
+  dias.filter((d) => d >= desde).forEach((d) => {
+    const r = radar.history[d] as unknown as Record<string, unknown>;
+    if (r && typeof r === 'object' && 'prepSkus' in r) { const { prepSkus: _p, ...resto } = r; history[d] = resto as unknown as typeof radar.history[string]; }
+    else history[d] = radar.history[d];
+  });
+  const lc = pedidos.ultimoCorte(), lim = (lc || 0) - DIAS_PEDIDOS_COPIA * 1440;
+  const rows = [...pedidos.rows.values()].filter((x) => x[3] !== 'A' || x[2] >= lim || (x[6] || 0) >= lim);
   return { datos: { history, store: radar.store, pedidos: { rows, cortes: pedidos.cortes, asgP: pedidos.asgP } }, desde: Object.keys(history).sort()[0], hasta };
 }
 

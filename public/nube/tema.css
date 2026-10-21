@@ -11,6 +11,7 @@ html[data-theme="light"] body{background:var(--bg)!important}
 #downloadBtn,#pedJsonBtn,.histBtn{display:none!important}
 
 /* ---------- HTML compartido: solo Cargar Excel, Descargar HTML (y el botón de modo) ---------- */
+html.copia #downloadFillRateBtn{display:none!important}
 html.copia .vxh .acts > :not(#selectBtn):not(#pedSelectBtn):not(#shareBtn):not(#pedShareBtn):not(.tema-btn){display:none!important}
 
 /* ---------- Modo oscuro: solo cambia colores; todo el contenido es el mismo ---------- */

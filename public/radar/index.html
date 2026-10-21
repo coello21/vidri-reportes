@@ -2914,9 +2914,10 @@ async function downloadShare(ev){
       tpl='<!doctype html><html lang="es">'+document.head.outerHTML+'<body>'+b0+'<script>window.__B0=document.body.innerHTML;<\/script><script type="text/plain" id="emb">__EMB_B64__<\/script><script>'+window.__APP+'<\/script></body></html>'; }
     tpl=await vxInlineTema(tpl);
     const days=Object.keys(HISTORY).sort(), last=days[days.length-1], from=addDays(last,-44), H={};
-    days.filter(d=>d>=from).forEach(d=>H[d]=HISTORY[d]);
+    // sin el detalle de códigos preparados por preparador (solo sirve para el Excel de preparadores, que en la copia no está)
+    days.filter(d=>d>=from).forEach(d=>{ const r=HISTORY[d]; if(r&&r.prepSkus){ const c=Object.assign({},r); delete c.prepSkus; H[d]=c; } else H[d]=r; });
     if(typeof persistSeen==='function') persistSeen(); const st=Object.assign({},STORE); // con las líneas ya contadas: así "Cargar Excel" en la copia no cuenta doble
-    let ped=null; try{ await pedEnsure(); const fm=Date.UTC(+from.slice(0,4),+from.slice(5,7)-1,+from.slice(8,10))/60000; ped={cortes:PED.cortes,rows:[...PED.rows.values()].filter(x=>x[2]>=fm||x[3]!=='A')}; }catch(e){}
+    let ped=null; try{ await pedEnsure(); const lim=(pedLastCorte()||0)-16*1440; /* pendientes y los últimos 16 días: de ahí salen los conteos por día (la pestaña muestra 15) */ ped={cortes:PED.cortes,rows:[...PED.rows.values()].filter(x=>x[3]!=='A'||x[2]>=lim||(x[6]||0)>=lim)}; }catch(e){}
     const b64=await gzB64(JSON.stringify({history:H,store:st,pedidos:ped}));
     const rango=fmtDateShort(Object.keys(H).sort()[0])+' – '+fmtDateShort(last);
     const html=tpl.replace('__RANGO__',rango).replace('__EMB_B64__',()=>b64);
