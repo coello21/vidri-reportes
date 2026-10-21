@@ -3892,7 +3892,8 @@ function pedPrepCard(vm){
   const N = (STORE && STORE.revN) || {}, from = vm.date || vm.rangeFrom, to = vm.date || vm.rangeTo;
   let s = 0, has = false; for(const d in N){ if(d < from || d > to) continue; has = true; s += N[d]; }
   $('kpiTotal').textContent = has ? fmtInt(s) : '—';
-  const pf = $('kpiDupesFoot'); if(pf) pf.textContent = '';
+  // abajo: líneas actualizadas (estado A, por Fecha Actualizado) del mismo día o rango
+  const pf = $('kpiDupesFoot'); if(pf) pf.innerHTML = '<b>' + fmtInt((vm.meta && vm.meta.totalFinal) || 0) + '</b> líneas actualizadas';
 }
 (function(){ const _pr = render; render = function(vm){ _pr(vm); try{ pedPrepCard(vm); }catch(e){ console.error(e); } }; })();
 

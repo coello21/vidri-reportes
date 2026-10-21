@@ -141,7 +141,7 @@ export class Resumen {
     if (m.prepEval && vm.newDays) $('kpiExactFoot').innerHTML = '<b>' + fmtInt(m.exactas) + '</b> de ' + fmtInt(m.prepEval) + ' completas <span class="meta-tag">meta ≥ 99,5%</span>';
     const lp = lineasPreparadas(this.radar.store, vm.date || vm.rangeFrom, vm.date || vm.rangeTo);
     $('kpiTotal').textContent = lp == null ? '—' : fmtInt(lp);
-    $('kpiDupesFoot').textContent = '';
+    $('kpiDupesFoot').innerHTML = '<b>' + fmtInt(tot) + '</b> líneas actualizadas';
   }
 
   private renderTitular(vm: VistaAgregada) {
