@@ -108,7 +108,7 @@ export async function descargarHtml(btn: HTMLButtonElement, radar: RadarNegados,
       html = tpl.slice(0, k) + emb + tpl.slice(k);
     }
     const n = new Date(), hoy = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
-    descargar(new Blob([html], { type: 'text/html' }), 'Radar_de_Negados_' + hoy + '.html');
+    descargar(new Blob([html], { type: 'text/html' }), 'Radar_de_Preparacion_' + hoy + '.html');
     aviso('ok', 'Descargando el HTML de los últimos ' + DIAS_COPIA + ' días…');
   } catch (e) {
     console.error(e);

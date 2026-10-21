@@ -1,6 +1,6 @@
 # Reportes CD Nejapa
 
-Tableros de preparación del CD Nejapa (Radar de Negados y Pedidos CD) en **TypeScript + Vite**. Los datos se guardan en **Supabase** y la página se publica en **GitHub Pages**.
+Tableros de preparación del CD Nejapa (Radar de Preparación: negados y Pedidos CD) en **TypeScript + Vite**. Los datos se guardan en **Supabase** y la página se publica en **GitHub Pages**.
 
 ## Estado
 

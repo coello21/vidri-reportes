@@ -73,7 +73,7 @@
       o.id = 'nube-login';
       document.body.appendChild(o);
     }
-    o.innerHTML = '<div class="nl-card"><div class="nl-brand">Radar de negados · CD Nejapa</div>' + html + '</div>';
+    o.innerHTML = '<div class="nl-card"><div class="nl-brand">Radar de Preparación · CD Nejapa</div>' + html + '</div>';
     o.hidden = false;
     return o;
   }
@@ -302,7 +302,7 @@
     var bin = atob(m[1].trim()), u = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
     var E = JSON.parse(await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
-    if (!E.history) throw new Error(file.name + ': no es un HTML del Radar de Negados');
+    if (!E.history) throw new Error(file.name + ': no es un HTML del Radar de Preparación');
     var guardado = (E.store && E.store.updatedAt) || new Date(file.lastModified || Date.now()).toISOString();
     var payload = { app: 'radar-negados', formato: 2, guardado: guardado, history: E.history, store: E.store || {}, pedidos: E.pedidos || null };
     return new File([JSON.stringify(payload)], file.name.replace(/\.html?$/i, '') + '.json', { type: 'application/json' });
