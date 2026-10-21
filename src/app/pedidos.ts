@@ -84,7 +84,9 @@ export class PedidosVista {
     const fi = D.map((_, i) => i).filter((i) => !part.has(i)), sum = (a: number[]) => a.reduce((p, q) => p + q, 0), sumS = (a: number[]) => selI.reduce((p, i) => p + (a[i] || 0), 0);
     const tP = sumS(cnt), tS = sumS(sk);
     const pick = (i: number) => { this.dia = this.dia === D[i] ? null : D[i]; this.render(); };
-    barrasApiladas($('pdAsig'), D, MOTIVOS.filter((c) => sum(byCat[c])).map((c) => ({ name: MOTIVO_NOMBRE[c], color: CAT_C[c], vals: byCat[c] })), { partial: part, sel: DAY, onClick: pick });
+    // gráficos de los últimos 7 días (diseño del 20 oct)
+    const k7 = Math.max(0, n - 7), D7 = D.slice(k7), p7 = new Set([...part].map((i) => i - k7).filter((i) => i >= 0));
+    barrasApiladas($('pdAsig'), D7, MOTIVOS.filter((c) => sum(byCat[c])).map((c) => ({ name: MOTIVO_NOMBRE[c], color: CAT_C[c], vals: byCat[c].slice(k7) })), { partial: p7, sel: DAY, noTrend: true, onClick: (i) => pick(i + k7) });
 
     // promedio por día de la semana (días completos con pedidos)
     const dw = [0, 0, 0, 0, 0, 0, 0], dn = [0, 0, 0, 0, 0, 0, 0];
@@ -140,7 +142,7 @@ export class PedidosVista {
     // entran vs atendidos
     const ing = z(), ate = z();
     P.all.forEach((x) => { const d = diaDeMin(x[2]); if (d in di) ing[di[d]] += x[4]; if (x[6]) { const a = diaDeMin(x[6]); if (a in di) ate[di[a]] += x[4]; } });
-    lineas($('pdFlow'), D, [{ name: 'Entran', color: '#3A76B0', vals: ing, off: -6 }, { name: 'Atendidos', color: '#DE7A2C', vals: ate, off: 8 }], { partial: part });
+    lineas($('pdFlow'), D7, [{ name: 'Entran', color: '#3A76B0', vals: ing.slice(k7), off: -6 }, { name: 'Atendidos', color: '#DE7A2C', vals: ate.slice(k7), off: 8 }], { partial: p7 });
     const avg = (a: number[]) => { const xs = fi.map((i) => a[i]).filter((v) => v > 0); return xs.length ? sum(xs) / xs.length : 0; };
     $('pdFlowT').textContent = avg(ate) >= avg(ing) ? 'El CD atiende al ritmo de lo que entra' : 'Entra más de lo que el CD atiende';
 
@@ -156,6 +158,30 @@ export class PedidosVista {
     this.renderTabla();
     const st = B.stale.length;
     $('pdNote').innerHTML = st ? '<b>' + fmtInt(st) + ' pedidos</b> seguían pendientes en una carga anterior pero no vinieron en el último reporte (su fecha quedó fuera del rango exportado). Se omiten de todos los conteos; si vuelven a aparecer en un reporte, se cuentan de nuevo.' : '';
+    this.ordenar();
+  }
+
+  /** Títulos cortos y balance en cajas como en el reporte ejecutivo (diseño del 20 oct). */
+  private ordenar() {
+    const T = (id: string, t: string) => { const e = document.getElementById(id); if (e) e.textContent = t; };
+    T('pdAsigT', 'Pedidos asignados por día y motivo · últimos 7 días');
+    T('pdArrT', 'Balance diario de pedidos');
+    T('pdCohT', 'Estado de los pedidos que cayeron ese día');
+    T('pdSucT', 'Pedidos por sucursal destino');
+    T('pdFlowT', 'SKUs ingresados vs SKUs actualizados');
+    document.querySelectorAll<HTMLElement>('#pdFlowT~.leg span').forEach((sp) => { sp.innerHTML = sp.innerHTML.replace('Entran', 'Ingresados').replace('Atendidos', 'Actualizados'); });
+    document.querySelectorAll<HTMLElement>('#tab-pedidos .leg i.dash').forEach((i) => { i.parentElement!.style.display = 'none'; });
+    const sec = $('pdK1').closest('.kpis');
+    if (!sec || !sec.parentNode) return;
+    let bx = document.getElementById('pdBal');
+    if (!bx) { bx = document.createElement('div'); bx.id = 'pdBal'; bx.className = 'pdbal'; sec.parentNode.insertBefore(bx, sec); }
+    sec.classList.add('pdkhide');
+    const g = (id: string) => document.getElementById(id)?.textContent || '—';
+    const day = g('pdK2L').replace(/^\+\s*Entraron\s*/, '').replace(/^el\s*/, ''), cur = /ahora/i.test(g('pdK4L'));
+    bx.innerHTML = '<div><span>Inició</span><b>' + g('pdK1') + '</b><span>sin terminar</span></div><div class="op">+</div>' +
+      '<div><span>Entraron</span><b>' + g('pdK2') + '</b><span>' + esc(day) + '</span></div><div class="op">−</div>' +
+      '<div><span>Terminados</span><b>' + g('pdK3') + '</b><span>' + esc(day) + '</span></div><div class="op">=</div>' +
+      '<div class="fin"><span>' + (cur ? 'Ahora' : 'Quedaron') + '</span><b>' + g('pdK4') + '</b><span>sin terminar</span></div>';
   }
 
   private renderChips(all: Pedido[], D: string[], cutDay: string) {

@@ -69,7 +69,6 @@ async function arrancar() {
 
     $('usuario').textContent = app.usuario;
     $('salir').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
-    document.getElementById('downloadFillRateBtn')?.setAttribute('hidden', '');
     document.querySelectorAll<HTMLAnchorElement>('#vxNav a').forEach((a) => a.addEventListener('click', (e) => {
       e.preventDefault(); ponerPestana(app, a.dataset.tab || ''); window.scrollTo({ top: 0, behavior: 'smooth' });
     }));

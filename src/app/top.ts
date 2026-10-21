@@ -7,6 +7,8 @@ import type { RadarNegados, VistaAgregada } from '../core/negados/radar';
 import { BUCKETS, type Bucket, type DiaResumen } from '../core/negados/tipos';
 import { $, esc, fmtInt, fmtDateShort, fechaLarga, normText } from './ui/formato';
 import { aviso, descargar } from './ui/avisos';
+import { sinActualizarPorCodigo } from '../core/negados/extras';
+import { ymd } from '../core/comun/fechas';
 
 const BUCKET_LABEL: Record<Bucket, string> = { positivo: 'Error en el proceso', cero: 'Sin existencia', negativo: 'Inventario negativo' };
 type ClaveDetalle = 'sku' | 'desc' | 'bucket' | 'count';
@@ -76,6 +78,7 @@ export class TopNegados {
     }));
     $('downloadTopCodesBtn').addEventListener('click', () => this.excelTop());
     $('detailDlBtn').addEventListener('click', () => this.excelDetalle());
+    document.getElementById('pnegDl')?.addEventListener('click', () => this.excelSinActualizar());
   }
 
   /** Ventana de días para las tendencias (hasta 30 días). */
@@ -124,6 +127,7 @@ export class TopNegados {
     this.renderMotivo();
     this.renderSucursales();
     this.renderDetalle();
+    this.renderSinActualizar();
   }
 
   private elegirCodigo(sku: string) { this.codigoSel = sku; this.renderRanking1(); this.renderDetalle(); }
@@ -237,9 +241,11 @@ export class TopNegados {
   private fechaTxt(vm: VistaAgregada) {
     return vm.date ? 'Día: ' + fmtDateShort(vm.date) + (this.radar.isPartialDay(vm.date) ? ' (parcial)' : '') : 'Del ' + fmtDateShort(vm.rangeFrom) + ' al ' + fmtDateShort(vm.rangeTo) + ' (' + vm.rangeDays + ' días)';
   }
-  private hoja(titulo: string, head: string[], rows: (string | number)[][], cols: number[]) {
-    const ws = XLSX.utils.aoa_to_sheet([[titulo], [], head, ...(rows.length ? rows : [['Sin datos']])]);
+  /** Encabezados en la fila 1 y con filtro, listos para compartir (el día o rango va en el nombre del archivo). */
+  private hoja(_titulo: string, head: string[], rows: (string | number | null)[][], cols: number[]) {
+    const ws = XLSX.utils.aoa_to_sheet([head, ...(rows.length ? rows : [['Sin datos']])]);
     ws['!cols'] = cols.map((w) => ({ wch: w }));
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(rows.length, 1), c: head.length - 1 } }) };
     return ws;
   }
   private bajar(wb: XLSX.WorkBook, nombre: string) {
@@ -252,9 +258,8 @@ export class TopNegados {
       const rows = this.filasDetalle().slice().sort((a, b) => b.count - a.count || (a.sku < b.sku ? -1 : 1));
       const sel = BUCKETS.filter((b) => this.buckets.has(b));
       const motTxt = sel.length ? sel.map((b) => BUCKET_LABEL[b]).join(' + ') : 'Todos los motivos';
-      const aoa: (string | number)[][] = rows.map((r, i) => [i + 1, r.sku, r.desc, this.um(r.sku), BUCKET_LABEL[r.bucket], r.count]);
-      if (rows.length) aoa.push(['', '', '', '', 'Total', rows.reduce((a, r) => a + r.count, 0)]);
-      const ws = this.hoja('Negados · ' + motTxt + ' · ' + this.fechaTxt(vm) + (this.busqueda ? ' · búsqueda: ' + this.busqueda : ''), ['#', 'Código', 'Descripción', 'UM', 'Motivo', 'Veces negado'], aoa, [6, 12, 55, 8, 22, 14]);
+      const aoa: (string | number)[][] = rows.map((r) => [r.sku, r.desc, this.um(r.sku), BUCKET_LABEL[r.bucket], r.count]);
+      const ws = this.hoja('', ['Código', 'Descripción', 'UM', 'Motivo', 'Veces negado'], aoa, [12, 55, 8, 22, 14]);
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Negados');
       const tag = sel.length ? sel.map((b) => ({ positivo: 'Error_proceso', cero: 'Sin_existencia', negativo: 'Inventario_negativo' })[b]).join('_') : 'Todos';
       this.bajar(wb, 'Negados_' + tag + '_' + this.sufijo(vm) + '.xlsx');
@@ -272,7 +277,7 @@ export class TopNegados {
         return [i + 1, d.sku, d.desc, d.count, q, um, tot[d.sku] ? Math.round((pos[d.sku] || 0) / tot[d.sku] * 100) / 100 : ''];
       });
       const ws1 = this.hoja('Top 10 por cantidad de veces negado · ' + this.fechaTxt(vm), ['#', 'Código', 'Descripción', 'Veces negado', 'Unidades negadas', 'UM', 'Con existencia (%)'], t10, [5, 12, 55, 14, 16, 8, 18]);
-      for (let r = 3; r < 3 + t10.length; r++) { const c = ws1[XLSX.utils.encode_cell({ r, c: 6 })]; if (c && typeof c.v === 'number') c.z = '0%'; }
+      for (let r = 1; r < 1 + t10.length; r++) { const c = ws1[XLSX.utils.encode_cell({ r, c: 6 })]; if (c && typeof c.v === 'number') c.z = '0%'; }
       const rows2: (string | number)[][] = [];
       if (!Q.has) rows2.push(['Las unidades negadas se registran desde el 7 oct 2026. Elige un día o rango desde esa fecha.']);
       else {
@@ -289,5 +294,35 @@ export class TopNegados {
       this.bajar(wb, 'Top_negados_' + this.sufijo(vm) + '.xlsx');
       aviso('ok', 'Descargando Top 10 y Top 5…');
     } catch (err) { console.error(err); aviso('err', 'No se pudo generar el Excel: ' + ((err as Error)?.message || 'error')); }
+  }
+
+  /* ---------------- Negados sin actualizar (foto del último Excel) ---------------- */
+  private static motivo(v: number) { return v > 0 ? 'Con stock en sistema' : v === 0 ? 'Existencia en 0' : 'Inventario negativo'; }
+  private static hora(ms: number) { const d = new Date(ms); return fmtDateShort(ymd(d)) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+  renderSinActualizar() {
+    const tb = document.getElementById('pnegTbl'), sub = document.getElementById('pnegSub');
+    if (!tb || !sub) return;
+    const R = sinActualizarPorCodigo(this.radar.store);
+    if (!R) { sub.textContent = 'Aparece con el próximo Excel cargado.'; tb.innerHTML = ''; return; }
+    const G = R.codigos, lin = G.reduce((a, g) => a + g.n, 0);
+    sub.textContent = 'Al corte ' + TopNegados.hora(R.t) + ' · ' + fmtInt(G.length) + ' códigos (' + fmtInt(lin) + ' líneas) en 0 sin actualizar, con existencia suficiente para al menos un pedido';
+    tb.innerHTML = '<thead><tr><th>Motivo</th><th>Código</th><th>Descripción</th><th>UM</th><th class="n">Veces</th><th class="n">Cant. pedida</th><th class="n">Disponible</th><th>Ubicación</th><th>Sucursales</th><th class="n">Pedidos</th></tr></thead><tbody>' +
+      (G.length ? G.map((g) => '<tr><td><span class="tg ' + (g.disp > 0 ? 's' : 'z') + '">' + TopNegados.motivo(g.disp) + '</span></td><td class="c">' + esc(g.sku) + '</td><td class="ds" title="' + esc(g.desc) + '">' + esc(g.desc) + '</td><td>' + esc(g.um) +
+        '</td><td class="n"><b>' + fmtInt(g.n) + '</b></td><td class="n">' + fmtInt(g.q) + '</td><td class="n">' + fmtInt(g.disp || 0) + '</td><td class="c">' + esc(g.ubic.join(' / ')) + '</td><td>' + esc(g.suc.join(', ')) + '</td><td class="n">' + fmtInt(g.pedidos) + '</td></tr>').join('')
+        : '<tr class="empty-row"><td colspan="10">No hay líneas en 0 pendientes de actualizar.</td></tr>') + '</tbody>';
+  }
+
+  excelSinActualizar() {
+    const R = sinActualizarPorCodigo(this.radar.store);
+    if (!R) { aviso('err', 'Todavía no hay datos: carga el Rpt_OrdenesPreparacion.'); return; }
+    try {
+      const ws = this.hoja('', ['Motivo', 'Código', 'Descripción', 'UM', 'Veces', 'Cant. pedida', 'Disponible', 'Ubicación', 'Sucursales', 'Pedidos'],
+        R.codigos.map((g) => [TopNegados.motivo(g.disp), g.sku, g.desc, g.um, g.n, g.q, g.disp, g.ubic.join(' / '), g.suc.join(', '), g.pedidos]), [20, 12, 50, 7, 8, 12, 12, 24, 30, 9]);
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Negados sin actualizar');
+      const d = new Date(R.t), tag = ymd(d) + '_' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
+      this.bajar(wb, 'Negados_sin_actualizar_' + tag + '.xlsx');
+      aviso('ok', 'Descargando ' + fmtInt(R.codigos.length) + ' códigos…');
+    } catch (e) { console.error(e); aviso('err', 'No se pudo generar el Excel.'); }
   }
 }

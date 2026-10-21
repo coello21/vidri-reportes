@@ -2,11 +2,14 @@
  * Pestaña "Resumen" del Radar de Negados, rehecha en TypeScript con la misma
  * apariencia y las mismas reglas que el tablero original.
  */
+import * as XLSX from 'xlsx';
+import { aviso, descargar } from './ui/avisos';
 import type { RadarNegados, VistaAgregada, PreparadorVista } from '../core/negados/radar';
 import { parsePreparadorName, EXACTITUD_META } from '../core/negados/radar';
 import { addDays } from '../core/comun/fechas';
+import { lineasPreparadas } from '../core/negados/extras';
 import { $, esc, fmtInt, fmtPct, fmtDateShort, fechaLarga } from './ui/formato';
-import { barrasApiladas, tendenciaPct, tendenciaTexto, tendenciaSobrePuntos, globoEnPuntos } from './ui/graficos';
+import { barrasApiladas, tendenciaSobrePuntos, globoEnPuntos } from './ui/graficos';
 
 type ClaveOrden = 'name' | 'solicitado' | 'preparados' | 'negados' | 'fillRate';
 
@@ -76,6 +79,7 @@ export class Resumen {
         this.renderFillRateTable();
       });
     });
+    document.getElementById('downloadFillRateBtn')?.addEventListener('click', () => this.excelPreparadores());
     let t: number | undefined;
     window.addEventListener('resize', () => { clearTimeout(t); t = window.setTimeout(() => { if (this.vm) this.renderMotivo(this.vm); }, 150); });
   }
@@ -120,6 +124,24 @@ export class Resumen {
     this.renderNegPrepTrend();
     this.renderFillRateTable();
     this.renderTitular(vm);
+    this.tarjetasEnLineas(vm);
+  }
+
+  /** Tarjetas en líneas (diseño del 20 oct) y Líneas preparadas por Fecha Enviado Revisión. */
+  private tarjetasEnLineas(vm: VistaAgregada) {
+    const m = vm.meta, tot = m.totalFinal || 0, neg = m.totalNegados || 0, prep = m.totalPreparados != null ? m.totalPreparados : Math.max(tot - neg, 0);
+    const pc = (v: number) => (tot ? fmtPct(v / tot * 100) : '—');
+    $('kpiTotal').textContent = fmtInt(prep);
+    $('kpiDupesFoot').innerHTML = 'de <b>' + fmtInt(tot) + '</b> líneas (' + pc(prep) + ')';
+    $('kpiPct').parentElement!.innerHTML = '<b id="kpiPct">' + pc(neg) + '</b> de ' + fmtInt(tot) + ' líneas cerradas';
+    const bc = vm.bucketCounts, pos = bc.positivo || 0, pp = neg ? Math.round(pos / neg * 100) : 0;
+    $('vxFalloFoot').innerHTML = '<b>' + pp + '%</b> de las negadas · había stock';
+    $('vxSinStockFoot').innerHTML = '<b>' + (neg ? 100 - pp : 0) + '%</b> · ' + fmtInt(bc.cero || 0) + ' en 0 y ' + fmtInt(bc.negativo || 0) + ' negativo';
+    const bf = $('kpiB2BFoot'); bf.innerHTML = bf.innerHTML.replace(' pedidos corporativos completos', ' pedidos').replace(/ · \d+ en proceso/, '');
+    if (m.prepEval && vm.newDays) $('kpiExactFoot').innerHTML = '<b>' + fmtInt(m.exactas) + '</b> de ' + fmtInt(m.prepEval) + ' completas <span class="meta-tag">meta ≥ 99,5%</span>';
+    const lp = lineasPreparadas(this.radar.store, vm.date || vm.rangeFrom, vm.date || vm.rangeTo);
+    $('kpiTotal').textContent = lp == null ? '—' : fmtInt(lp);
+    $('kpiDupesFoot').textContent = '';
   }
 
   private renderTitular(vm: VistaAgregada) {
@@ -242,13 +264,14 @@ export class Resumen {
       pos.push(b.positivo || 0); sin.push((b.cero || 0) + (b.negativo || 0));
       if (this.radar.isPartialDay(d)) part.add(i);
     });
-    barrasApiladas(el, days, [
-      { name: 'Error en el proceso', color: '#DE7A2C', tcolor: '#B5591A', vals: pos },
-      { name: 'Sin stock', color: '#3A76B0', tcolor: '#24557F', vals: sin },
-    ], { partial: part, trendEach: true, unit: 'líneas negadas', sel: vm.meta.fecha, onClick: (i) => this.elegir(days[i], days[i]) });
-    const fi = days.map((_, i) => i).filter((i) => !part.has(i));
-    $('vxMotT').textContent = 'Últimos 7 días vs los 7 anteriores: error en el proceso ' + tendenciaTexto(tendenciaPct(fi.map((i) => pos[i]))) +
-      ', sin stock ' + tendenciaTexto(tendenciaPct(fi.map((i) => sin[i])));
+    // se muestran los últimos 7 días, sin línea de tendencia (diseño del 20 oct)
+    const k = Math.max(0, days.length - 7), d7 = days.slice(k), p7 = new Set([...part].map((i) => i - k).filter((i) => i >= 0));
+    barrasApiladas(el, d7, [
+      { name: 'Error en el proceso', color: '#DE7A2C', tcolor: '#B5591A', vals: pos.slice(k) },
+      { name: 'Sin stock', color: '#3A76B0', tcolor: '#24557F', vals: sin.slice(k) },
+    ], { partial: p7, noTrend: true, unit: 'líneas negadas', sel: vm.meta.fecha, onClick: (i) => this.elegir(d7[i], d7[i]) });
+    $('vxMotT').textContent = 'Negados por motivo · últimos 7 días';
+    document.querySelectorAll<HTMLElement>('#vxMotCard .leg i.dash').forEach((i) => { i.parentElement!.style.display = 'none'; });
   }
 
   renderTrend() {
@@ -383,5 +406,50 @@ export class Resumen {
       '<span class="track" title="' + esc(d.desc) + ' — ' + d.count + ' veces"><span class="fill" style="width:' + Math.max(3, d.count / max * 100) + '%"></span></span>' +
       '<span class="num tabular">' + d.count + '</span></div>').join('') +
       (list.length > 10 ? '<div class="history-empty">y ' + fmtInt(list.length - 10) + ' código' + (list.length - 10 === 1 ? '' : 's') + ' más · descarga la tabla para ver el detalle</div>' : '');
+  }
+
+  /* ---------------- Excel de negados por preparador ---------------- */
+  /** Un solo Excel: fill rate, resumen por preparador y los códigos que negó cada uno (mismo formato que /radar/). */
+  excelPreparadores() {
+    const vm = this.vm;
+    if (!vm) { aviso('err', 'No hay datos cargados todavía.'); return; }
+    try {
+      const dates = this.radar.diasEnRango(this.desde, this.hasta);
+      const titulo = (ws: XLSX.WorkSheet, txt: string, cols: number[]) => {
+        XLSX.utils.sheet_add_aoa(ws, [[txt]], { origin: 'A1' });
+        ws['!cols'] = cols.map((w) => ({ wch: w }));
+        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: cols.length - 1 } }];
+        return ws;
+      };
+      const A2 = { origin: 'A2' } as unknown as XLSX.JSON2SheetOpts; // la versión 0.18 acepta origin aunque sus tipos no lo digan
+      const wb = XLSX.utils.book_new();
+      // fill rate
+      const fr = vm.fillRateByPreparador.slice().sort((a, b) => b.solicitado - a.solicitado)
+        .map((r) => ({ 'Preparador': r.name, 'Solicitado': r.solicitado, 'Preparado': r.preparados, 'Negado': r.negados, 'Fill rate (%)': Math.round(r.fillRate * 10) / 10 }));
+      const fTxt = vm.date ? 'Día: ' + vm.date : 'Rango: ' + vm.rangeFrom + ' a ' + vm.rangeTo + ' (' + vm.rangeDays + ' días)';
+      XLSX.utils.book_append_sheet(wb, titulo(XLSX.utils.json_to_sheet(fr.length ? fr : [{ 'Preparador': '', 'Solicitado': '', 'Preparado': '', 'Negado': '', 'Fill rate (%)': '' }], A2), fTxt, [32, 14, 14, 14, 16]), 'Fill rate por preparador');
+      // resumen y detalle por preparador
+      const raws = new Set<string>(), prepSkus = new Map<string, Set<string>>();
+      for (const d of dates) {
+        const v = this.radar.vistaDia(d);
+        (v.pairs || []).forEach((p) => raws.add(p.prepRaw));
+        (v.preparedPairs || []).forEach((p) => { raws.add(p.prepRaw); (prepSkus.get(p.prepRaw) || prepSkus.set(p.prepRaw, new Set()).get(p.prepRaw)!).add(p.sku); });
+      }
+      const resumen: Record<string, string | number>[] = [], detalle: Record<string, string | number>[] = [];
+      raws.forEach((raw) => {
+        const parts = String(raw).split(' - '), id = parts.length > 1 ? parts[0].trim() : '', name = parts.length > 1 ? parts.slice(1).join(' - ').trim() : raw;
+        const { list, total } = this.codigosDePreparador(raw);
+        resumen.push({ 'Código preparador': id, 'Preparador': name, 'Códigos negados (distintos)': list.length, 'Total veces negado': total, 'Códigos preparados (distintos)': (prepSkus.get(raw) || new Set()).size });
+        list.forEach((c) => detalle.push({ 'Código preparador': id, 'Preparador': name, 'Código': c.sku, 'Veces negado': c.count }));
+      });
+      resumen.sort((a, b) => (b['Total veces negado'] as number) - (a['Total veces negado'] as number));
+      detalle.sort((a, b) => (a['Preparador'] !== b['Preparador'] ? (a['Preparador'] < b['Preparador'] ? -1 : 1) : (b['Veces negado'] as number) - (a['Veces negado'] as number)));
+      const rTxt = dates.length ? (dates.length === 1 ? 'Día: ' + dates[0] : 'Rango: ' + dates[0] + ' a ' + dates[dates.length - 1] + ' (' + dates.length + ' días seleccionados)') : 'Sin días seleccionados';
+      XLSX.utils.book_append_sheet(wb, titulo(XLSX.utils.json_to_sheet(resumen.length ? resumen : [{ 'Código preparador': '', 'Preparador': '', 'Códigos negados (distintos)': '', 'Total veces negado': '', 'Códigos preparados (distintos)': '' }], A2), rTxt, [16, 32, 24, 18, 24]), 'Resumen por preparador');
+      XLSX.utils.book_append_sheet(wb, titulo(XLSX.utils.json_to_sheet(detalle.length ? detalle : [{ 'Código preparador': '', 'Preparador': '', 'Código': '', 'Veces negado': '' }], A2), rTxt, [16, 32, 14, 14]), 'Detalle códigos negados');
+      const suf = vm.date || (vm.rangeFrom ? vm.rangeFrom + '_a_' + vm.rangeTo : 'sin_fecha');
+      descargar(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'Negados_por_preparador_' + suf + '.xlsx');
+      aviso('ok', 'Descargando negados por preparador…');
+    } catch (err) { console.error(err); aviso('err', 'No se pudo generar el Excel: ' + ((err as Error)?.message || 'error')); }
   }
 }

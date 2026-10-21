@@ -7,3 +7,4 @@ export * from './negados/radar';
 export * from './pedidos/catalogos';
 export * from './pedidos/parseo';
 export * from './pedidos/cd';
+export * from './negados/extras';

@@ -45,19 +45,20 @@
   <h1 id="rsTitle">Cargando datos…</h1>
   <p class="lead" id="rsLead"></p>
   <section class="kpis" aria-label="Indicadores clave">
-    <div class="kpi"><div class="lbl">Líneas procesadas</div><div class="val tabular" id="kpiTotal">—</div><div class="foot" id="kpiDupesFoot">—</div></div>
+    <div class="kpi"><div class="lbl">Líneas preparadas</div><div class="val tabular" id="kpiTotal">—</div><div class="foot" id="kpiDupesFoot">—</div></div>
     <div class="kpi"><div class="lbl">Líneas negadas</div><div class="val tabular" id="kpiNegados">—</div><div class="foot"><b id="kpiPct">—</b></div></div>
-    <div class="kpi"><div class="lbl">Error en el proceso</div><div class="val tabular acc" id="kpiFalloProceso">—</div><div class="foot" id="vxFalloFoot">había stock en sistema y no se encontró</div></div>
-    <div class="kpi"><div class="lbl">Sin stock</div><div class="val tabular" id="vxSinStock">—</div><div class="foot" id="vxSinStockFoot">disponible en 0 o negativo</div></div>
     <div class="kpi" id="kpiExactCard"><div class="lbl">Exactitud de picking</div><div class="val tabular" id="kpiExact">—</div><div class="foot" id="kpiExactFoot">—</div></div>
+    <div class="kpi"><div class="lbl">Negadas por error en el proceso</div><div class="val tabular acc" id="kpiFalloProceso">—</div><div class="foot" id="vxFalloFoot">había stock en sistema y no se encontró</div></div>
+    <div class="kpi"><div class="lbl">Negadas sin stock</div><div class="val tabular" id="vxSinStock">—</div><div class="foot" id="vxSinStockFoot">disponible en 0 o negativo</div></div>
+    <div class="kpi" id="pedPrepCard"><div class="lbl">Líneas enviadas a revisión</div><div class="val tabular" id="kpiPedPrep">—</div><div class="foot" id="kpiPedPrepFoot">—</div></div>
     <div class="kpi" id="kpiB2BCard"><div class="lbl">Fill rate B2B</div><div class="val tabular" id="kpiB2B">—</div><div class="foot" id="kpiB2BFoot">—</div></div>
     <div class="kpi"><div class="lbl">Código más negado</div><div class="val tabular" id="kpiTopCode">—</div><div class="foot" id="kpiTopCodeDesc">—</div></div>
-    <div class="kpi"><div class="lbl">Sucursal más afectada</div><div class="val" id="kpiTopStore">—</div><div class="foot"><b id="kpiTopStoreCount">—</b> códigos negados</div></div>
+    <div class="kpi"><div class="lbl">Sucursal más afectada</div><div class="val" id="kpiTopStore">—</div><div class="foot"><b id="kpiTopStoreCount">—</b> líneas negadas</div></div>
   </section>
   <div class="vgrid">
     <div class="chart full pd-chart" id="vxMotCard">
       <h3 id="vxMotT">Negados por motivo y día</h3>
-      <p class="q" id="vxMotQ">Error en el proceso = había stock en sistema y no se encontró. Sin stock = disponible en 0 o negativo. Líneas discontinuas = tendencia de cada motivo (promedio de 7 días). Haz clic en una barra para ver ese día.</p>
+      <p class="q" id="vxMotQ">Líneas negadas por día y motivo.</p>
       <div class="leg"><span><i style="background:#DE7A2C"></i>Error en el proceso</span><span><i style="background:#3A76B0"></i>Sin stock</span><span><i class="dash"></i>Tendencia (promedio de 7 días)</span></div>
       <div id="vxMot"></div>
     </div>
@@ -125,6 +126,8 @@
   <p class="lead" id="tpLead"></p>
   
   <div class="vgrid">
+    <div class="chart full tablecard" id="pnegCard"><div class="cardhead"><div><h3>Negados sin actualizar</h3><p class="cardsub" id="pnegSub">—</p></div><button class="btn" id="pnegDl" type="button" title="Excel para inventario y despacho">Descargar Excel</button></div><div class="tablescroll" style="max-height:420px"><table id="pnegTbl"></table></div></div>
+    
     <div class="chart full">
       <div class="cardhead"><div><div class="rk-eb">Ranking 1</div><h3>Top 10 por cantidad de veces negado</h3><p class="q">Del día o rango elegido. Unidades = cantidad solicitada en las líneas negadas. Con existencia = % de las veces en que el sistema mostraba stock. Tendencia = veces negado por día en la ventana; la línea discontinua es su promedio.</p></div>
       <button class="btn" id="downloadTopCodesBtn" type="button" title="Un solo Excel: Top 10 por veces negado y, en otra pestaña, Top 5 por unidades negadas">Descargar Excel</button></div>

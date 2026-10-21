@@ -1,4 +1,4 @@
-/* Estilos del Radar original (misma apariencia) */
+/* Estilos del Radar (misma apariencia que /radar/) */
 
   :root{
     --bg:#F6F3EE;
@@ -573,6 +573,39 @@ footer.vxf{text-align:left!important}
 .pd-tbl td.sb b{display:inline-block;min-width:44px;text-align:right}
 .pd-period .lbl2{margin-left:0}
 body.nodata #tab-pedidos .kpis{display:grid!important}.brand .mark-logo{height:58px!important;width:auto}.brand .mark-logo-dark{display:none!important}.brand .mark-logo-light{display:block!important;mix-blend-mode:normal!important}@media(max-width:640px){.brand .mark-logo{height:46px!important}}
+#tab-resumen>.kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}
+#tab-resumen .kpi{padding:9px 14px!important}
+#tab-resumen .kpi .val{font-size:24px!important;margin:3px 0 2px!important}
+#tab-resumen .kpi .foot{font-size:11.5px!important;line-height:1.35}
+#tab-resumen #kpiTopCode,#tab-resumen #kpiTopStore{font-size:18px!important}
+#tab-resumen .kpi .foot:empty{display:none}
+#historyCard{display:none!important}
+#pedPrepCard{display:none!important}
+#tab-resumen>.kpis{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+@media (min-width:761px) and (max-width:1100px){#tab-resumen>.kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+#kpiTopCode,#kpiTopStore{display:none}
+#tab-resumen .kpi:has(#kpiTopCode),#tab-resumen .kpi:has(#kpiTopStore){display:none!important}
+#pdCut{display:none!important}
+#pnegTbl td,#pnegTbl th{padding:5px 8px;font-size:12.5px}#pnegTbl td.n{text-align:right;font-family:var(--font-mono)}#pnegTbl td.c{font-family:var(--font-mono);white-space:nowrap}
+#pnegTbl td.ds{max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#pnegTbl td.pr{white-space:nowrap}#pnegTbl td{white-space:nowrap}
+#pnegTbl .tg{font:10.5px var(--font-mono);padding:1px 6px;border-radius:3px;white-space:nowrap}#pnegTbl .tg.s{background:#F6E2CC;color:#9A4E12}#pnegTbl .tg.z{background:#DCE6F0;color:#24557F}
+#tab-top .chart .cardhead .q,#tab-top .r2>.q,#tab-top .chart>p.q{display:none!important}
+#tab-top .rk-tbl th:last-child,#tab-top .rk-tbl td.trc{display:none}
+#tab-pedidos .chart>p.q,#tab-pedidos .pd-coh>.vgrid,.pd-sec,#pdCohQ{display:none!important}
+#vxMotCard .leg i.dash,#vxMotCard .leg i.dash+*{display:none}
+.pdbal{display:flex;align-items:stretch;margin:16px 0 8px;max-width:760px}
+.pdbal>div{flex:1;background:var(--surface);border:1px solid var(--line);padding:7px 12px;margin-right:-1px}
+.pdbal>div span{display:block;font:10.5px var(--font-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.pdbal>div b{display:block;font:400 26px/1.15 var(--font-display);margin:2px 0}
+.pdbal>.op{flex:0 0 24px;background:none;border:0;display:flex;align-items:center;justify-content:center;font:600 18px var(--font-display);padding:0}
+.pdbal>div.fin{border-color:var(--orange)}.pdbal>div.fin b{color:#9A4E12}
+#tab-pedidos .pd-coh .kpi{padding:8px 12px!important}#tab-pedidos .pd-coh .kpi .val{font-size:22px!important;margin:2px 0!important}
+#tab-pedidos .pd-coh .kpis{max-width:760px;margin-top:8px!important}
+#pdCohT{font-size:18px!important}
+#tab-pedidos .kpis.pdkhide,body.nodata #tab-pedidos .kpis.pdkhide{display:none!important}
+#pdFlow polyline[stroke-dasharray],#vxMot polyline[stroke-dasharray]{display:none}
+@media (max-width:760px){#tab-resumen>.kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media (max-width:480px){#tab-resumen>.kpis{grid-template-columns:1fr!important}}
 .prres{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:22px;align-items:start}
 .prres-l .tablescroll{max-height:430px;overflow:auto}
 .prres-l tbody tr{cursor:pointer}
