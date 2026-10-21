@@ -1,0 +1,51 @@
+/* =====================================================================
+   Diseño "semáforo" + modo oscuro (Radar actual y versión nueva)
+   El modo se guarda en el navegador (botón Oscuro / Claro).
+   ===================================================================== */
+
+/* ---------- Modo oscuro: solo cambia colores; todo el contenido es el mismo ---------- */
+html:root[data-theme="dark"]{
+  --bg:#17181B;--surface:#22252A;--surface-2:#2C3036;--ink:#F1EEE6;--ink-2:#D6D1C6;--ink-muted:#A39E92;--mut:#A39E92;
+  --border:#3A3E45;--border-strong:#4D525A;--line:#3A3E45;
+  --accent:#FF5A5E;--accent-ink:#17181B;--accent-soft:#4A2526;
+  --steel:#64A2DD;--steel-soft:#22384D;--blue:#64A2DD;
+  --good:#63C174;--good-soft:#21392A;--warning:#F0903F;--warning-soft:#4A3220;--orange:#F0903F;
+  --critical:#FF6B60;--critical-soft:#4A2622;--shadow:none;color-scheme:dark}
+html[data-theme="dark"] body{background:var(--bg)!important;color:var(--ink)}
+html[data-theme="dark"] .vx-logo{filter:invert(1) hue-rotate(180deg) saturate(1.3) brightness(1.1)}
+html[data-theme="dark"] .cta{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+html[data-theme="dark"] .cta:hover{background:#fff}
+html[data-theme="dark"] .kpi{box-shadow:none!important}
+html[data-theme="dark"] select,html[data-theme="dark"] input[type=text],html[data-theme="dark"] input:not([type]){background:var(--surface);color:var(--ink);border-color:var(--border)}
+/* líneas y textos de los gráficos que usan color fijo oscuro */
+html[data-theme="dark"] svg [stroke="#26241F"]{stroke:#E8E4DA}
+html[data-theme="dark"] svg [fill="#26241F"]{fill:#E8E4DA}
+html[data-theme="dark"] svg [stroke="#CFC6B1"]{stroke:#3A3E45}
+html[data-theme="dark"] .pd-chart g.sel rect:not([fill=transparent]){stroke:#F1EEE6}
+html[data-theme="dark"] .leg i.dash{border-top-color:var(--ink-muted)}
+html[data-theme="dark"] #pnegTbl .tg.s{background:#4A3220;color:#F6C08C}
+html[data-theme="dark"] #pnegTbl .tg.z{background:#22384D;color:#A9CDF0}
+html[data-theme="dark"] .tag.a{background:#21392A;color:#8FD69C}
+html[data-theme="dark"] #nube-barra{background:rgba(34,37,42,.97);border-color:#3A3E45;color:#D6D1C6}
+html[data-theme="dark"] #nube-barra button{background:#2C3036;color:#F1EEE6;border-color:#4D525A}
+
+/* ---------- Botón de tema ---------- */
+.tema-btn{display:inline-flex;align-items:center;gap:6px}
+.tema-btn i{display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid currentColor;background:linear-gradient(90deg,currentColor 50%,transparent 50%)}
+
+/* ---------- Semáforo ---------- */
+.kpi.sem{position:relative;overflow:hidden}
+.kpi.sem::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--semc)}
+.kpi.sem .sem-t{position:absolute;right:10px;bottom:9px;font:600 10px var(--font-mono);letter-spacing:.06em;padding:2px 6px;border-radius:3px;color:#fff;background:var(--semc)}
+.kpi.sem-v{--semc:#3E8E4F}.kpi.sem-a{--semc:#D49A1E}.kpi.sem-r{--semc:#C7453A}
+html[data-theme="dark"] .kpi.sem-v{--semc:#4FB062}html[data-theme="dark"] .kpi.sem-r{--semc:#E5574C}
+#semStrip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:14px 0 4px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+#semStrip>div{padding:10px 16px;border-right:1px solid var(--line);min-width:0}
+#semStrip>div:last-child{border-right:0}
+#semStrip span{display:block;font:11px var(--font-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--ink-muted)}
+#semStrip b{display:block;font:600 30px/1.15 var(--font-display);margin-top:2px;color:var(--ink)}
+#semStrip i{font-style:normal;font-size:12px;color:var(--ink-muted)}
+#semStrip .r b{color:#C7453A}#semStrip .a b{color:#B07D10}#semStrip .v b{color:#3E8E4F}
+html[data-theme="dark"] #semStrip .r b{color:#FF6B60}html[data-theme="dark"] #semStrip .v b{color:#63C174}
+@media (max-width:760px){#semStrip{grid-template-columns:repeat(2,minmax(0,1fr))}#semStrip>div:nth-child(2){border-right:0}#semStrip>div:nth-child(-n+2){border-bottom:1px solid var(--line)}#semStrip b{font-size:24px}}
+@media print{.tema-btn{display:none!important}}
