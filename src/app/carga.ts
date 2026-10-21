@@ -38,7 +38,10 @@ let ocupado = false;
 
 /** Guarda en Supabase lo que cambió. Devuelve el resultado o null si falló (y ya avisó). */
 async function guardar(ctx: Contexto, previo: string): Promise<ResultadoGuardar | null> {
-  if (!ctx.almacen) { aviso('ok', previo + ' (modo de prueba: no se guarda).', 20000); return null; }
+  if (!ctx.almacen) {
+    aviso('ok', previo + (import.meta.env.MODE === 'copia' ? ' · Cargado en esta copia: usa Descargar HTML para guardar un archivo con estos datos.' : ' (modo de prueba: no se guarda).'), 30000);
+    return null;
+  }
   aviso('ok', 'Guardando en la base…', 60000);
   try {
     ctx.radar.persistSeen();

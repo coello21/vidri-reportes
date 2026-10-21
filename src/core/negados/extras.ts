@@ -100,7 +100,8 @@ export function fotoSinActualizar(store: StoreRadar, records: Registro[]): boole
   return false;
 }
 
-export interface CodigoSinActualizar { sku: string; desc: string; um: string; disp: number; n: number; q: number; ubic: string[]; suc: string[]; pedidos: number }
+/** rev = última vez que se mandó a revisión (ms), de todas las líneas del código. */
+export interface CodigoSinActualizar { sku: string; desc: string; um: string; disp: number; n: number; q: number; ubic: string[]; suc: string[]; pedidos: number; rev: number }
 
 /** Mismo código sumado; solo los que tienen existencia suficiente para al menos un pedido. */
 export function sinActualizarPorCodigo(store: StoreRadar): { t: number; codigos: CodigoSinActualizar[] } | null {
@@ -121,6 +122,6 @@ export function sinActualizarPorCodigo(store: StoreRadar): { t: number; codigos:
   });
   const codigos = [...M.values()].filter((g) => g.disp > 0 && g.disp >= g.min)
     .sort((a, b) => rk(a.disp) - rk(b.disp) || b.n - a.n || b.q - a.q || String([...a.ub][0] || '').localeCompare(String([...b.ub][0] || '')))
-    .map((g) => ({ sku: g.sku, desc: g.desc, um: g.um, disp: g.disp, n: g.n, q: g.q, ubic: [...g.ub], suc: [...g.suc], pedidos: g.ped.size }));
+    .map((g) => ({ sku: g.sku, desc: g.desc, um: g.um, disp: g.disp, n: g.n, q: g.q, ubic: [...g.ub], suc: [...g.suc], pedidos: g.ped.size, rev: g.t }));
   return { t: P.t, codigos };
 }

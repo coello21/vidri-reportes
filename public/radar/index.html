@@ -2915,7 +2915,7 @@ async function downloadShare(ev){
     tpl=await vxInlineTema(tpl);
     const days=Object.keys(HISTORY).sort(), last=days[days.length-1], from=addDays(last,-44), H={};
     days.filter(d=>d>=from).forEach(d=>H[d]=HISTORY[d]);
-    const st=Object.assign({},STORE); delete st.seen; delete st.pending;
+    if(typeof persistSeen==='function') persistSeen(); const st=Object.assign({},STORE); // con las líneas ya contadas: así "Cargar Excel" en la copia no cuenta doble
     let ped=null; try{ await pedEnsure(); const fm=Date.UTC(+from.slice(0,4),+from.slice(5,7)-1,+from.slice(8,10))/60000; ped={cortes:PED.cortes,rows:[...PED.rows.values()].filter(x=>x[2]>=fm||x[3]!=='A')}; }catch(e){}
     const b64=await gzB64(JSON.stringify({history:H,store:st,pedidos:ped}));
     const rango=fmtDateShort(Object.keys(H).sort()[0])+' – '+fmtDateShort(last);
@@ -3986,15 +3986,17 @@ function renderPneg(){
   if(!P){ sub.textContent = 'Aparece con el próximo Excel cargado.'; tb.innerHTML = ''; return; }
   const G = pnegByCode(), lin = G.reduce((a,g) => a + g.n, 0), st = G.filter(g => g.disp > 0).length;
   sub.textContent = 'Al corte ' + pnegHora(P.t) + ' · ' + fmtInt(G.length) + ' códigos (' + fmtInt(lin) + ' líneas) en 0 sin actualizar, con existencia suficiente para al menos un pedido';
-  tb.innerHTML = '<thead><tr><th>Motivo</th><th>Código</th><th>Descripción</th><th>UM</th><th class="n">Veces</th><th class="n">Cant. pedida</th><th class="n">Disponible</th><th>Ubicación</th><th>Sucursales</th><th class="n">Pedidos</th></tr></thead><tbody>'
-    + (G.length ? G.map(g => '<tr><td><span class="tg ' + (g.disp > 0 ? 's' : 'z') + '">' + pnegMot(g.disp) + '</span></td><td class="c">' + escapeHtml(g.sku) + '</td><td class="ds" title="' + escapeHtml(g.desc) + '">' + escapeHtml(g.desc) + '</td><td>' + escapeHtml(g.um) + '</td><td class="n"><b>' + fmtInt(g.n) + '</b></td><td class="n">' + fmtInt(g.q) + '</td><td class="n">' + fmtInt(g.disp || 0) + '</td><td class="c">' + escapeHtml([...g.ub].join(' / ')) + '</td><td>' + escapeHtml([...g.suc].join(', ')) + '</td><td class="n">' + fmtInt(g.ped.size) + '</td></tr>').join('')
-      : '<tr class="empty-row"><td colspan="10">No hay líneas en 0 pendientes de actualizar.</td></tr>') + '</tbody>';
+  tb.innerHTML = '<thead><tr><th>Motivo</th><th>Código</th><th>Descripción</th><th>UM</th><th class="n">Veces</th><th class="n">Cant. pedida</th><th class="n">Disponible</th><th>Última revisión</th><th>Ubicación</th><th>Sucursales</th><th class="n">Pedidos</th></tr></thead><tbody>'
+    + (G.length ? G.map(g => '<tr><td><span class="tg ' + (g.disp > 0 ? 's' : 'z') + '">' + pnegMot(g.disp) + '</span></td><td class="c">' + escapeHtml(g.sku) + '</td><td class="ds" title="' + escapeHtml(g.desc) + '">' + escapeHtml(g.desc) + '</td><td>' + escapeHtml(g.um) + '</td><td class="n"><b>' + fmtInt(g.n) + '</b></td><td class="n">' + fmtInt(g.q) + '</td><td class="n">' + fmtInt(g.disp || 0) + '</td><td class="c">' + pnegHora(g.t) + '</td><td class="c">' + escapeHtml([...g.ub].join(' / ')) + '</td><td>' + escapeHtml([...g.suc].join(', ')) + '</td><td class="n">' + fmtInt(g.ped.size) + '</td></tr>').join('')
+      : '<tr class="empty-row"><td colspan="11">No hay líneas en 0 pendientes de actualizar.</td></tr>') + '</tbody>';
 }
 function downloadPneg(){
   const P = STORE && STORE.pneg; if(!P){ showStatus('err','Todavía no hay datos: carga el Rpt_OrdenesPreparacion.'); return; }
   try{ const G = pnegByCode();
-    const ws = trSheet('', ['Motivo','Código','Descripción','UM','Veces','Cant. pedida','Disponible','Ubicación','Sucursales','Pedidos'],
-      G.map(g => [pnegMot(g.disp), g.sku, g.desc, g.um, g.n, g.q, g.disp, [...g.ub].join(' / '), [...g.suc].join(', '), g.ped.size]), [20,12,50,7,8,12,12,24,30,9]);
+    const ws = trSheet('', ['Motivo','Código','Descripción','UM','Veces','Cant. pedida','Disponible','Última revisión','Ubicación','Sucursales','Pedidos'],
+      G.map(g => [pnegMot(g.disp), g.sku, g.desc, g.um, g.n, g.q, g.disp, null, [...g.ub].join(' / '), [...g.suc].join(', '), g.ped.size]), [20,12,50,7,8,12,12,17,24,30,9]);
+    // Última revisión del código como fecha y hora de Excel (se puede filtrar y ordenar)
+    G.forEach((g, i) => { const d = new Date(g.t); ws[XLSX.utils.encode_cell({r:i+1, c:7})] = {t:'n', v:(g.t - d.getTimezoneOffset()*60000)/864e5 + 25569, z:'dd/mm/yyyy hh:mm'}; });
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Negados sin actualizar');
     const d = new Date(P.t), tag = ymd(d) + '_' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0');
     downloadBlob(trBlob(wb), 'Negados_sin_actualizar_' + tag + '.xlsx'); showStatus('ok','Descargando ' + fmtInt(G.length) + ' códigos…');

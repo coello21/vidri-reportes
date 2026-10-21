@@ -33,11 +33,28 @@
   function lista(items) { return items.length <= 1 ? items.join('') : items.slice(0, -1).join(', ') + ' y ' + items[items.length - 1]; }
   function masMenos(v, unidad) { return v > 0 ? n(v) + ' ' + unidad + ' más' : v < 0 ? n(-v) + ' ' + unidad + ' menos' : 'los mismos ' + unidad; }
 
+  /* ---------------- de dónde salen los datos ----------------
+     Radar actual (/radar/): variables de la página (PED, HISTORY, STORE).
+     Versión nueva (/app/): la página registra una fuente con VidriReporte.usarFuente(fn). */
+  var FUENTE = null, AVISO = null;
+  function src() {
+    if (FUENTE) return FUENTE();
+    return {
+      rows: (typeof PED !== 'undefined' && PED.rows) || null,
+      lc: typeof pedLastCorte === 'function' ? pedLastCorte() : 0,
+      H: typeof HISTORY !== 'undefined' ? HISTORY : null,
+      S: typeof STORE !== 'undefined' ? STORE : null,
+    };
+  }
+  var pedC = function (x) { return (x[5] === 'ven' || x[5] === 'lin') ? 'otr' : x[5]; };
+  var pedB = function (x) { return x[9] || 'N'; };
+
   /* ---------------- datos de pedidos ---------------- */
   function datosPedidos() {
-    if (typeof PED === 'undefined' || !PED.rows || !PED.rows.size) return null;
-    var lc = pedLastCorte(); if (!lc) return null;
-    var all = []; PED.rows.forEach(function (x) { if (x[3] === 'A' || x[8] >= lc) all.push(x); });
+    var F = src();
+    if (!F.rows || !F.rows.size) return null;
+    var lc = F.lc; if (!lc) return null;
+    var all = []; F.rows.forEach(function (x) { if (x[3] === 'A' || x[8] >= lc) all.push(x); });
     var hoy = dayOfMin(lc), t0 = dStart(hoy), off = lc - t0;
     var pendAt = function (t) { var c = 0; all.forEach(function (x) { if (x[2] >= t) return; if (x[6] ? x[6] >= t : x[3] !== 'A') c++; }); return c; };
     var entre = function (a, b) { return all.filter(function (x) { return x[2] >= a && x[2] < b; }); };
@@ -100,7 +117,8 @@
 
   /* ---------------- datos de negados ---------------- */
   function datosNegados(diaPreferido) {
-    if (typeof HISTORY === 'undefined') return null;
+    var F = src(), HISTORY = F.H, STORE = F.S || {};
+    if (!HISTORY) return null;
     var dias = Object.keys(HISTORY).filter(function (d) { return HISTORY[d] && HISTORY[d].meta && HISTORY[d].meta.totalFinal; }).sort();
     if (!dias.length) return null;
     var d = (diaPreferido && HISTORY[diaPreferido] && dias.indexOf(diaPreferido) >= 0) ? diaPreferido : dias[dias.length - 1];
@@ -181,6 +199,7 @@
 
   /* ---------------- textos (plantillas) ---------------- */
   function armar() {
+    var STORE = src().S;
     var P = datosPedidos();
     var N = datosNegados(P ? P.hoy : null);
     if (!P && !N) throw new Error('No hay datos cargados para armar el reporte.');
@@ -412,7 +431,8 @@
       mostrar(html(h, logoEl ? logoEl.getAttribute('src') : ''));
     } catch (e) {
       console.error(e);
-      if (typeof showStatus === 'function') showStatus('err', 'No se pudo armar el reporte: ' + ((e && e.message) || e), 15000);
+      if (AVISO) AVISO('No se pudo armar el reporte: ' + ((e && e.message) || e));
+      else if (typeof showStatus === 'function') showStatus('err', 'No se pudo armar el reporte: ' + ((e && e.message) || e), 15000);
       else alert('No se pudo armar el reporte: ' + ((e && e.message) || e));
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = t0; }
@@ -430,5 +450,5 @@
     });
   }
 
-  window.VidriReporte = { armar: armar, html: html, generar: generar, ponerBotones: ponerBotones, _pedidos: datosPedidos, _negados: datosNegados };
+  window.VidriReporte = { usarFuente: function (fn, aviso) { FUENTE = fn; AVISO = aviso || null; }, armar: armar, html: html, generar: generar, ponerBotones: ponerBotones, _pedidos: datosPedidos, _negados: datosNegados };
 })();

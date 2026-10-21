@@ -10,8 +10,8 @@ Tableros de preparación del CD Nejapa (Radar de Negados y Pedidos CD) en **Type
 | 2 | Conexión a Supabase y login sobre los módulos nuevos (`src/nube`, `src/app`, página `/app/`) | ✅ |
 | 3 | Pantallas: Resumen, Top negados, Pedidos CD (solo lectura; misma apariencia, comparadas contra el Radar original) | ✅ |
 | 3b | Cargar Excel y Excel por preparador en la versión nueva (comparados contra /radar/ con cargas de prueba) | ✅ |
-| 3c | Reporte ejecutivo en la versión nueva | pendiente |
-| 4 | "Descargar HTML" de 45 días como archivo independiente | pendiente |
+| 3c | Reporte ejecutivo en la versión nueva | ✅ |
+| 4 | "Descargar HTML" de 45 días como archivo independiente (plantilla.html, se arma con `npm run build`) | ✅ |
 | 5 | Reporte ejecutivo automático (botón **Reporte ejecutivo** en el Radar: pedidos y negados; productividad cuando su tablero esté en la base) | ✅ parcial |
 
 Mientras se hacen los pasos 2–5, **el Radar actual sigue funcionando** (carpeta `public/radar/`, ya conectado a Supabase). Se publica junto con el proyecto en la misma dirección y se reemplaza cuando la versión nueva esté lista.

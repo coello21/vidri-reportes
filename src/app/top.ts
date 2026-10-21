@@ -307,18 +307,20 @@ export class TopNegados {
     if (!R) { sub.textContent = 'Aparece con el próximo Excel cargado.'; tb.innerHTML = ''; return; }
     const G = R.codigos, lin = G.reduce((a, g) => a + g.n, 0);
     sub.textContent = 'Al corte ' + TopNegados.hora(R.t) + ' · ' + fmtInt(G.length) + ' códigos (' + fmtInt(lin) + ' líneas) en 0 sin actualizar, con existencia suficiente para al menos un pedido';
-    tb.innerHTML = '<thead><tr><th>Motivo</th><th>Código</th><th>Descripción</th><th>UM</th><th class="n">Veces</th><th class="n">Cant. pedida</th><th class="n">Disponible</th><th>Ubicación</th><th>Sucursales</th><th class="n">Pedidos</th></tr></thead><tbody>' +
+    tb.innerHTML = '<thead><tr><th>Motivo</th><th>Código</th><th>Descripción</th><th>UM</th><th class="n">Veces</th><th class="n">Cant. pedida</th><th class="n">Disponible</th><th>Última revisión</th><th>Ubicación</th><th>Sucursales</th><th class="n">Pedidos</th></tr></thead><tbody>' +
       (G.length ? G.map((g) => '<tr><td><span class="tg ' + (g.disp > 0 ? 's' : 'z') + '">' + TopNegados.motivo(g.disp) + '</span></td><td class="c">' + esc(g.sku) + '</td><td class="ds" title="' + esc(g.desc) + '">' + esc(g.desc) + '</td><td>' + esc(g.um) +
-        '</td><td class="n"><b>' + fmtInt(g.n) + '</b></td><td class="n">' + fmtInt(g.q) + '</td><td class="n">' + fmtInt(g.disp || 0) + '</td><td class="c">' + esc(g.ubic.join(' / ')) + '</td><td>' + esc(g.suc.join(', ')) + '</td><td class="n">' + fmtInt(g.pedidos) + '</td></tr>').join('')
-        : '<tr class="empty-row"><td colspan="10">No hay líneas en 0 pendientes de actualizar.</td></tr>') + '</tbody>';
+        '</td><td class="n"><b>' + fmtInt(g.n) + '</b></td><td class="n">' + fmtInt(g.q) + '</td><td class="n">' + fmtInt(g.disp || 0) + '</td><td class="c">' + TopNegados.hora(g.rev) + '</td><td class="c">' + esc(g.ubic.join(' / ')) + '</td><td>' + esc(g.suc.join(', ')) + '</td><td class="n">' + fmtInt(g.pedidos) + '</td></tr>').join('')
+        : '<tr class="empty-row"><td colspan="11">No hay líneas en 0 pendientes de actualizar.</td></tr>') + '</tbody>';
   }
 
   excelSinActualizar() {
     const R = sinActualizarPorCodigo(this.radar.store);
     if (!R) { aviso('err', 'Todavía no hay datos: carga el Rpt_OrdenesPreparacion.'); return; }
     try {
-      const ws = this.hoja('', ['Motivo', 'Código', 'Descripción', 'UM', 'Veces', 'Cant. pedida', 'Disponible', 'Ubicación', 'Sucursales', 'Pedidos'],
-        R.codigos.map((g) => [TopNegados.motivo(g.disp), g.sku, g.desc, g.um, g.n, g.q, g.disp, g.ubic.join(' / '), g.suc.join(', '), g.pedidos]), [20, 12, 50, 7, 8, 12, 12, 24, 30, 9]);
+      const ws = this.hoja('', ['Motivo', 'Código', 'Descripción', 'UM', 'Veces', 'Cant. pedida', 'Disponible', 'Última revisión', 'Ubicación', 'Sucursales', 'Pedidos'],
+        R.codigos.map((g) => [TopNegados.motivo(g.disp), g.sku, g.desc, g.um, g.n, g.q, g.disp, null, g.ubic.join(' / '), g.suc.join(', '), g.pedidos]), [20, 12, 50, 7, 8, 12, 12, 17, 24, 30, 9]);
+      // Última revisión del código como fecha y hora de Excel (se puede filtrar y ordenar)
+      R.codigos.forEach((g, i) => { const d = new Date(g.rev); ws[XLSX.utils.encode_cell({ r: i + 1, c: 7 })] = { t: 'n', v: (g.rev - d.getTimezoneOffset() * 60000) / 864e5 + 25569, z: 'dd/mm/yyyy hh:mm' }; });
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Negados sin actualizar');
       const d = new Date(R.t), tag = ymd(d) + '_' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
       this.bajar(wb, 'Negados_sin_actualizar_' + tag + '.xlsx');

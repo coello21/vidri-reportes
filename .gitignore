@@ -3,3 +3,4 @@ dist
 .env
 .env.local
 tests/fixtures/*.local.*
+dist-copia
