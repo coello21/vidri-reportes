@@ -36,6 +36,20 @@ describe('Líneas preparadas (Fecha Enviado Revisión)', () => {
   });
 });
 
+describe('Líneas preparadas: llave pedido + orden + código', () => {
+  it('cuenta en cada orden y pasa sin duplicar las llaves viejas pedido|sku', () => {
+    const st = {} as StoreRadar & { revK?: Record<string, string> };
+    // una línea reasignada a otra orden y mandada otra vez a revisión el mismo día: cuenta 2
+    contarRevision(st, [rec(1, 'a', '2026-10-20T10:00:00', 'A', { Orden: 'O1' }), rec(1, 'a', '2026-10-20T15:00:00', 'A', { Orden: 'O2' })], 10);
+    expect(lineasPreparadas(st, '2026-10-20', '2026-10-20')).toBe(2);
+    // datos guardados con la llave vieja (pedido|sku): al volver a venir la línea no se suma otra vez
+    const viejo = { revN: { '2026-10-20': 2 }, revK: { '2026-10-20': '5|a,6|b' }, revKT: 0 } as unknown as StoreRadar;
+    contarRevision(viejo, [rec(5, 'a', '2026-10-20T10:00:00', 'A', { Orden: 'O9' }), rec(6, 'b', '2026-10-20T11:00:00', 'P', { Orden: 'O9' })], 10);
+    expect(lineasPreparadas(viejo, '2026-10-20', '2026-10-20')).toBe(2);
+    expect((viejo as unknown as { revK: Record<string, string> }).revK['2026-10-20'].split(',').sort()).toEqual(['5|O9|a', '6|O9|b']);
+  });
+});
+
 describe('Negados sin actualizar', () => {
   it('toma las líneas mandadas a revisión en 0 y sin cerrar, y agrupa por código', () => {
     const st = {} as StoreRadar;

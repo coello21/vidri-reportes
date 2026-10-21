@@ -3,6 +3,13 @@
    El modo se guarda en el navegador (botón Oscuro / Claro).
    ===================================================================== */
 
+/* ---------- Modo claro: fondo blanco beige ---------- */
+html:root[data-theme="light"]{--bg:#FAF7F0;--surface:#FFFDF8;--surface-2:#F1ECE1}
+html[data-theme="light"] body{background:var(--bg)!important}
+
+/* ---------- Sin botones de .json (el respaldo vive en la base de datos) ---------- */
+#downloadBtn,#pedJsonBtn,.histBtn{display:none!important}
+
 /* ---------- Modo oscuro: solo cambia colores; todo el contenido es el mismo ---------- */
 html:root[data-theme="dark"]{
   --bg:#17181B;--surface:#22252A;--surface-2:#2C3036;--ink:#F1EEE6;--ink-2:#D6D1C6;--ink-muted:#A39E92;--mut:#A39E92;

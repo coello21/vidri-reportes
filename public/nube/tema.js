@@ -2,8 +2,7 @@
    Diseño "semáforo" + modo oscuro. Lo usan el Radar actual (/radar/) y
    la versión nueva (/app/). Solo cambia cómo se ve: no toca los datos.
    - Botón Oscuro / Claro (se recuerda en este navegador).
-   - Franja con los números clave del día y color de meta en las tarjetas
-     que tienen meta. Las metas se definen en METAS (null = sin meta).
+   - Color de meta en las tarjetas que tienen meta. Las metas se definen en METAS (null = sin meta).
    ===================================================================== */
 (function () {
   'use strict';
@@ -74,15 +73,7 @@
       var pct = num(txt('kpiPct')), ex = num(txt('kpiExact')), b2 = num(txt('kpiB2B'));
       var eN = estado(pct, METAS.negados), eE = estado(ex, METAS.exactitud), eB = estado(b2, METAS.b2b);
       marcar('kpiNegados', eN); marcar('kpiExact', eE); marcar('kpiB2B', eB);
-      var st = document.getElementById('semStrip');
-      if (!st) { st = document.createElement('div'); st.id = 'semStrip'; k.parentNode.insertBefore(st, k); }
-      var lp = txt('kpiTotal'), act = txt('kpiDupesFoot');
-      var html =
-        '<div class="' + (eN || '') + '"><span>Negados del día</span><b>' + txt('kpiPct') + '</b><i>' + metaTxt(METAS.negados, '%') + '</i></div>' +
-        '<div class="' + (eE || '') + '"><span>Exactitud de picking</span><b>' + txt('kpiExact') + '</b><i>' + metaTxt(METAS.exactitud, '%') + '</i></div>' +
-        '<div class="' + (eB || '') + '"><span>Fill rate B2B</span><b>' + txt('kpiB2B') + '</b><i>' + metaTxt(METAS.b2b, '%') + '</i></div>' +
-        '<div><span>Líneas preparadas</span><b>' + lp + '</b><i>' + act + '</i></div>';
-      if (st.innerHTML !== html) st.innerHTML = html;
+      var st = document.getElementById('semStrip'); if (st) st.remove(); // la franja de números clave se quitó (21 oct): solo las 6 tarjetas
     } finally { dibujando = false; }
   }
 
