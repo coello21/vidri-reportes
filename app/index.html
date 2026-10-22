@@ -28,7 +28,6 @@
       <button class="cta" id="pedSelectBtn" type="button" data-show="pedidos" hidden title="Carga el reporte de transferencias (Document.xlsx). También acepta el Rpt_OrdenesPreparacion para registrar la hora de asignación">Cargar Excel</button>
       <input type="file" hidden id="fileInput" accept=".xlsx,.xls,.xlsm" multiple>
       <input type="file" hidden id="pedFile" accept=".xlsx,.xls,.csv" multiple>
-      <button class="lnk" id="salir" type="button">Salir</button>
     </div>
   </div>
 </header>
@@ -289,6 +288,11 @@
 </section>
 
 <footer class="vxf" data-show="radar">Generado a partir de "Rpt_OrdenesPreparacion.xlsx" &middot; Solo líneas en estado A (listas para despacho); P y R se muestran como pendientes &middot; Día = Fecha Actualizado &middot; Duplicados: mismo Pedido + SKU (en reasignaciones se toma la orden en A) y misma Orden + SKU idéntica &middot; Negado = Cantidad Preparada igual a 0 &middot; Exactitud de picking = líneas mandadas completas ÷ líneas preparadas (meta ≥ 99,5%) &middot; Fill rate B2B = pedidos con Razón "Venta corporativa" en alguna de sus filas, con todas sus líneas completas ÷ pedidos corporativos cerrados</footer>
+<footer class="vx-respaldo" id="respaldo">
+  <span class="nb-t">Respaldo y sesión</span><span class="nb-dot" title="Conectado a Supabase"></span><span class="nb-user" id="nbUser"></span>
+  <button type="button" id="todoBtn" title="Al abrir se leen los últimos días; esto lee todo lo guardado">Todo el histórico</button>
+  <button type="button" id="salir">Salir</button>
+</footer>
 </div>
 <script type="module" src="../src/app/main.ts"></script>
 </body>

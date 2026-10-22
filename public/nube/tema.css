@@ -38,8 +38,6 @@ html[data-theme="dark"] #pnegTbl .tg.s{background:#4A3220;color:#F6C08C}
 html[data-theme="dark"] #pnegTbl .tg.z{background:#22384D;color:#A9CDF0}
 html[data-theme="dark"] #pnegTbl .tg.n{background:#4A2622;color:#F2A69C}
 html[data-theme="dark"] .tag.a{background:#21392A;color:#8FD69C}
-html[data-theme="dark"] #nube-barra{background:rgba(34,37,42,.97);border-color:#3A3E45;color:#D6D1C6}
-html[data-theme="dark"] #nube-barra button{background:#2C3036;color:#F1EEE6;border-color:#4D525A}
 
 /* ---------- Negados sin actualizar: filtro por motivo ---------- */
 #pnegTbl .tg.n{background:#F5DCD3;color:#B23A26}
@@ -61,6 +59,18 @@ html[data-theme="dark"] #nube-barra button{background:#2C3036;color:#F1EEE6;bord
 .vx-pg a.on{background:var(--ink);color:var(--bg);cursor:default}
 html.copia .vx-pg{display:none}
 @media (max-width:820px){.vxh .vx-der{align-items:flex-start;margin-left:0}}
+
+/* ---------- Respaldo y sesión: al final de la página (Radar y Productividad) ---------- */
+.vx-respaldo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:36px 0 8px;padding:14px 0 0;border-top:1px solid var(--line);font:11px var(--font-mono);color:var(--ink-muted)}
+.vx-respaldo .nb-t{text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin-right:6px}
+.vx-respaldo .nb-dot{width:8px;height:8px;border-radius:50%;background:#4E9A55;flex:none}
+.vx-respaldo .nb-user{margin-right:auto;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vx-respaldo button{font:11px var(--font-mono);text-transform:uppercase;letter-spacing:.05em;padding:6px 10px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--ink);cursor:pointer}
+.vx-respaldo button:hover{border-color:var(--ink)}
+.vx-respaldo button:disabled{opacity:.5;cursor:wait}
+.vx-respaldo [hidden]{display:none!important}
+html.copia .vx-respaldo{display:none!important}
+@media print{.vx-respaldo{display:none!important}}
 
 /* ---------- Botón de tema ---------- */
 .tema-btn{display:inline-flex;align-items:center;gap:6px}

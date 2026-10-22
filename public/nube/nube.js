@@ -109,16 +109,16 @@
 
   function barra() {
     if ($('nube-barra')) return;
-    var b = document.createElement('div');
-    b.id = 'nube-barra';
+    var b = document.createElement('footer');
+    b.id = 'nube-barra'; b.className = 'vx-respaldo';
     b.innerHTML =
-      '<span class="nb-dot" title="Conectado a Supabase"></span><span class="nb-user">' + esc(usuario) + '</span>' +
+      '<span class="nb-t">Respaldo y sesión</span><span class="nb-dot" title="Conectado a Supabase"></span><span class="nb-user">' + esc(usuario) + '</span>' +
       '<button type="button" id="nb-imp" title="Sube a la base un .json o un HTML descargado del tablero anterior">Importar respaldo</button>' +
       '<button type="button" id="nb-sync" title="Guarda en la base todo lo que está en pantalla (solo lo que cambió)">Guardar todo</button>' +
       '<button type="button" id="nb-hist" title="Carga todos los días guardados, no solo los últimos ' + DIAS_RADAR + '">Todo el histórico</button>' +
       '<button type="button" id="nb-out">Salir</button>' +
       '<input type="file" id="nb-file" accept=".json,.html,.htm" multiple hidden>';
-    document.body.appendChild(b);
+    (document.querySelector('.wrap') || document.body).appendChild(b);
     $('nb-out').addEventListener('click', async function () { await sb.auth.signOut(); location.reload(); });
     $('nb-sync').addEventListener('click', function () { guardarTodo('Guardado manual'); });
     $('nb-hist').addEventListener('click', function () {

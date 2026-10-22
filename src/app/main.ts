@@ -172,8 +172,10 @@ async function arrancar() {
     const datos = await almacen.leer({ diasRadar: CONFIG.DIAS_RADAR, diasPedidos: CONFIG.DIAS_PEDIDOS, todo, rapido: { dias: 8, pedidos: 16 } }, (e, p) => cargando(e + '… ' + p + '%'));
     cargando('Armando el tablero…');
     const app = montar(datos, almacen, s.user?.email || '');
-    $('usuario').textContent = app.usuario;
+    $('usuario').textContent = app.usuario; $('nbUser').textContent = app.usuario;
     $('salir').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+    if (todo) $('todoBtn').hidden = true;
+    else $('todoBtn').addEventListener('click', () => { const u = new URL(location.href); u.searchParams.set('todo', '1'); location.href = u.toString(); });
     completarDespues(app);
   });
 }

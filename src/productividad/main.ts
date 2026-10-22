@@ -327,7 +327,7 @@ async function descargarHtml(btn: HTMLButtonElement) {
 /* ---------------- arranque ---------------- */
 function montar(ordenes: Orden[], extra: Persona[], usuario: string) {
   P = new Productividad(ordenes, extra);
-  $('usuario').textContent = usuario;
+  $('usuario').textContent = usuario; $('nbUser').textContent = usuario;
   conectar();
   const archivo = (btn: string, inp: string, fn: (f: File[]) => void) => {
     const i = $(inp) as HTMLInputElement;
