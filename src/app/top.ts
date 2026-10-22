@@ -316,7 +316,7 @@ export class TopNegados {
     const T = R.codigos, cuenta = (m: string) => T.filter((g) => g.motivo === m).length;
     document.querySelectorAll<HTMLButtonElement>('#pnegFiltro button').forEach((b) => {
       const m = b.dataset.m || 'all', nombre = { all: 'Todos', positivo: 'Error en el proceso', cero: 'Sin existencia', negativo: 'Inventario negativo' }[m] || m;
-      b.innerHTML = esc(nombre) + '<span>' + fmtInt(m === 'all' ? T.length : cuenta(m)) + '</span>';
+      b.innerHTML = esc(nombre) + '<span>(' + fmtInt(m === 'all' ? T.length : cuenta(m)) + ')</span>';
       b.classList.toggle('active', m === this.pnegFiltro);
     });
     const G = this.pnegFiltro === 'all' ? T : T.filter((g) => g.motivo === this.pnegFiltro), lin = G.reduce((a, g) => a + g.n, 0);

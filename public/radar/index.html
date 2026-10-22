@@ -775,7 +775,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   <p class="lead" id="tpLead"></p>
   
   <div class="vgrid">
-    <div class="chart full tablecard" id="pnegCard"><div class="cardhead"><div><h3>Negados sin actualizar</h3><p class="cardsub" id="pnegSub">—</p></div><div class="pneg-acts"><div class="seg" id="pnegFiltro" role="group" aria-label="Filtrar por motivo"><button data-m="all" class="active">Todos</button><button data-m="positivo">Error en el proceso</button><button data-m="cero">Sin existencia</button><button data-m="negativo">Inventario negativo</button></div><button class="btn" id="pnegDl" type="button" title="Excel para inventario y despacho">Descargar Excel</button></div></div><div class="tablescroll" style="max-height:420px"><table id="pnegTbl"></table></div></div>
+    <div class="chart full tablecard" id="pnegCard"><div class="cardhead"><div><h3>Negados sin actualizar</h3><p class="cardsub" id="pnegSub">—</p></div><button class="btn" id="pnegDl" type="button" title="Excel para inventario y despacho">Descargar Excel</button></div><div class="pneg-filtro"><div class="seg" id="pnegFiltro" role="group" aria-label="Filtrar por motivo"><button data-m="all" class="active">Todos</button><button data-m="positivo">Error en el proceso</button><button data-m="cero">Sin existencia</button><button data-m="negativo">Inventario negativo</button></div></div><div class="tablescroll" style="max-height:420px"><table id="pnegTbl"></table></div></div>
     
     <div class="chart full">
       <div class="cardhead"><div><div class="rk-eb">Ranking 1</div><h3>Top 10 por cantidad de veces negado</h3><p class="q">Del día o rango elegido. Unidades = cantidad solicitada en las líneas negadas. Con existencia = % de las veces en que el sistema mostraba stock. Tendencia = veces negado por día en la ventana; la línea discontinua es su promedio.</p></div>
@@ -4017,7 +4017,7 @@ function renderPneg(){
   if(!P){ sub.textContent = 'Aparece con el próximo Excel cargado.'; tb.innerHTML = ''; return; }
   const T = pnegByCode(), NOM = {all:'Todos', positivo:'Error en el proceso', cero:'Sin existencia', negativo:'Inventario negativo'};
   document.querySelectorAll('#pnegFiltro button').forEach(b => { const m = b.dataset.m || 'all';
-    b.innerHTML = escapeHtml(NOM[m]) + '<span>' + fmtInt(m === 'all' ? T.length : T.filter(g => pnegKey(g.disp || 0) === m).length) + '</span>'; b.classList.toggle('active', m === PNEG_F); });
+    b.innerHTML = escapeHtml(NOM[m]) + '<span>(' + fmtInt(m === 'all' ? T.length : T.filter(g => pnegKey(g.disp || 0) === m).length) + ')</span>'; b.classList.toggle('active', m === PNEG_F); });
   const G = PNEG_F === 'all' ? T : T.filter(g => pnegKey(g.disp || 0) === PNEG_F), lin = G.reduce((a,g) => a + g.n, 0);
   sub.textContent = 'Al corte ' + pnegHora(P.t) + ' · ' + fmtInt(G.length) + ' códigos (' + fmtInt(lin) + ' líneas) negados en 0 que todavía no pasan a actualizado · Disponible = existencia en el último Excel';
   tb.innerHTML = '<thead><tr><th>Motivo</th><th>Código</th><th>Descripción</th><th>UM</th><th class="n">Veces</th><th class="n">Cant. pedida</th><th class="n">Disponible</th><th>Última revisión</th><th>Ubicación</th><th>Sucursales</th><th class="n">Pedidos</th></tr></thead><tbody>'
