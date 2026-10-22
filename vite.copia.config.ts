@@ -2,10 +2,10 @@ import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
 
 /**
- * Plantilla del HTML que se comparte: la misma página de /app/ en modo "copia"
- * (sin inicio de sesión ni base de datos). scripts/plantilla.mjs la junta en un solo archivo
- * y la deja en dist/app/plantilla.html.
+ * Plantilla del HTML que se comparte: la misma página en modo "copia" (sin inicio de sesión ni base de datos).
+ * PAGINA = app (Radar) o productividad. scripts/plantilla.mjs la junta en un solo archivo: dist/<PAGINA>/plantilla.html
  */
+const pagina = process.env.PAGINA || 'app';
 export default defineConfig({
   base: './',
   publicDir: false,
@@ -16,7 +16,7 @@ export default defineConfig({
     cssCodeSplit: false,
     modulePreload: false,
     rollupOptions: {
-      input: { app: resolve(__dirname, 'app/index.html') },
+      input: { [pagina]: resolve(import.meta.dirname, pagina + '/index.html') },
       output: { inlineDynamicImports: true },
     },
   },

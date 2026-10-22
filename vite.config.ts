@@ -7,8 +7,9 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        inicio: resolve(__dirname, 'index.html'),
-        app: resolve(__dirname, 'app/index.html'),
+        inicio: resolve(import.meta.dirname, 'index.html'),
+        app: resolve(import.meta.dirname, 'app/index.html'),
+        productividad: resolve(import.meta.dirname, 'productividad/index.html'),
       },
     },
   },

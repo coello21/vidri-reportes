@@ -6,11 +6,12 @@
   "description": "Reportes del CD Nejapa (Radar de Negados, Pedidos CD) en TypeScript con Supabase",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && vite build --config vite.copia.config.ts --mode copia && node scripts/plantilla.mjs",
+    "build": "tsc --noEmit && vite build && npm run plantillas",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "plantillas": "PAGINA=app vite build --config vite.copia.config.ts --mode copia && PAGINA=app node scripts/plantilla.mjs && PAGINA=productividad vite build --config vite.copia.config.ts --mode copia && PAGINA=productividad node scripts/plantilla.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
