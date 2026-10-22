@@ -28,7 +28,9 @@ export class BasePicking {
     for (const t of trozos(guardados, 50)) revisar(await this.sb.from('picking_dia').delete().in('dia', t), 'Borrar días anteriores');
     const partes = trozos(filas, 1000); let hechas = 0;
     await enParalelo(partes.map((t) => async () => { revisar(await this.sb.from('picking_dia').insert(t), 'Guardar picking'); hechas++; progreso?.(Math.round(hechas / partes.length * 100)); }), 4);
-    revisar(await this.sb.from('picking_cortes').upsert(guardados.map((dia) => ({ dia, corte, archivo, cargado: new Date().toISOString() })), { onConflict: 'dia' }), 'Guardar cortes');
+    const tot = new Map<string, { l: number; s: Set<string> }>();
+    filas.forEach((f) => { const x = tot.get(f.dia) || tot.set(f.dia, { l: 0, s: new Set() }).get(f.dia)!; x.l += f.lineas; x.s.add(f.sku); });
+    revisar(await this.sb.from('picking_cortes').upsert(guardados.map((dia) => ({ dia, corte, archivo, lineas: tot.get(dia)?.l || 0, codigos: tot.get(dia)?.s.size || 0, cargado: new Date().toISOString() })), { onConflict: 'dia' }), 'Guardar cortes');
     return { guardados, omitidos };
   }
   async guardarCodigos(c: Codigo[]) {
@@ -37,7 +39,7 @@ export class BasePicking {
   async cobertura(): Promise<{ dia: string; lineas: number; codigos: number }[]> {
     const out: { dia: string; lineas: number; codigos: number }[] = [];
     for (let p = 0; ; p++) {
-      const r = revisar(await this.sb.rpc('picking_cobertura').range(p * 1000, p * 1000 + 999), 'Días cargados');
+      const r = revisar(await this.sb.from('picking_cortes').select('dia,lineas,codigos').order('dia').range(p * 1000, p * 1000 + 999), 'Días cargados');
       const d = (r.data || []) as { dia: string; lineas: number; codigos: number }[];
       out.push(...d.map((x) => ({ dia: x.dia, lineas: Number(x.lineas), codigos: Number(x.codigos) })));
       if (d.length < 1000) break;
@@ -52,7 +54,7 @@ export class BasePicking {
       const d = (r.data || []) as Record<string, unknown>[];
       out.push(...d.map((x) => ({
         sku: String(x.sku), ubicacion: String(x.ubicacion ?? ''), ubicaciones: Number(x.ubicaciones), lineas: Number(x.lineas), unidades: Number(x.unidades),
-        lineas_prep: Number(x.lineas_prep), neg_proceso: Number(x.neg_proceso), neg_sinstock: Number(x.neg_sinstock), neg_negativo: Number(x.neg_negativo),
+        lineas_prep: Number(x.lineas_prep), unid_prep: Number(x.unid_prep), neg_proceso: Number(x.neg_proceso), neg_sinstock: Number(x.neg_sinstock), neg_negativo: Number(x.neg_negativo),
         dias: Number(x.dias), pedidos: Number(x.pedidos),
       })));
       progreso?.(out.length);

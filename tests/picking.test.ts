@@ -23,7 +23,7 @@ describe('Picking', () => {
     expect(R.filas.find((f) => f.sku === 'y')!.ubicacion).toBe('C-03');
   });
   it('ABC por frecuencia: A hasta el 80% de las líneas, B hasta el 95%', () => {
-    const r = (sku: string, lineas: number) => ({ sku, ubicacion: '', ubicaciones: 1, lineas, unidades: lineas, lineas_prep: lineas, neg_proceso: 0, neg_sinstock: 0, neg_negativo: 0, dias: 1, pedidos: lineas });
+    const r = (sku: string, lineas: number) => ({ sku, ubicacion: '', ubicaciones: 1, lineas, unidades: lineas, lineas_prep: lineas, unid_prep: lineas, neg_proceso: 0, neg_sinstock: 0, neg_negativo: 0, dias: 1, pedidos: lineas });
     const F = abc([r('a', 50), r('b', 30), r('c', 10), r('d', 6), r('e', 4)], new Map());
     expect(F.map((f) => f.sku + f.clase)).toEqual(['aA', 'bA', 'cB', 'dB', 'eC']);
   });

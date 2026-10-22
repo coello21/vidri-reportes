@@ -102,9 +102,9 @@ function tabla() {
 }
 function excel() {
   if (!filas.length) { aviso('err', 'No hay datos en el rango.'); return; }
-  const head = ['Clase', 'Código', 'Descripción', 'UM', 'Categoría', 'Ubicación principal', 'Ubicaciones distintas', 'Líneas', '% acumulado', 'Días con pedido', 'Unidades', 'Pedidos', 'Líneas preparadas', 'Negadas error en el proceso', 'Negadas sin existencia', 'Negadas inventario negativo'];
-  const ws = XLSX.utils.aoa_to_sheet([head, ...filas.map((f) => [f.clase, f.sku, f.descripcion, f.um, f.categoria, f.ubicacion, f.ubicaciones, f.lineas, +f.acumulado.toFixed(2), f.dias, f.unidades, f.pedidos, f.lineas_prep, f.neg_proceso, f.neg_sinstock, f.neg_negativo])]);
-  ws['!cols'] = [6, 10, 50, 6, 10, 16, 10, 9, 11, 10, 10, 9, 10, 12, 12, 12].map((w) => ({ wch: w }));
+  const head = ['Clase', 'Código', 'Descripción', 'UM', 'Categoría', 'Ubicación principal', 'Ubicaciones distintas', 'Líneas', '% acumulado', 'Días con pedido', 'Unidades pedidas', 'Pedidos', 'Líneas preparadas', 'Unidades preparadas', 'Negadas error en el proceso', 'Negadas sin existencia', 'Negadas inventario negativo'];
+  const ws = XLSX.utils.aoa_to_sheet([head, ...filas.map((f) => [f.clase, f.sku, f.descripcion, f.um, f.categoria, f.ubicacion, f.ubicaciones, f.lineas, +f.acumulado.toFixed(2), f.dias, f.unidades, f.pedidos, f.lineas_prep, f.unid_prep, f.neg_proceso, f.neg_sinstock, f.neg_negativo])]);
+  ws['!cols'] = [6, 10, 50, 6, 10, 16, 10, 9, 11, 10, 10, 9, 10, 11, 12, 12, 12].map((w) => ({ wch: w }));
   ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: filas.length, c: head.length - 1 } }) };
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ABC por frecuencia');
   descargar(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'Picking_ABC_' + rango.desde + '_a_' + rango.hasta + '.xlsx');
@@ -183,9 +183,10 @@ function baseDePrueba(): BasePicking {
     async cobertura() { const M = new Map<string, { dia: string; lineas: number; s: Set<string> }>(); D.forEach((f) => { const x = M.get(f.dia) || M.set(f.dia, { dia: f.dia, lineas: 0, s: new Set() }).get(f.dia)!; x.lineas += f.lineas; x.s.add(f.sku); }); return [...M.values()].sort((a, b) => (a.dia < b.dia ? -1 : 1)).map((x) => ({ dia: x.dia, lineas: x.lineas, codigos: x.s.size })); },
     async resumen(desde: string, hasta: string) {
       const M = new Map<string, ResumenCodigo & { _u: Map<string, number>; _d: Set<string> }>();
-      D.forEach((f) => { if (f.dia < desde || f.dia > hasta) return; let x = M.get(f.sku); if (!x) M.set(f.sku, (x = { sku: f.sku, ubicacion: '', ubicaciones: 0, lineas: 0, unidades: 0, lineas_prep: 0, neg_proceso: 0, neg_sinstock: 0, neg_negativo: 0, dias: 0, pedidos: 0, _u: new Map(), _d: new Set() }));
-        x.lineas += f.lineas; x.unidades += f.unidades; x.lineas_prep += f.lineas_prep; x.neg_proceso += f.neg_proceso; x.neg_sinstock += f.neg_sinstock; x.neg_negativo += f.neg_negativo; x.pedidos += f.pedidos; x._d.add(f.dia); x._u.set(f.ubicacion, Math.max(x._u.get(f.ubicacion) || 0, f.lineas)); });
-      return [...M.values()].map(({ _u, _d, ...x }) => ({ ...x, dias: _d.size, ubicaciones: _u.size, ubicacion: [..._u].sort((a, b) => b[1] - a[1])[0][0] }));
+      D.forEach((f) => { if (f.dia < desde || f.dia > hasta) return; let x = M.get(f.sku); if (!x) M.set(f.sku, (x = { sku: f.sku, ubicacion: '', ubicaciones: 0, lineas: 0, unidades: 0, lineas_prep: 0, unid_prep: 0, neg_proceso: 0, neg_sinstock: 0, neg_negativo: 0, dias: 0, pedidos: 0, _u: new Map(), _d: new Set() }));
+        x.lineas += f.lineas; x.unidades += f.unidades; x.lineas_prep += f.lineas_prep; x.unid_prep += f.unid_prep; x.neg_proceso += f.neg_proceso; x.neg_sinstock += f.neg_sinstock; x.neg_negativo += f.neg_negativo; x.pedidos += f.pedidos; x._d.add(f.dia); x._u.set(f.ubicacion, (x._u.get(f.ubicacion) || 0) + f.lineas); });
+      // igual que la función de la base: la ubicación con más líneas (sin la vacía; en empate, la primera en orden)
+      return [...M.values()].map(({ _u, _d, ...x }) => ({ ...x, dias: _d.size, ubicaciones: [..._u.keys()].filter((u) => u).length, ubicacion: [..._u].sort((a, b) => Number(a[0] === '') - Number(b[0] === '') || b[1] - a[1] || a[0].localeCompare(b[0]))[0][0] }));
     },
     async codigos() { return [...C.values()]; },
     async registrarCarga() { /* nada */ },

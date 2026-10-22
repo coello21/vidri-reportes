@@ -47,7 +47,7 @@ export function resumirRpt(records: Registro[]): { dias: string[]; filas: FilaPi
 }
 
 export interface ResumenCodigo {
-  sku: string; ubicacion: string; ubicaciones: number; lineas: number; unidades: number; lineas_prep: number;
+  sku: string; ubicacion: string; ubicaciones: number; lineas: number; unidades: number; lineas_prep: number; unid_prep: number;
   neg_proceso: number; neg_sinstock: number; neg_negativo: number; dias: number; pedidos: number;
 }
 export interface FilaAbc extends ResumenCodigo { clase: 'A' | 'B' | 'C'; acumulado: number; descripcion: string; um: string; categoria: string }
