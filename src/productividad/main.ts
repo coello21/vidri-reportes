@@ -352,7 +352,7 @@ async function arrancar() {
   if (COPIA) {
     propia = '<!doctype html>\n' + document.documentElement.outerHTML;
     const el = document.getElementById('emb'), J = el && el.textContent && el.textContent.trim() ? await leerB64(el.textContent) : { ordenes: [], extra: [] };
-    ($('importBtn') as HTMLElement).hidden = true;
+    ($('importBtn') as HTMLElement).hidden = true; ($('todoBtn') as HTMLElement).hidden = true;
     montar(J.ordenes || [], J.extra || [], '');
     const ds = P.dias(); if (ds.length) $('modo').textContent = 'Últimos 45 días (' + fd(ds[0]) + ' – ' + fd(ds[ds.length - 1]) + ')';
     return;
@@ -363,6 +363,7 @@ async function arrancar() {
     const txt = buf[0] === 0x1f && buf[1] === 0x8b ? await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text() : new TextDecoder().decode(buf);
     const J = JSON.parse(txt);
     montar(J.ordenes, J.extra || [], 'prueba');
+    ($('todoBtn') as HTMLElement).hidden = true;
     return;
   }
   const [{ crearCliente, iniciarSesion, cargando, pantalla }, { BaseProductividad }] = await Promise.all([import('../app/sesion'), import('../nube/productividad')]);
@@ -381,6 +382,9 @@ async function arrancar() {
     }
     montar(ordenes, extra, s.user?.email || '');
     $('salir').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+    const tb = $('todoBtn') as HTMLButtonElement;
+    if (todo) tb.hidden = true;
+    else tb.addEventListener('click', () => { const u = new URL(location.href); u.searchParams.set('todo', '1'); location.href = u.toString(); });
   });
 }
 
