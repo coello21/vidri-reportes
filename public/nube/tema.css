@@ -44,6 +44,8 @@ html[data-theme="dark"] #nube-barra button{background:#2C3036;color:#F1EEE6;bord
 /* ---------- Negados sin actualizar: filtro por motivo ---------- */
 #pnegTbl .tg.n{background:#F5DCD3;color:#B23A26}
 #pnegSub{display:none!important}
+/* "Detalle de códigos negados" se quitó: sus motivos quedaron en la tabla de negados sin actualizar (22 oct) */
+#detalleCard{display:none!important}
 #pnegCard .cardhead{align-items:center}
 #pnegCard .pneg-filtro{margin:4px 0 12px;overflow-x:auto}
 #pnegCard .pneg-filtro .seg{display:inline-flex;flex-wrap:nowrap;white-space:nowrap}
