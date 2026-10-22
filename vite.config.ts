@@ -10,6 +10,7 @@ export default defineConfig({
         inicio: resolve(import.meta.dirname, 'index.html'),
         app: resolve(import.meta.dirname, 'app/index.html'),
         productividad: resolve(import.meta.dirname, 'productividad/index.html'),
+        picking: resolve(import.meta.dirname, 'picking/index.html'),
       },
     },
   },

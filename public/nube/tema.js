@@ -24,7 +24,7 @@
   ponerTema(leerTema());
 
   /* Arriba a la derecha: Radar | Productividad y el botón de modo (en el HTML compartido solo queda el modo). */
-  var PAGINAS = [['Radar', '../radar/', /\/(radar|app)\//], ['Productividad', '../productividad/', /\/productividad\//]];
+  var PAGINAS = [['Radar', '../radar/', /\/(radar|app)\//], ['Productividad', '../productividad/', /\/productividad\//], ['Picking', '../picking/', /\/picking\//]];
   function botones() {
     document.querySelectorAll('.vxh .top').forEach(function (top) {
       if (top.querySelector('.vx-sw')) return;
