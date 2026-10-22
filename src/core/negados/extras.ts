@@ -100,10 +100,17 @@ export function fotoSinActualizar(store: StoreRadar, records: Registro[]): boole
   return false;
 }
 
-/** rev = última vez que se mandó a revisión (ms), de todas las líneas del código. */
-export interface CodigoSinActualizar { sku: string; desc: string; um: string; disp: number; n: number; q: number; ubic: string[]; suc: string[]; pedidos: number; rev: number }
+/**
+ * rev = última vez que se mandó a revisión (ms), de todas las líneas del código.
+ * motivo = según el Disponible del último Excel: positivo (había stock: error en el proceso), cero (sin existencia) o negativo.
+ */
+export interface CodigoSinActualizar { sku: string; desc: string; um: string; disp: number; n: number; q: number; ubic: string[]; suc: string[]; pedidos: number; rev: number; motivo: 'positivo' | 'cero' | 'negativo' }
 
-/** Mismo código sumado; solo los que tienen existencia suficiente para al menos un pedido. */
+/**
+ * Negados que todavía no pasan a actualizado, con el mismo código sumado y los tres motivos
+ * (el Disponible es el del último Excel, así que es la existencia más reciente).
+ * Orden: error en el proceso, sin existencia, inventario negativo; dentro, los más negados primero.
+ */
 export function sinActualizarPorCodigo(store: StoreRadar): { t: number; codigos: CodigoSinActualizar[] } | null {
   const P = (store as Store).pneg;
   if (!P) return null;
@@ -120,8 +127,8 @@ export function sinActualizarPorCodigo(store: StoreRadar): { t: number; codigos:
     if (r[2]) g.suc.add(r[2]);
     g.ped.add(r[0]);
   });
-  const codigos = [...M.values()].filter((g) => g.disp > 0 && g.disp >= g.min)
+  const codigos = [...M.values()]
     .sort((a, b) => rk(a.disp) - rk(b.disp) || b.n - a.n || b.q - a.q || String([...a.ub][0] || '').localeCompare(String([...b.ub][0] || '')))
-    .map((g) => ({ sku: g.sku, desc: g.desc, um: g.um, disp: g.disp, n: g.n, q: g.q, ubic: [...g.ub], suc: [...g.suc], pedidos: g.ped.size, rev: g.t }));
+    .map((g) => ({ sku: g.sku, desc: g.desc, um: g.um, disp: g.disp, n: g.n, q: g.q, ubic: [...g.ub], suc: [...g.suc], pedidos: g.ped.size, rev: g.t, motivo: (g.disp > 0 ? 'positivo' : g.disp === 0 ? 'cero' : 'negativo') as CodigoSinActualizar['motivo'] }));
   return { t: P.t, codigos };
 }

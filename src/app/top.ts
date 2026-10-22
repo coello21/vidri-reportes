@@ -79,6 +79,11 @@ export class TopNegados {
     $('downloadTopCodesBtn').addEventListener('click', () => this.excelTop());
     $('detailDlBtn').addEventListener('click', () => this.excelDetalle());
     document.getElementById('pnegDl')?.addEventListener('click', () => this.excelSinActualizar());
+    document.getElementById('pnegFiltro')?.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest('button'); if (!b) return;
+      this.pnegFiltro = (b.dataset.m || 'all') as TopNegados['pnegFiltro'];
+      this.renderSinActualizar();
+    });
   }
 
   /** Ventana de días para las tendencias (hasta 30 días). */
@@ -297,7 +302,10 @@ export class TopNegados {
   }
 
   /* ---------------- Negados sin actualizar (foto del último Excel) ---------------- */
-  private static motivo(v: number) { return v > 0 ? 'Con stock en sistema' : v === 0 ? 'Existencia en 0' : 'Inventario negativo'; }
+  /** Motivo elegido en la tabla de negados sin actualizar. */
+  pnegFiltro: 'all' | 'positivo' | 'cero' | 'negativo' = 'all';
+  private static motivo(v: number) { return v > 0 ? 'Error en el proceso' : v === 0 ? 'Sin existencia' : 'Inventario negativo'; }
+  private static tagMotivo(v: number) { return v > 0 ? 's' : v === 0 ? 'z' : 'n'; }
   private static hora(ms: number) { const d = new Date(ms); return fmtDateShort(ymd(d)) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 
   renderSinActualizar() {
@@ -305,12 +313,18 @@ export class TopNegados {
     if (!tb || !sub) return;
     const R = sinActualizarPorCodigo(this.radar.store);
     if (!R) { sub.textContent = 'Aparece con el próximo Excel cargado.'; tb.innerHTML = ''; return; }
-    const G = R.codigos, lin = G.reduce((a, g) => a + g.n, 0);
-    sub.textContent = 'Al corte ' + TopNegados.hora(R.t) + ' · ' + fmtInt(G.length) + ' códigos (' + fmtInt(lin) + ' líneas) en 0 sin actualizar, con existencia suficiente para al menos un pedido';
+    const T = R.codigos, cuenta = (m: string) => T.filter((g) => g.motivo === m).length;
+    document.querySelectorAll<HTMLButtonElement>('#pnegFiltro button').forEach((b) => {
+      const m = b.dataset.m || 'all', nombre = { all: 'Todos', positivo: 'Error en el proceso', cero: 'Sin existencia', negativo: 'Inventario negativo' }[m] || m;
+      b.innerHTML = esc(nombre) + '<span>' + fmtInt(m === 'all' ? T.length : cuenta(m)) + '</span>';
+      b.classList.toggle('active', m === this.pnegFiltro);
+    });
+    const G = this.pnegFiltro === 'all' ? T : T.filter((g) => g.motivo === this.pnegFiltro), lin = G.reduce((a, g) => a + g.n, 0);
+    sub.textContent = 'Al corte ' + TopNegados.hora(R.t) + ' · ' + fmtInt(G.length) + ' códigos (' + fmtInt(lin) + ' líneas) negados en 0 que todavía no pasan a actualizado · Disponible = existencia en el último Excel';
     tb.innerHTML = '<thead><tr><th>Motivo</th><th>Código</th><th>Descripción</th><th>UM</th><th class="n">Veces</th><th class="n">Cant. pedida</th><th class="n">Disponible</th><th>Última revisión</th><th>Ubicación</th><th>Sucursales</th><th class="n">Pedidos</th></tr></thead><tbody>' +
-      (G.length ? G.map((g) => '<tr><td><span class="tg ' + (g.disp > 0 ? 's' : 'z') + '">' + TopNegados.motivo(g.disp) + '</span></td><td class="c">' + esc(g.sku) + '</td><td class="ds" title="' + esc(g.desc) + '">' + esc(g.desc) + '</td><td>' + esc(g.um) +
+      (G.length ? G.map((g) => '<tr><td><span class="tg ' + TopNegados.tagMotivo(g.disp) + '">' + TopNegados.motivo(g.disp) + '</span></td><td class="c">' + esc(g.sku) + '</td><td class="ds" title="' + esc(g.desc) + '">' + esc(g.desc) + '</td><td>' + esc(g.um) +
         '</td><td class="n"><b>' + fmtInt(g.n) + '</b></td><td class="n">' + fmtInt(g.q) + '</td><td class="n">' + fmtInt(g.disp || 0) + '</td><td class="c">' + TopNegados.hora(g.rev) + '</td><td class="c">' + esc(g.ubic.join(' / ')) + '</td><td>' + esc(g.suc.join(', ')) + '</td><td class="n">' + fmtInt(g.pedidos) + '</td></tr>').join('')
-        : '<tr class="empty-row"><td colspan="11">No hay líneas en 0 pendientes de actualizar.</td></tr>') + '</tbody>';
+        : '<tr class="empty-row"><td colspan="11">No hay líneas negadas pendientes de actualizar' + (this.pnegFiltro === 'all' ? '' : ' con este motivo') + '.</td></tr>') + '</tbody>';
   }
 
   excelSinActualizar() {

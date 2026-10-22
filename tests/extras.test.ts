@@ -68,18 +68,20 @@ describe('Líneas preparadas: reasignación (pedido + código)', () => {
 });
 
 describe('Negados sin actualizar', () => {
-  it('toma las líneas mandadas a revisión en 0 y sin cerrar, y agrupa por código', () => {
+  it('toma las líneas mandadas a revisión en 0 y sin cerrar, con los tres motivos, y agrupa por código', () => {
     const st = {} as StoreRadar;
     const rows = [
       rec(1, 'x', '2026-10-20T10:00:00', 'R', { CantPrep: 0, Disponible: 8, Cantidad: 3, Ubic1: 'A-01' }),
       rec(2, 'x', '2026-10-20T11:00:00', 'R', { CantPrep: 0, Disponible: 8, Cantidad: 2, Ubic1: 'A-01', Sucursal: 'MERLIOT' }),
-      rec(3, 'y', '2026-10-20T11:00:00', 'R', { CantPrep: 0, Disponible: 0 }),           // sin existencia: no sale
+      rec(3, 'y', '2026-10-20T11:00:00', 'R', { CantPrep: 0, Disponible: 0 }),           // sin existencia: también sale
+      rec(6, 'v', '2026-10-20T11:30:00', 'R', { CantPrep: 0, Disponible: -4 }),          // inventario negativo: también sale
       rec(4, 'z', '2026-10-20T11:00:00', 'A', { CantPrep: 0, FechaAct: D('2026-10-20T12:00:00') }), // ya cerrada
       rec(5, 'w', null, 'P', { CantPrep: 0 }),                                           // no se mandó a revisión
     ];
     expect(fotoSinActualizar(st, rows)).toBe(true);
     const r = sinActualizarPorCodigo(st)!;
-    expect(r.codigos.map((c) => [c.sku, c.n, c.q, c.pedidos, c.suc.sort().join(',')])).toEqual([['x', 2, 5, 2, 'LOURDES,MERLIOT']]);
+    expect(r.codigos.map((c) => [c.sku, c.motivo, c.n, c.q, c.pedidos, c.suc.sort().join(',')])).toEqual([
+      ['x', 'positivo', 2, 5, 2, 'LOURDES,MERLIOT'], ['y', 'cero', 1, 2, 1, 'LOURDES'], ['v', 'negativo', 1, 2, 1, 'LOURDES']]);
     // un Excel más viejo no reemplaza la foto
     expect(fotoSinActualizar(st, [rec(9, 'q', '2026-10-19T10:00:00', 'R', { CantPrep: 0, Fecha: D('2026-10-19T08:00:00') })])).toBe(false);
   });

@@ -36,9 +36,17 @@ html[data-theme="dark"] .pd-chart g.sel rect:not([fill=transparent]){stroke:#F1E
 html[data-theme="dark"] .leg i.dash{border-top-color:var(--ink-muted)}
 html[data-theme="dark"] #pnegTbl .tg.s{background:#4A3220;color:#F6C08C}
 html[data-theme="dark"] #pnegTbl .tg.z{background:#22384D;color:#A9CDF0}
+html[data-theme="dark"] #pnegTbl .tg.n{background:#4A2622;color:#F2A69C}
 html[data-theme="dark"] .tag.a{background:#21392A;color:#8FD69C}
 html[data-theme="dark"] #nube-barra{background:rgba(34,37,42,.97);border-color:#3A3E45;color:#D6D1C6}
 html[data-theme="dark"] #nube-barra button{background:#2C3036;color:#F1EEE6;border-color:#4D525A}
+
+/* ---------- Negados sin actualizar: filtro por motivo ---------- */
+#pnegTbl .tg.n{background:#F5DCD3;color:#B23A26}
+#pnegCard .cardhead{flex-wrap:wrap;row-gap:10px}
+#pnegCard .pneg-acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between;flex:1 1 100%}
+#pnegCard .pneg-acts .seg{flex-wrap:wrap}
+#pnegCard .pneg-acts .seg button span{opacity:.7;margin-left:4px}
 
 /* ---------- Botón de tema ---------- */
 .tema-btn{display:inline-flex;align-items:center;gap:6px}

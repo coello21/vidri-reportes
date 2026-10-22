@@ -775,7 +775,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   <p class="lead" id="tpLead"></p>
   
   <div class="vgrid">
-    <div class="chart full tablecard" id="pnegCard"><div class="cardhead"><div><h3>Negados sin actualizar</h3><p class="cardsub" id="pnegSub">—</p></div><button class="btn" id="pnegDl" type="button" title="Excel para inventario y despacho">Descargar Excel</button></div><div class="tablescroll" style="max-height:420px"><table id="pnegTbl"></table></div></div>
+    <div class="chart full tablecard" id="pnegCard"><div class="cardhead"><div><h3>Negados sin actualizar</h3><p class="cardsub" id="pnegSub">—</p></div><div class="pneg-acts"><div class="seg" id="pnegFiltro" role="group" aria-label="Filtrar por motivo"><button data-m="all" class="active">Todos</button><button data-m="positivo">Error en el proceso</button><button data-m="cero">Sin existencia</button><button data-m="negativo">Inventario negativo</button></div><button class="btn" id="pnegDl" type="button" title="Excel para inventario y despacho">Descargar Excel</button></div></div><div class="tablescroll" style="max-height:420px"><table id="pnegTbl"></table></div></div>
     
     <div class="chart full">
       <div class="cardhead"><div><div class="rk-eb">Ranking 1</div><h3>Top 10 por cantidad de veces negado</h3><p class="q">Del día o rango elegido. Unidades = cantidad solicitada en las líneas negadas. Con existencia = % de las veces en que el sistema mostraba stock. Tendencia = veces negado por día en la ventana; la línea discontinua es su promedio.</p></div>
@@ -4000,29 +4000,35 @@ function pnegRows(){ const P = STORE && STORE.pneg; if(!P) return [];
 function pnegByCode(){
   const M = new Map();
   pnegRows().forEach(r => { let g = M.get(r[3]);
-    if(!g){ g = {sku:r[3], desc:r[4], um:r[5], disp:r[7], n:0, q:0, ub:new Set(), suc:new Set(), ped:new Set(), t:r[11]}; M.set(r[3], g); }
-    g.n++; g.q += (r[6] || 0); g.min = Math.min(g.min == null ? Infinity : g.min, r[6] || 0); if(r[11] > g.t){ g.t = r[11]; g.disp = r[7]; }
+    if(!g){ g = {sku:r[3], desc:r[4], um:r[5], disp:r[7] || 0, n:0, q:0, ub:new Set(), suc:new Set(), ped:new Set(), t:r[11]}; M.set(r[3], g); }
+    g.n++; g.q += (r[6] || 0); g.min = Math.min(g.min == null ? Infinity : g.min, r[6] || 0); if(r[11] > g.t){ g.t = r[11]; g.disp = r[7] || 0; }
     [r[8], r[9]].forEach(u => { if(u) g.ub.add(u); }); if(r[2]) g.suc.add(r[2]); g.ped.add(r[0]); });
   const rk = v => v > 0 ? 0 : (v === 0 ? 1 : 2);
-  return [...M.values()].filter(g => (g.disp || 0) > 0 && g.disp >= g.min).sort((a,b) => rk(a.disp) - rk(b.disp) || b.n - a.n || b.q - a.q || String([...a.ub][0]||'').localeCompare(String([...b.ub][0]||'')));
+  return [...M.values()].sort((a,b) => rk(a.disp) - rk(b.disp) || b.n - a.n || b.q - a.q || String([...a.ub][0]||'').localeCompare(String([...b.ub][0]||'')));
 }
-const pnegMot = v => v > 0 ? 'Con stock en sistema' : (v === 0 ? 'Existencia en 0' : 'Inventario negativo');
+// los tres motivos, según el Disponible del último Excel (existencia más reciente)
+const pnegMot = v => v > 0 ? 'Error en el proceso' : (v === 0 ? 'Sin existencia' : 'Inventario negativo');
+const pnegKey = v => v > 0 ? 'positivo' : (v === 0 ? 'cero' : 'negativo');
+let PNEG_F = 'all';
 const pnegHora = ms => { const d = new Date(ms); return fmtDateShort(ymd(d)) + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); };
 function renderPneg(){
   const tb = document.getElementById('pnegTbl'), sub = document.getElementById('pnegSub'); if(!tb) return;
   const P = STORE && STORE.pneg;
   if(!P){ sub.textContent = 'Aparece con el próximo Excel cargado.'; tb.innerHTML = ''; return; }
-  const G = pnegByCode(), lin = G.reduce((a,g) => a + g.n, 0), st = G.filter(g => g.disp > 0).length;
-  sub.textContent = 'Al corte ' + pnegHora(P.t) + ' · ' + fmtInt(G.length) + ' códigos (' + fmtInt(lin) + ' líneas) en 0 sin actualizar, con existencia suficiente para al menos un pedido';
+  const T = pnegByCode(), NOM = {all:'Todos', positivo:'Error en el proceso', cero:'Sin existencia', negativo:'Inventario negativo'};
+  document.querySelectorAll('#pnegFiltro button').forEach(b => { const m = b.dataset.m || 'all';
+    b.innerHTML = escapeHtml(NOM[m]) + '<span>' + fmtInt(m === 'all' ? T.length : T.filter(g => pnegKey(g.disp || 0) === m).length) + '</span>'; b.classList.toggle('active', m === PNEG_F); });
+  const G = PNEG_F === 'all' ? T : T.filter(g => pnegKey(g.disp || 0) === PNEG_F), lin = G.reduce((a,g) => a + g.n, 0);
+  sub.textContent = 'Al corte ' + pnegHora(P.t) + ' · ' + fmtInt(G.length) + ' códigos (' + fmtInt(lin) + ' líneas) negados en 0 que todavía no pasan a actualizado · Disponible = existencia en el último Excel';
   tb.innerHTML = '<thead><tr><th>Motivo</th><th>Código</th><th>Descripción</th><th>UM</th><th class="n">Veces</th><th class="n">Cant. pedida</th><th class="n">Disponible</th><th>Última revisión</th><th>Ubicación</th><th>Sucursales</th><th class="n">Pedidos</th></tr></thead><tbody>'
-    + (G.length ? G.map(g => '<tr><td><span class="tg ' + (g.disp > 0 ? 's' : 'z') + '">' + pnegMot(g.disp) + '</span></td><td class="c">' + escapeHtml(g.sku) + '</td><td class="ds" title="' + escapeHtml(g.desc) + '">' + escapeHtml(g.desc) + '</td><td>' + escapeHtml(g.um) + '</td><td class="n"><b>' + fmtInt(g.n) + '</b></td><td class="n">' + fmtInt(g.q) + '</td><td class="n">' + fmtInt(g.disp || 0) + '</td><td class="c">' + pnegHora(g.t) + '</td><td class="c">' + escapeHtml([...g.ub].join(' / ')) + '</td><td>' + escapeHtml([...g.suc].join(', ')) + '</td><td class="n">' + fmtInt(g.ped.size) + '</td></tr>').join('')
-      : '<tr class="empty-row"><td colspan="11">No hay líneas en 0 pendientes de actualizar.</td></tr>') + '</tbody>';
+    + (G.length ? G.map(g => '<tr><td><span class="tg ' + ({positivo:'s', cero:'z', negativo:'n'})[pnegKey(g.disp || 0)] + '">' + pnegMot(g.disp || 0) + '</span></td><td class="c">' + escapeHtml(g.sku) + '</td><td class="ds" title="' + escapeHtml(g.desc) + '">' + escapeHtml(g.desc) + '</td><td>' + escapeHtml(g.um) + '</td><td class="n"><b>' + fmtInt(g.n) + '</b></td><td class="n">' + fmtInt(g.q) + '</td><td class="n">' + fmtInt(g.disp || 0) + '</td><td class="c">' + pnegHora(g.t) + '</td><td class="c">' + escapeHtml([...g.ub].join(' / ')) + '</td><td>' + escapeHtml([...g.suc].join(', ')) + '</td><td class="n">' + fmtInt(g.ped.size) + '</td></tr>').join('')
+      : '<tr class="empty-row"><td colspan="11">No hay líneas negadas pendientes de actualizar' + (PNEG_F === 'all' ? '' : ' con este motivo') + '.</td></tr>') + '</tbody>';
 }
 function downloadPneg(){
   const P = STORE && STORE.pneg; if(!P){ showStatus('err','Todavía no hay datos: carga el Rpt_OrdenesPreparacion.'); return; }
   try{ const G = pnegByCode();
     const ws = trSheet('', ['Motivo','Código','Descripción','UM','Veces','Cant. pedida','Disponible','Última revisión','Ubicación','Sucursales','Pedidos'],
-      G.map(g => [pnegMot(g.disp), g.sku, g.desc, g.um, g.n, g.q, g.disp, null, [...g.ub].join(' / '), [...g.suc].join(', '), g.ped.size]), [20,12,50,7,8,12,12,17,24,30,9]);
+      G.map(g => [pnegMot(g.disp || 0), g.sku, g.desc, g.um, g.n, g.q, g.disp, null, [...g.ub].join(' / '), [...g.suc].join(', '), g.ped.size]), [20,12,50,7,8,12,12,17,24,30,9]);
     // Última revisión del código como fecha y hora de Excel (se puede filtrar y ordenar)
     G.forEach((g, i) => { const d = new Date(g.t); ws[XLSX.utils.encode_cell({r:i+1, c:7})] = {t:'n', v:(g.t - d.getTimezoneOffset()*60000)/864e5 + 25569, z:'dd/mm/yyyy hh:mm'}; });
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Negados sin actualizar');
@@ -4030,6 +4036,7 @@ function downloadPneg(){
     downloadBlob(trBlob(wb), 'Negados_sin_actualizar_' + tag + '.xlsx'); showStatus('ok','Descargando ' + fmtInt(G.length) + ' códigos…');
   }catch(e){ console.error(e); showStatus('err','No se pudo generar el Excel.'); }
 }
+(function(){ const f = document.getElementById('pnegFiltro'); if(f) f.addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; PNEG_F = b.dataset.m || 'all'; renderPneg(); }); })();
 (function(){ const b = document.getElementById('pnegDl'); if(b) b.addEventListener('click', downloadPneg);
   const _r = render; render = function(vm){ _r(vm); try{ renderPneg(); }catch(e){ console.error(e); } }; })();
 
