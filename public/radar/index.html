@@ -889,6 +889,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       <div class="chart full pd-chart"><h3 id="pdAsigT">Pedidos asignados por día y motivo</h3><p class="q">Últimos 15 días según la fecha del pedido. Clic en una barra para ver ese día (se marca, el gráfico no se mueve); clic de nuevo para volver a hoy. Línea discontinua = tendencia (promedio de 7 días); el día en curso se ve más claro y no cuenta. Lunes y martes resaltados.</p>
         <div class="leg"><span><i style="background:#3A76B0"></i>Existencia</span><span><i style="background:#DE7A2C"></i>B2B</span><span><i style="background:#4B9A5A"></i>Rotación</span><span><i style="background:#9A927F"></i>Otros</span><span><i class="dash"></i>Tendencia (promedio de 7 días)</span></div><div id="pdAsig"></div></div>
       <div class="chart full"><h3 id="pdArrT">Balance diario</h3><p class="q">Cada fila es un día, del más antiguo al más reciente: venían de días anteriores + entraron ese día − se terminaron = quedaron para el día siguiente. Lo que queda un día es lo que viene al siguiente. ▲ el pendiente creció · ▼ bajó. El día elegido va resaltado.</p><div id="pdArr"></div></div>
+      <div class="chart full"><h3 id="pdFechT">Pendiente de hoy según la fecha del pedido</h3><div id="pdFech"></div></div>
     </div>
     <div class="pd-coh">
       <h3 id="pdCohT">—</h3>
@@ -3389,6 +3390,7 @@ function pedRender(){
   const arr=z(), arrS=z();
   D.forEach((d,i)=>{ const t0=dayStart(d); P.all.forEach(x=>{ if(x[2]>=t0) return; if(x[6]? x[6]>=t0 : x[3]!=='A'){ arr[i]++; arrS[i]+=x[4]; } }); });
   const BAL=pedBalance(P.all,D,arr,DAY||D[n-1],cutDay,lc,pick);
+  pedPorFecha(P.all,lc);
   pedAvance(P.all,D,DAY||D[n-1],cutDay,lc,pick);
   pedSucMot(P.all.filter(x=>{ const d=pedDay(x[2]); return DAY?d===DAY:(d in di); }));
   const iLast=DAY?dI:n-1, arrHoy=arr[iLast]||0, arrHoyS=arrS[iLast]||0;
@@ -3496,9 +3498,33 @@ function pedBalance(all,D,arr,ref,cutDay,lc,pick){
   const r=rows.find(x=>x.d===ref)||rows[rows.length-1], w=PED_DOW_L[pedDow(r.d)];
   document.getElementById('pdArrT').textContent=r.cur?('Hoy se empezó con '+fmtInt(r.ini)+' pedidos sin terminar; van '+fmtInt(r.ter)+' terminados'):('El '+w+' '+pedDayLbl(r.d)+' quedaron '+fmtInt(r.fin)+' pedidos para el día siguiente'+(r.fin>r.ini?', '+fmtInt(r.fin-r.ini)+' más de los que había al empezar':r.fin<r.ini?', '+fmtInt(r.ini-r.fin)+' menos de los que había al empezar':''));
   el.innerHTML='<div class="pd-tbl"><table class="bal"><thead><tr><th>Día</th><th>Venían de días anteriores</th><th>+ Entraron ese día</th><th>− Se terminaron</th><th>= Quedaron para el día siguiente</th></tr></thead><tbody>'+
-    rows.map(x=>'<tr class="clk'+(x.d===ref?' sel':'')+'" data-i="'+x.i+'"><td>'+PED_DOW[pedDow(x.d)]+' '+pedDayLbl(x.d)+(x.cur?' <span class="tag">en curso</span>':'')+'</td><td>'+fmtInt(x.ini)+'</td><td>'+fmtInt(x.ent)+'</td><td>'+fmtInt(x.ter)+'</td><td class="'+(x.fin>x.ini?'up':x.fin<x.ini?'dn':'')+'"><b>'+(x.cur?fmtInt(x.fin)+' hasta ahora':fmtInt(x.fin))+'</b> '+(x.fin>x.ini?'▲':x.fin<x.ini?'▼':'')+'</td></tr>').join('')+'</tbody></table></div>';
+    rows.filter((x,i)=>i>=rows.length-7||x.d===ref).map(x=>'<tr class="clk'+(x.d===ref?' sel':'')+'" data-i="'+x.i+'"><td>'+PED_DOW[pedDow(x.d)]+' '+pedDayLbl(x.d)+(x.cur?' <span class="tag">en curso</span>':'')+'</td><td>'+fmtInt(x.ini)+'</td><td>'+fmtInt(x.ent)+'</td><td>'+fmtInt(x.ter)+'</td><td class="'+(x.fin>x.ini?'up':x.fin<x.ini?'dn':'')+'"><b>'+(x.cur?fmtInt(x.fin)+' hasta ahora':fmtInt(x.fin))+'</b> '+(x.fin>x.ini?'▲':x.fin<x.ini?'▼':'')+'</td></tr>').join('')+'</tbody></table></div>';
   el.querySelectorAll('tr.clk').forEach(tr=>tr.addEventListener('click',()=>pick(+tr.dataset.i)));
   return r;
+}
+/* Pendiente del día del último corte según la fecha del pedido: con cuántos empezó el día, cuántos se terminaron y en qué estado siguen.
+   Días anteriores = "Inició" del balance; hoy = "Entraron"; la última columna suma el "Sin terminar ahora". */
+function pedPorFechaDatos(all,lc){
+  if(!lc) return null;
+  const hoy=pedDay(lc), t0=Date.UTC(+hoy.slice(0,4),+hoy.slice(5,7)-1,+hoy.slice(8,10))/60000, lim=pedAddDays(hoy,-6), M=new Map();
+  all.forEach(x=>{ const nuevo=x[2]>=t0, pend=x[6]? x[6]>=t0 : x[3]!=='A'; if(!nuevo&&!pend) return;
+    const d=pedDay(x[2]), k=d<lim?'ant':d; let f=M.get(k);
+    if(!f){ f={dia:k==='ant'?null:d, hoy:d===hoy, inicio:0, terminados:0, sinEmpezar:0, enProceso:0}; M.set(k,f); }
+    f.inicio++; if(x[3]==='A') f.terminados++; else if(x[3]==='P') f.enProceso++; else f.sinEmpezar++; });
+  return {hoy, lc, filas:[...M.values()].sort((a,b)=>(b.dia||'')<(a.dia||'')?-1:(b.dia||'')>(a.dia||'')?1:0)};
+}
+function pedPorFecha(all,lc){
+  const el=document.getElementById('pdFech'); if(!el) return;
+  const R=pedPorFechaDatos(all,lc);
+  if(!R||!R.filas.length){ el.innerHTML='<p class="q">Sin pedidos pendientes al último corte.</p>'; return; }
+  const F=R.filas, sum=k=>F.reduce((a,f)=>a+f[k],0);
+  const nom=f=>f.dia==null?'Días anteriores':(f.hoy?'Hoy, ':'')+PED_DOW[pedDow(f.dia)]+' '+pedDayLbl(f.dia);
+  const ayer=F.find(f=>f.dia===pedAddDays(R.hoy,-1));
+  document.getElementById('pdFechT').textContent='Pendiente de hoy según la fecha del pedido'+(ayer&&ayer.sinEmpezar?': de ayer siguen '+fmtInt(ayer.sinEmpezar)+' sin empezar':'');
+  const fila=(n,f,cls)=>'<tr'+(cls?' class="'+cls+'"':'')+'><td>'+n+'</td><td>'+fmtInt(f.inicio)+'</td><td>'+fmtInt(f.terminados)+'</td><td'+(f.sinEmpezar?' class="up"':'')+'>'+fmtInt(f.sinEmpezar)+'</td><td>'+fmtInt(f.enProceso)+'</td><td><b>'+fmtInt(f.sinEmpezar+f.enProceso)+'</b></td></tr>';
+  el.innerHTML='<div class="pd-tbl"><table class="bal"><thead><tr><th>Fecha del pedido</th><th>Al empezar el día<br><span class="q">(hoy: entraron)</span></th><th>Terminados hoy</th><th>Siguen sin empezar</th><th>Siguen en proceso</th><th>Sin terminar al corte</th></tr></thead><tbody>'+
+    F.map(f=>fila(nom(f),f,f.hoy?'sel':'')).join('')+fila('Total',{inicio:sum('inicio'),terminados:sum('terminados'),sinEmpezar:sum('sinEmpezar'),enProceso:sum('enProceso')},'tot')+'</tbody></table></div>'+
+    '<p class="pd-note">Corte: '+pedCorteLbl(R.lc)+' · Días anteriores + hoy = Inició + Entraron del balance; la última columna es el "Sin terminar ahora".</p>';
 }
 function pedDayChips(P,allDays,cutDay){
   const el=document.getElementById('pdDays'); if(!el) return;
@@ -3541,6 +3567,7 @@ async function pedExcel(){
   const det=[['Número Pedido','Sucursal','Bodega','Fecha','Estado','SKUs','Motivo','Recibido','Horas pendiente']];
   B.ok.slice().sort((a,b)=>a[2]-b[2]).forEach(x=>det.push([x[0],pedSuc(x[1]),PED_BOD_N[pedB(x)],new Date(x[2]*60000).toISOString().slice(0,16).replace('T',' '),PED_EST_N[x[3]],x[4],PED_CAT_N[pedC(x)],x[7]?new Date(x[7]*60000).toISOString().slice(0,16).replace('T',' '):'',Math.round((B.lc-(x[7]||x[2]))/6)/10]));
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),'SKUs pendientes'); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(det),'Detalle');
+  { const PF=pedPorFechaDatos(pedRowsB(),pedLastCorte()); if(PF){ const pf=[['Fecha del pedido','Al empezar el día (hoy: entraron)','Terminados hoy','Siguen sin empezar','Siguen en proceso','Sin terminar al corte']]; PF.filas.forEach(f=>pf.push([f.dia==null?'Días anteriores':f.dia,f.inicio,f.terminados,f.sinEmpezar,f.enProceso,f.sinEmpezar+f.enProceso])); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pf),'Pendiente por fecha'); } }
   await downloadBlob(new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'Pedidos_pendientes_'+pedDay(B.lc)+'.xlsx');
 }
 async function pedShow(){ await pedEnsure(); pedRender(); }

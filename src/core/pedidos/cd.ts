@@ -28,6 +28,9 @@ export interface FilaBalance {
   esp: number | null; eje: number | null; nEsp: number;
 }
 
+/** Una fila del cuadro "pendiente por fecha del pedido" (dia = null: días anteriores agrupados). */
+export interface FilaPorFecha { dia: string | null; hoy: boolean; inicio: number; terminados: number; sinEmpezar: number; enProceso: number }
+
 /**
  * Pedidos del CD (reporte de transferencias). Misma lógica que la pestaña "Pedidos CD"
  * del tablero original, sin pantalla.
@@ -181,6 +184,33 @@ export class PedidosCD {
         nEsp: esp.length,
       };
     });
+  }
+
+  /**
+   * Pendiente del día del último corte según la fecha del pedido:
+   * con cuántos se empezó el día (los de hoy = los que entraron), cuántos ya se terminaron
+   * y en qué estado siguen los demás. La suma de "inicio" de días anteriores es la caja "Inició".
+   * Los días con más de `diasSueltos` días de antigüedad van juntos en una fila (dia = null).
+   */
+  porFecha(bod: FiltroBodega = 'all', diasSueltos = 6): { hoy: string; lc: number; filas: FilaPorFecha[] } | null {
+    const lc = this.ultimoCorte();
+    if (!lc) return null;
+    const hoy = diaDeMin(lc), t0 = inicioDia(hoy), limite = sumarDiasUTC(hoy, -diasSueltos);
+    const M = new Map<string, FilaPorFecha>();
+    for (const x of this.vigentes(bod)) {
+      const nuevo = x[2] >= t0;
+      const pendiente = x[6] ? x[6] >= t0 : x[3] !== 'A';   // misma regla que el balance
+      if (!nuevo && !pendiente) continue;
+      const d = diaDeMin(x[2]), k = d < limite ? 'ant' : d;
+      let f = M.get(k);
+      if (!f) { f = { dia: k === 'ant' ? null : d, hoy: d === hoy, inicio: 0, terminados: 0, sinEmpezar: 0, enProceso: 0 }; M.set(k, f); }
+      f.inicio++;
+      if (x[3] === 'A') f.terminados++;
+      else if (x[3] === 'P') f.enProceso++;
+      else f.sinEmpezar++;
+    }
+    const filas = [...M.values()].sort((a, b) => (b.dia || '') < (a.dia || '') ? -1 : (b.dia || '') > (a.dia || '') ? 1 : 0);
+    return { hoy, lc, filas };
   }
 
   /** Estado al último corte de los pedidos que cayeron un día, y su curva de "sin terminar" hora por hora

@@ -4,7 +4,7 @@
  * vienen de PedidosCD (src/core), probados contra el tablero original.
  */
 import * as XLSX from 'xlsx';
-import { PedidosCD, type FiltroBodega } from '../core/pedidos/cd';
+import { PedidosCD, type FiltroBodega, type FilaPorFecha } from '../core/pedidos/cd';
 import { MOTIVOS, MOTIVO_NOMBRE, ESTADO_NOMBRE, BODEGA_NOMBRE, bodegaDe, motivoVista, nombreSucursal, type Bodega, type Estado, type MotivoVista, type Pedido } from '../core/pedidos/catalogos';
 import { diaDeMin, sumarDiasUTC, diaSemana, DIAS_CORTO, DIAS_LARGO, MESES_CORTO } from '../core/comun/fechas';
 import { $, esc, fmtInt, etiquetaDia } from './ui/formato';
@@ -103,6 +103,7 @@ export class PedidosVista {
     // pendientes al iniciar cada día
     const arrS = PedidosCD.arrastre(P.all, D), arr = arrS.pedidos;
     const BAL = this.renderBalance(DAY || D[n - 1], pick);
+    this.renderPorFecha();
     this.renderAvance(DAY || D[n - 1], D, cutDay, lc, pick);
     this.renderSucursales(P.all.filter((x) => { const d = diaDeMin(x[2]); return DAY ? d === DAY : d in di; }));
     const iLast = DAY ? dI : n - 1, arrHoy = arr[iLast] || 0;
@@ -199,8 +200,10 @@ export class PedidosVista {
 
   /** Tabla del balance diario; devuelve la fila del día elegido. */
   private renderBalance(ref: string, pick: (i: number) => void) {
-    const el = $('pdArr'), rows = this.ped.balance(this.bod);
-    if (!rows.length) return null;
+    const el = $('pdArr'), todas = this.ped.balance(this.bod);
+    if (!todas.length) return null;
+    // la tabla muestra los últimos 7 días (y el día elegido, si es más viejo); los gráficos siguen con 15
+    const rows = todas.filter((x, i) => i >= todas.length - 7 || x.d === ref);
     const r = rows.find((x) => x.d === ref) || rows[rows.length - 1], w = dowL(r.d);
     $('pdArrT').textContent = r.cur ? 'Hoy se empezó con ' + fmtInt(r.ini) + ' pedidos sin terminar; van ' + fmtInt(r.ter) + ' terminados'
       : 'El ' + w + ' ' + etiquetaDia(r.d) + ' quedaron ' + fmtInt(r.fin) + ' pedidos para el día siguiente' + (r.fin > r.ini ? ', ' + fmtInt(r.fin - r.ini) + ' más de los que había al empezar' : r.fin < r.ini ? ', ' + fmtInt(r.ini - r.fin) + ' menos de los que había al empezar' : '');
@@ -209,6 +212,23 @@ export class PedidosVista {
         '</td><td class="' + (x.fin > x.ini ? 'up' : x.fin < x.ini ? 'dn' : '') + '"><b>' + (x.cur ? fmtInt(x.fin) + ' hasta ahora' : fmtInt(x.fin)) + '</b> ' + (x.fin > x.ini ? '▲' : x.fin < x.ini ? '▼' : '') + '</td></tr>').join('') + '</tbody></table></div>';
     el.querySelectorAll<HTMLElement>('tr.clk').forEach((tr) => tr.addEventListener('click', () => pick(+tr.dataset.i!)));
     return r;
+  }
+
+  /** Cuadro: con cuántos pedidos empezó hoy cada fecha, cuántos se terminaron y en qué estado siguen. */
+  private renderPorFecha() {
+    const el = $('pdFech'), R = this.ped.porFecha(this.bod);
+    if (!R || !R.filas.length) { el.innerHTML = '<p class="q">Sin pedidos pendientes al último corte.</p>'; return; }
+    const F = R.filas, sum = (k: 'inicio' | 'terminados' | 'sinEmpezar' | 'enProceso') => F.reduce((a, f) => a + f[k], 0);
+    const nombre = (f: FilaPorFecha) => f.dia == null ? 'Días anteriores' : f.hoy ? 'Hoy, ' + dowC(f.dia) + ' ' + etiquetaDia(f.dia) : dowC(f.dia) + ' ' + etiquetaDia(f.dia);
+    const ayer = F.find((f) => f.dia === sumarDiasUTC(R.hoy, -1));
+    $('pdFechT').textContent = 'Pendiente de hoy según la fecha del pedido' + (ayer && ayer.sinEmpezar ? ': de ayer siguen ' + fmtInt(ayer.sinEmpezar) + ' sin empezar' : '');
+    const fila = (n: string, f: { inicio: number; terminados: number; sinEmpezar: number; enProceso: number }, cls = '') =>
+      '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + n + '</td><td>' + fmtInt(f.inicio) + '</td><td>' + fmtInt(f.terminados) + '</td><td' + (f.sinEmpezar ? ' class="up"' : '') + '>' + fmtInt(f.sinEmpezar) +
+      '</td><td>' + fmtInt(f.enProceso) + '</td><td><b>' + fmtInt(f.sinEmpezar + f.enProceso) + '</b></td></tr>';
+    el.innerHTML = '<div class="pd-tbl"><table class="bal"><thead><tr><th>Fecha del pedido</th><th>Al empezar el día<br><span class="q">(hoy: entraron)</span></th><th>Terminados hoy</th><th>Siguen sin empezar</th><th>Siguen en proceso</th><th>Sin terminar al corte</th></tr></thead><tbody>' +
+      F.map((f) => fila(nombre(f), f, f.hoy ? 'sel' : '')).join('') +
+      fila('Total', { inicio: sum('inicio'), terminados: sum('terminados'), sinEmpezar: sum('sinEmpezar'), enProceso: sum('enProceso') }, 'tot') + '</tbody></table></div>' +
+      '<p class="pd-note">Corte: ' + corteTxt(R.lc) + ' · Días anteriores + hoy = Inició + Entraron del balance; la última columna es el "Sin terminar ahora".</p>';
   }
 
   /** Estado al último corte de los pedidos que cayeron el día elegido, y su curva de "sin terminar". */
@@ -316,6 +336,12 @@ export class PedidosVista {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'SKUs pendientes');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(det), 'Detalle');
+    const PF = this.ped.porFecha(this.bod);
+    if (PF) {
+      const pf: (string | number)[][] = [['Fecha del pedido', 'Al empezar el día (hoy: entraron)', 'Terminados hoy', 'Siguen sin empezar', 'Siguen en proceso', 'Sin terminar al corte']];
+      PF.filas.forEach((f) => pf.push([f.dia == null ? 'Días anteriores' : f.dia, f.inicio, f.terminados, f.sinEmpezar, f.enProceso, f.sinEmpezar + f.enProceso]));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pf), 'Pendiente por fecha');
+    }
     descargar(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'Pedidos_pendientes_' + diaDeMin(B.lc) + '.xlsx');
   }
 }
