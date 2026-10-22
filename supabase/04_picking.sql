@@ -42,10 +42,10 @@ create table if not exists public.picking_codigos (
 );
 
 -- "actualizado" del catálogo cambia solo (reutiliza la función de Productividad; se crea si no existe)
-create or replace function public.prod_tocar() returns trigger language plpgsql as $$
+create or replace function public.prod_tocar() returns trigger language plpgsql set search_path = '' as $$
 begin new.actualizado := now(); return new; end $$;
 do $$ begin
-  if not exists (select 1 from pg_trigger where tgname = 'picking_codigos_tocar') then
+  if not exists (select 1 from pg_trigger where tgname = 'picking_codigos_tocar' and tgrelid = 'public.picking_codigos'::regclass) then
     create trigger picking_codigos_tocar before update on public.picking_codigos for each row execute function public.prod_tocar();
   end if;
 end $$;

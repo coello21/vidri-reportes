@@ -15,7 +15,7 @@ create table if not exists public.prod_personal (
   agregado timestamptz not null default now());
 
 -- "actualizado" cambia solo en cada actualización
-create or replace function public.prod_tocar() returns trigger language plpgsql as $$
+create or replace function public.prod_tocar() returns trigger language plpgsql set search_path = '' as $$
 begin new.actualizado := now(); return new; end $$;
 create trigger prod_ordenes_tocar before update on public.prod_ordenes
   for each row execute function public.prod_tocar();
