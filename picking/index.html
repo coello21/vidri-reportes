@@ -18,9 +18,9 @@
   </div>
   <div class="redline"></div>
   <div class="navrow">
-    <nav id="vxNav" aria-label="Secciones"><a href="#abc" data-tab="abc" class="on">Clasificación ABC</a><a href="#dias" data-tab="dias">Días cargados</a></nav>
+    <nav id="vxNav" aria-label="Secciones"><a href="#dias" data-tab="dias" class="on">Días cargados</a></nav>
     <div class="acts">
-      <button class="lnk" id="xlsBtn" type="button" title="Todos los códigos del rango con su clase ABC">Descargar Excel</button>
+      <button class="lnk" id="xlsBtn" hidden type="button" title="Todos los códigos del rango con su clase ABC">Descargar Excel</button>
       <button class="cta" id="selectBtn" type="button" title="Carga el Rpt_OrdenesPreparacion (uno o varios meses): reemplaza los días que trae el archivo">Cargar Rpt</button>
       <input type="file" hidden id="fileInput" accept=".xlsx,.xls,.xlsm" multiple>
     </div>
@@ -29,7 +29,7 @@
 <span class="status-msg" id="statusMsg"></span>
 
 <main id="pk">
-  <div class="period pk-period">
+  <div class="period pk-period" id="pkRango" hidden>
     <div class="rangepick">
       <div class="seg" id="pkPer" role="group" aria-label="Periodo"><button type="button" data-m="30">30 días</button><button type="button" data-m="90">90 días</button><button type="button" data-m="180">6 meses</button><button type="button" data-m="all">Todo</button></div>
       <span class="sep" aria-hidden="true"></span>
@@ -40,7 +40,7 @@
     </div>
   </div>
 
-  <section class="tab" id="tab-abc">
+  <section class="tab" id="tab-abc" hidden>
     <div class="eyebrow">Frecuencia de picking</div>
     <h1 id="abcTitle">Cargando…</h1>
     <p class="lead" id="abcLead"></p>
@@ -54,7 +54,7 @@
     </div>
   </section>
 
-  <section class="tab" id="tab-dias" hidden>
+  <section class="tab" id="tab-dias">
     <div class="eyebrow">Historial guardado</div>
     <h1 id="diasTitle">—</h1>
     <p class="lead">Cada carga reemplaza los días que trae el archivo (por fecha de creación del pedido), así que cargar dos veces el mismo mes no duplica nada. Los días con pocas líneas pueden ser domingos o un archivo que no traía el día completo.</p>

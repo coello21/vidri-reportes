@@ -28,6 +28,8 @@ let dias: { dia: string; lineas: number; codigos: number }[] = [];
 let cat = new Map<string, Codigo>();
 let filas: FilaAbc[] = [];
 let rango = { desde: '', hasta: '' };
+/** El análisis (ABC y lo que se defina después) se muestra cuando ya haya historial cargado; por ahora solo carga y calendario. */
+const ANALISIS = false;
 const S = { clase: '', q: '', sk: 'lineas', asc: false, max: 300 };
 
 /* ---------------- días cargados ---------------- */
@@ -60,7 +62,7 @@ function llenarRango() {
 const desdePara = (n: number) => { const ds = dias.map((d) => d.dia), f = addD(ds[ds.length - 1], -(n - 1)); return ds.find((d) => d >= f) || ds[0]; };
 
 async function verRango(desde: string, hasta: string) {
-  if (!base || !desde || !hasta) return;
+  if (!ANALISIS || !base || !desde || !hasta) return;
   if (desde > hasta) [desde, hasta] = [hasta, desde];
   rango = { desde, hasta }; llenarRango();
   $('abcTitle').textContent = 'Calculando…';
@@ -195,7 +197,7 @@ function baseDePrueba(): BasePicking {
 
 async function arrancar() {
   if (import.meta.env.DEV && new URLSearchParams(location.search).get('prueba')) {
-    base = baseDePrueba(); $('nbUser').textContent = 'prueba'; conectar(); renderDias(); llenarRango(); render(); return;
+    base = baseDePrueba(); $('nbUser').textContent = 'prueba'; conectar(); renderDias(); llenarRango(); if (ANALISIS) render(); return;
   }
   const [{ crearCliente, iniciarSesion, cargando, pantalla }, { BasePicking }] = await Promise.all([import('../app/sesion'), import('../nube/picking')]);
   const sb = crearCliente();
@@ -215,7 +217,7 @@ async function arrancar() {
     $('salir').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
     $('sub').textContent = dias.length ? n0(dias.length) + ' días guardados · ' + fdl(dias[0].dia) + ' al ' + fdl(dias[dias.length - 1].dia) : 'Sin datos todavía';
     conectar(); renderDias(); llenarRango();
-    if (dias.length) await verRango(rango.desde, rango.hasta); else render();
+    if (ANALISIS) { if (dias.length) await verRango(rango.desde, rango.hasta); else render(); }
   });
 }
 arrancar().catch((e) => { console.error(e); aviso('err', 'No se pudo abrir: ' + ((e as Error)?.message || 'error'), 30000); });
