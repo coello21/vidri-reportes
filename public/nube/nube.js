@@ -146,14 +146,19 @@
     for (var p = 0; p < paginas; p++) {
       (function (p) {
         tareas.push(async function () {
-          var r = revisar(await hacerConsulta().range(p * tam, p * tam + tam - 1), etiqueta);
+          // Si Supabase falla un momento (errores 5xx o de red), se reintenta la misma página hasta 4 veces
+          var r, intento = 0;
+          for (;;) {
+            try { r = revisar(await hacerConsulta().range(p * tam, p * tam + tam - 1), etiqueta); break; }
+            catch (e) { if (++intento >= 4) throw e; await new Promise(function (ok) { setTimeout(ok, 1500 * Math.pow(2, intento - 1)); }); }
+          }
           hechas++;
           pantallaCargando(etiqueta + '… ' + Math.round(hechas / paginas * 100) + '%');
           return r.data || [];
         });
       })(p);
     }
-    var partes = await enParalelo(tareas, 6);
+    var partes = await enParalelo(tareas, 4);
     return [].concat.apply([], partes);
   }
 

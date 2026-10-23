@@ -49,24 +49,33 @@ export async function enParalelo<T>(tareas: (() => Promise<T>)[], limite: number
   return res;
 }
 
+/** Repite una lectura si Supabase falla un momento (errores 5xx o de red): hasta 4 intentos, esperando 1.5 s, 3 s y 6 s. */
+export async function conReintentos<T>(fn: () => Promise<T>, intentos = 4, espera = 1500): Promise<T> {
+  for (let i = 1; ; i++) {
+    try { return await fn(); } catch (e) { if (i >= intentos) throw e; await new Promise((ok) => setTimeout(ok, espera * 2 ** (i - 1))); }
+  }
+}
+
 export class BaseSupabase implements BaseDatos {
   constructor(private sb: SupabaseClient) {}
 
   /** Lee una consulta grande en páginas, varias a la vez. */
   private async paginado<R>(tabla: string, columnas: string, filtro: (q: Consulta) => Consulta,
     orden: string[], tam: number, etiqueta: string, progreso?: Progreso): Promise<R[]> {
-    const c = revisar(await filtro(this.sb.from(tabla).select(orden[0], { count: 'exact', head: true })), etiqueta);
+    const c = await conReintentos(async () => revisar(await filtro(this.sb.from(tabla).select(orden[0], { count: 'exact', head: true })), etiqueta));
     const paginas = Math.max(1, Math.ceil((c.count || 0) / tam));
     let hechas = 0;
     const tareas = Array.from({ length: paginas }, (_, p) => async () => {
-      let q = filtro(this.sb.from(tabla).select(columnas));
-      for (const o of orden) q = q.order(o);
-      const r = revisar(await q.range(p * tam, p * tam + tam - 1), etiqueta);
+      const r = await conReintentos(async () => {
+        let q = filtro(this.sb.from(tabla).select(columnas));
+        for (const o of orden) q = q.order(o);
+        return revisar(await q.range(p * tam, p * tam + tam - 1), etiqueta);
+      });
       hechas++;
       progreso?.(etiqueta, Math.round(hechas / paginas * 100));
       return (r.data || []) as unknown as R[];
     });
-    return (await enParalelo(tareas, 6)).flat();
+    return (await enParalelo(tareas, 4)).flat();
   }
 
   leerDias(desde: string, progreso?: Progreso, antesDe?: string) {
