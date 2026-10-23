@@ -6,7 +6,7 @@ import '../app/radar.css';
 import '../app/estilos.css';
 import './prod.css';
 import { Productividad, FILTROS, estado, estadoBalanceo, fmt as f, type Opciones, type Seccion, type Filtro, type FilaPersona } from '../core/productividad/calculo';
-import { GLOBAL, MAX_HORAS, MIN_SEG, metaZona, clave, semana as semanaDe, type Meta, type Persona } from '../core/productividad/listado';
+import { GLOBAL, MAX_HORAS, MIN_SEG, metaZona, clave, type Meta, type Persona } from '../core/productividad/listado';
 import { leerAuditoria, type Orden } from '../core/productividad/parseo';
 import { lineas, barrasZona, PALETA } from './graficos';
 import { aviso, descargar } from '../app/ui/avisos';
