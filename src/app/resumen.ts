@@ -137,7 +137,6 @@ export class Resumen {
     const bc = vm.bucketCounts, pos = bc.positivo || 0, pp = neg ? Math.round(pos / neg * 100) : 0;
     $('vxFalloFoot').innerHTML = '<b>' + pp + '%</b> de las negadas · había stock';
     $('vxSinStockFoot').innerHTML = '<b>' + (neg ? 100 - pp : 0) + '%</b> · ' + fmtInt(bc.cero || 0) + ' en 0 y ' + fmtInt(bc.negativo || 0) + ' negativo';
-    const bf = $('kpiB2BFoot'); bf.innerHTML = bf.innerHTML.replace(' pedidos corporativos completos', ' pedidos').replace(/ · \d+ en proceso/, '');
     if (m.prepEval && vm.newDays) $('kpiExactFoot').innerHTML = '<b>' + fmtInt(m.exactas) + '</b> de ' + fmtInt(m.prepEval) + ' completas <span class="meta-tag">meta ≥ 99,5%</span>';
     const lp = lineasPreparadas(this.radar.store, vm.date || vm.rangeFrom, vm.date || vm.rangeTo);
     $('kpiTotal').textContent = lp == null ? '—' : fmtInt(lp);
@@ -179,16 +178,16 @@ export class Resumen {
       (vm.legacyDays && lc ? ' · desde el ' + fmtDateShort(addDays(lc, 1)) : '');
   }
 
+  /** Fill rate general (líneas preparadas ÷ líneas cerradas) y abajo el fill rate B2B (pedidos corporativos completos). */
   private renderB2B(vm: VistaAgregada) {
     const val = $('kpiB2B'), foot = $('kpiB2BFoot');
+    const m = vm.meta, tot = m.totalFinal || 0, neg = m.totalNegados || 0, prep = m.totalPreparados != null ? m.totalPreparados : Math.max(tot - neg, 0);
     const r = this.radar.fillRateB2B(vm.rangeFrom, vm.rangeTo), lc = this.radar.store.legacyCutoff;
-    if (!r.tot) {
-      val.textContent = '—';
-      foot.textContent = vm.newDays ? 'Sin pedidos corporativos cerrados' : 'Disponible desde el ' + (lc ? fmtDateShort(addDays(lc, 1)) : 'próximo reporte');
-      return;
-    }
-    val.textContent = fmtPct(r.ok / r.tot * 100);
-    foot.innerHTML = '<b>' + fmtInt(r.ok) + '</b> de ' + fmtInt(r.tot) + ' pedidos corporativos completos' + (r.enProceso ? ' · ' + fmtInt(r.enProceso) + ' en proceso' : '');
+    val.textContent = tot ? fmtPct(prep / tot * 100) : '—';
+    const gen = tot ? '<b>' + fmtInt(prep) + '</b> de ' + fmtInt(tot) + ' líneas' : 'Sin líneas cerradas';
+    const b2b = r.tot ? 'B2B <b>' + fmtPct(r.ok / r.tot * 100) + '</b> · <b>' + fmtInt(r.ok) + '</b> de ' + fmtInt(r.tot) + ' pedidos'
+      : vm.newDays ? 'B2B: sin pedidos corporativos cerrados' : 'B2B disponible desde el ' + (lc ? fmtDateShort(addDays(lc, 1)) : 'próximo reporte');
+    foot.innerHTML = gen + '<br>' + b2b;
   }
 
   private renderUpdatedAt() {

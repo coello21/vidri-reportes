@@ -700,7 +700,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     <div class="kpi"><div class="lbl">Negadas por error en el proceso</div><div class="val tabular acc" id="kpiFalloProceso">—</div><div class="foot" id="vxFalloFoot">había stock en sistema y no se encontró</div></div>
     <div class="kpi"><div class="lbl">Negadas sin stock</div><div class="val tabular" id="vxSinStock">—</div><div class="foot" id="vxSinStockFoot">disponible en 0 o negativo</div></div>
     <div class="kpi" id="kpiExactCard"><div class="lbl">Exactitud de picking</div><div class="val tabular" id="kpiExact">—</div><div class="foot" id="kpiExactFoot">—</div></div>
-    <div class="kpi" id="kpiB2BCard"><div class="lbl">Fill rate B2B</div><div class="val tabular" id="kpiB2B">—</div><div class="foot" id="kpiB2BFoot">—</div></div>
+    <div class="kpi" id="kpiB2BCard"><div class="lbl">Fill rate general</div><div class="val tabular" id="kpiB2B">—</div><div class="foot" id="kpiB2BFoot">—</div></div>
     <div class="kpi"><div class="lbl">Código más negado</div><div class="val tabular" id="kpiTopCode">—</div><div class="foot" id="kpiTopCodeDesc">—</div></div>
     <div class="kpi"><div class="lbl">Sucursal más afectada</div><div class="val" id="kpiTopStore">—</div><div class="foot"><b id="kpiTopStoreCount">—</b> líneas negadas</div></div>
   </section>
@@ -928,7 +928,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   <footer class="vxf">Fuente: reporte de transferencias de pedidos (Document.xlsx) · Bodegas Nejapa, Bazinni y Mobu; MOP y otras se descartan al cargar · Un pedido = Número Pedido + Origen; la sucursal destino es el Origen del reporte · Asignación = fecha del pedido · Pendiente del día anterior = creado antes de ese día y sin actualizar al iniciarlo · Pendiente actual = RECIBIDO o PROCESANDO en el último corte · Tendencia = promedio móvil de 7 días completos (con menos de 10 días, recta de ajuste); “sube/baja %” = últimos 7 días contra los 7 anteriores · Son pedidos y SKUs; no se mezclan con las líneas del Radar de negados</footer>
 </section>
 
-<footer class="vxf" data-show="radar">Generado a partir de "Rpt_OrdenesPreparacion.xlsx" &middot; Solo líneas en estado A (listas para despacho); P y R se muestran como pendientes &middot; Día = Fecha Actualizado &middot; Duplicados: mismo Pedido + SKU (en reasignaciones se toma la orden en A) y misma Orden + SKU idéntica &middot; Negado = Cantidad Preparada igual a 0 &middot; Exactitud de picking = líneas mandadas completas ÷ líneas preparadas (meta ≥ 99,5%) &middot; Fill rate B2B = pedidos con Razón "Venta corporativa" en alguna de sus filas, con todas sus líneas completas ÷ pedidos corporativos cerrados &middot; Días hasta el 6 oct 2026 calculados con la versión anterior</footer>
+<footer class="vxf" data-show="radar">Generado a partir de "Rpt_OrdenesPreparacion.xlsx" &middot; Solo líneas en estado A (listas para despacho); P y R se muestran como pendientes &middot; Día = Fecha Actualizado &middot; Duplicados: mismo Pedido + SKU (en reasignaciones se toma la orden en A) y misma Orden + SKU idéntica &middot; Negado = Cantidad Preparada igual a 0 &middot; Exactitud de picking = líneas mandadas completas ÷ líneas preparadas (meta ≥ 99,5%) &middot; Fill rate general = líneas preparadas ÷ líneas cerradas (preparadas + negadas) &middot; Fill rate B2B = pedidos con Razón "Venta corporativa" en alguna de sus filas, con todas sus líneas completas ÷ pedidos corporativos cerrados &middot; Días hasta el 6 oct 2026 calculados con la versión anterior</footer>
 </div>
 <script>window.__B0=document.body.innerHTML;</script><script type="text/plain" id="emb">[EMB]</script><script type="text/plain" id="app-src">window.__APP=document.currentScript?document.currentScript.textContent:'';
 
@@ -2280,16 +2280,17 @@ function b2bForDates(dates){
 }
 
 function renderB2B(vm){
+  // Fill rate general (líneas preparadas ÷ líneas cerradas) y abajo el fill rate B2B (pedidos corporativos completos)
   const val = document.getElementById('kpiB2B');
   const foot = document.getElementById('kpiB2BFoot');
+  const m = vm.meta || {}, tot = m.totalFinal || 0, neg = m.totalNegados || 0;
+  const prep = (m.totalPreparados != null) ? m.totalPreparados : Math.max(tot - neg, 0);
   const r = b2bForDates(datesInRange(vm.rangeFrom, vm.rangeTo).filter(d => !isLegacyDay(d)));
-  if(!r.tot){
-    val.textContent = '—';
-    foot.textContent = vm.newDays ? 'Sin pedidos corporativos cerrados' : 'Disponible desde el ' + fmtDateShort(addDays(STORE.legacyCutoff, 1));
-    return;
-  }
-  val.textContent = fmtPct(r.ok / r.tot * 100);
-  foot.innerHTML = `<b>${fmtInt(r.ok)}</b> de ${fmtInt(r.tot)} pedidos corporativos completos` + (r.enProceso ? ` · ${fmtInt(r.enProceso)} en proceso` : '');
+  val.textContent = tot ? fmtPct(prep / tot * 100) : '—';
+  const gen = tot ? `<b>${fmtInt(prep)}</b> de ${fmtInt(tot)} líneas` : 'Sin líneas cerradas';
+  const b2b = r.tot ? `B2B <b>${fmtPct(r.ok / r.tot * 100)}</b> · <b>${fmtInt(r.ok)}</b> de ${fmtInt(r.tot)} pedidos`
+    : (vm.newDays ? 'B2B: sin pedidos corporativos cerrados' : 'B2B disponible desde el ' + fmtDateShort(addDays(STORE.legacyCutoff, 1)));
+  foot.innerHTML = gen + '<br>' + b2b;
 }
 
 function renderBacklog(vm){
@@ -3891,7 +3892,6 @@ function lnCards(vm){
   const pp = neg ? Math.round(pos / neg * 100) : 0;
   $('vxFalloFoot').innerHTML = '<b>' + pp + '%</b> de las negadas · había stock';
   $('vxSinStockFoot').innerHTML = '<b>' + (neg ? 100 - pp : 0) + '%</b> · ' + fmtInt(bc.cero || 0) + ' en 0 y ' + fmtInt(bc.negativo || 0) + ' negativo';
-  { const bf = $('kpiB2BFoot'); if(bf) bf.innerHTML = bf.innerHTML.replace(' pedidos corporativos completos',' pedidos').replace(/ · \d+ en proceso/,''); }
   if(m.prepEval && vm.newDays){ $('kpiExactFoot').innerHTML = '<b>' + fmtInt(m.exactas) + '</b> de ' + fmtInt(m.prepEval) + ' completas <span class="meta-tag">meta ≥ 99,5%</span>'; }
 }
 (function(){ const _lnR = render; render = function(vm){ _lnR(vm); try{ lnCards(vm); }catch(e){ console.error(e); } }; })();
