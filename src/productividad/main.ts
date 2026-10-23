@@ -74,12 +74,6 @@ function chipsDias() {
   const last = ds[ds.length - 1];
   document.querySelectorAll<HTMLElement>('#pvPer button').forEach((b) => { const m = b.dataset.m!; b.classList.toggle('active', m === 'all' ? (!d1 && !d2) : (d2 === last && d1 === desdePara(ds, +m))); });
 }
-function semanas(d1: string, d2: string) {
-  const WKS = new Map<string, [string, string]>();
-  for (const o of P.db.values()) { const w = semanaDe(o[5]), q = WKS.get(w); if (!q) WKS.set(w, [o[5], o[5]]); else { if (o[5] < q[0]) q[0] = o[5]; if (o[5] > q[1]) q[1] = o[5]; } }
-  $('wb').innerHTML = `<button class="${!d1 && !d2 ? 'on' : ''}" data-a="" data-b="">Todas las fechas</button>` + [...WKS].sort().map(([w, [a, b]]) => `<button class="${d1 === a && d2 === b ? 'on' : ''}" data-a="${a}" data-b="${b}">Sem ${+w.slice(5)} <b>${fd(a)} – ${fd(b)}</b></button>`).join('');
-}
-
 /* ---------------- render ---------------- */
 function render() {
   fechas();
@@ -94,7 +88,6 @@ function render() {
   const emp = ![...P.db.values()].some((x) => (!o.d1 || x[5] >= o.d1) && (!o.d2 || x[5] <= o.d2));
   $('em').hidden = !emp; if (emp) $('em').textContent = 'El rango elegido no tiene órdenes: la fecha “desde” es posterior a la fecha “hasta”. Corrígela o usa “Borrar fechas”.';
   ($('cd') as HTMLButtonElement).disabled = !o.d1 && !o.d2;
-  semanas(o.d1, o.d2);
   $('ch').hidden = S.sec !== 'retail';
   $('zb').hidden = !zv;
   $('cc').hidden = out || zon || emp;
@@ -209,7 +202,6 @@ function conectar() {
   }));
   $('ch').addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest<HTMLElement>('button'); if (!b) return; S.flt = b.dataset.f as Filtro; S.zsel = ''; if (S.flt === 'exi') { S.sk = 'zona'; S.asc = true; } render(); });
   $('zb').addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest<HTMLElement>('button'); if (!b) return; if (b.dataset.za != null) S.zAll = b.dataset.za === '1'; else S.zsel = b.dataset.z || ''; render(); });
-  $('wb').addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest<HTMLElement>('button'); if (!b) return; ($('d1') as HTMLSelectElement).value = b.dataset.a!; ($('d2') as HTMLSelectElement).value = b.dataset.b!; render(); });
   $('d1').addEventListener('change', render); $('d2').addEventListener('change', render);
   $('cd').addEventListener('click', () => { ($('d1') as HTMLSelectElement).value = ''; ($('d2') as HTMLSelectElement).value = ''; render(); });
   $('dayChips').addEventListener('click', (e) => {
