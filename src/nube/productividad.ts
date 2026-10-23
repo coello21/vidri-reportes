@@ -6,7 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Orden, FilaAuditoria, Extra } from '../core/productividad/parseo';
 import type { Persona } from '../core/productividad/listado';
 import { clave } from '../core/productividad/listado';
-import { trozos, enParalelo } from './base';
+import { trozos, enParalelo, msjError } from './base';
 
 export interface FilaOrden extends Extra {
   id: number; preparador: string; items: number; horas: number | null; tipo: string | null; dia: string; zona: string | null; t1: number | null; t2: number | null;
@@ -25,7 +25,7 @@ export const filaDeOrden = (o: Orden): Partial<FilaOrden> & { id: number } =>
   ({ id: o[0], preparador: o[1], items: o[2], horas: o[3], tipo: o[4] || null, dia: o[5], zona: o[6] || null, t1: o[7], t2: o[8] });
 
 function revisar<T extends { error: { message?: string } | null }>(r: T, que: string): T {
-  if (r.error) throw new Error(que + ': ' + (r.error.message || 'error'));
+  if (r.error) throw new Error(que + ': ' + msjError(r.error));
   return r;
 }
 

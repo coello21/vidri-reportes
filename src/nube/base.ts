@@ -30,8 +30,13 @@ export interface BaseDatos {
   registrarCarga(origen: string, detalle: unknown): Promise<void>;
 }
 
+/** Mensaje de error corto: si la respuesta llegó cortada, Supabase devuelve el texto crudo (datos), no un mensaje. */
+export function msjError(e: { message?: string; code?: string } | null | undefined): string {
+  const m = String(e?.message || e?.code || 'error');
+  return m.length > 200 || /^\s*[[{"]/.test(m) ? 'la conexión con la base se cortó a medio camino (respuesta incompleta). Vuelve a cargar la página.' : m;
+}
 function revisar<T extends { error: { message?: string; code?: string } | null }>(r: T, que: string): T {
-  if (r && r.error) throw new Error(que + ': ' + (r.error.message || r.error.code || 'error'));
+  if (r && r.error) throw new Error(que + ': ' + msjError(r.error));
   return r;
 }
 

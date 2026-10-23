@@ -38,8 +38,14 @@
     await Promise.all(ws);
     return res;
   }
+  // Mensaje de error corto: si la respuesta llegó cortada, Supabase devuelve el texto crudo (datos), no un mensaje
+  function msjError(e) {
+    var m = String((e && (e.message || e.code)) || 'error');
+    if (m.length > 200 || /^\s*[\[{"]/.test(m)) return 'la conexión con la base se cortó a medio camino (respuesta incompleta). Vuelve a cargar la página.';
+    return m;
+  }
   function revisar(r, que) {
-    if (r && r.error) throw new Error(que + ': ' + (r.error.message || r.error.code || 'error'));
+    if (r && r.error) throw new Error(que + ': ' + msjError(r.error));
     return r;
   }
   function aNumeroSiAplica(v) {

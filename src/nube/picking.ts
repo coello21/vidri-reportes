@@ -1,10 +1,10 @@
 /** Picking en Supabase: picking_dia (día × código × ubicación) y picking_codigos. */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Codigo, FilaPicking, ResumenCodigo } from '../core/picking/resumen';
-import { trozos, enParalelo } from './base';
+import { trozos, enParalelo, msjError } from './base';
 
 function revisar<T extends { error: { message?: string } | null }>(r: T, que: string): T {
-  if (r.error) throw new Error(que + ': ' + (r.error.message || 'error'));
+  if (r.error) throw new Error(que + ': ' + msjError(r.error));
   return r;
 }
 
