@@ -31,6 +31,12 @@ describe('Productividad: reglas', () => {
     expect(categoria('Tienda-Venta')).toBe('ven');
     expect(clave('Urrutia  Beltrán Jocelyn Yamileth')).toBe(clave('JOCELYN YAMILETH URRUTIA BELTRAN'));
   });
+  it('la orden cuenta el día en que se empezó a preparar, no el de asignación', () => {
+    // asignada el jueves 22 (día que trae la orden) y preparada el viernes 23 a las 7:00 de El Salvador
+    const t1 = Date.UTC(2026, 9, 23, 13) / 1000;
+    const P = new Productividad([[9, 'JOCELYN YAMILETH URRUTIA BELTRAN', 20, 0.5, 'Existencia', '2026-10-22', 'ZONA 1', t1, t1 + 1800]]);
+    expect(P.db.get(9)![5]).toBe('2026-10-23');
+  });
   it('SKUs por hora de una persona del listado', () => {
     const P = new Productividad([ord(1, 50, 0, 3600), ord(2, 30, 3600, 5400), ord(3, 1, 6000, 6060)]);
     const V = P.vistaPersonas({ sec: 'retail', flt: 'all', d1: '', d2: '', zsel: '', zAll: false });

@@ -101,7 +101,7 @@ function render() {
   $('split').classList.toggle('solo', out || zon || emp);
   $('cz').hidden = !(zon && !emp); $('tz').hidden = !(zon && !emp);
   $('ch').innerHTML = FILTROS.map((x) => `<button class="${S.flt === x[0] ? 'on' : ''}" data-f="${x[0]}">${x[1]}</button>`).join('');
-  $('sub').textContent = P.db.size.toLocaleString('es') + ' órdenes cargadas' + (days.length ? ' · asignaciones del ' + fd(days[0], true) + ' al ' + fd(days[days.length - 1], true) : '');
+  $('sub').textContent = P.db.size.toLocaleString('es') + ' órdenes cargadas' + (days.length ? ' · preparadas del ' + fd(days[0], true) + ' al ' + fd(days[days.length - 1], true) : '');
   if (zon) renderZonas(o, emp);
   else if (out) renderFuera(o);
   else renderPersonas(o);

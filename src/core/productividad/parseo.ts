@@ -8,7 +8,7 @@ import { norm } from './listado';
 
 /**
  * Orden para los cálculos (mismo formato que la página original):
- * [id, nombre, items, horas, tipo, día de asignación, zona, t1, t2]
+ * [id, nombre, items, horas, tipo, día de preparación (fecha del 1er código preparado), zona, t1, t2]
  * t1/t2 = segundos desde 1970 del 1° y último código preparado (null en historial viejo sin hora).
  */
 export type Orden = [number, string, number, number, string, string, string, number | null, number | null];
@@ -62,7 +62,7 @@ export function leerAuditoria(data: ArrayBuffer | Uint8Array, nombre = 'archivo'
     if (!t1 || !t2 || isNaN(t1.getTime()) || isNaN(t2.getTime())) continue;
     const tp = aFecha(r[c.p]) || t1;
     const n = String(r[c.d]).replace(/^\s*Preparador:\s*/i, '').replace(/\s+/g, ' ').trim();
-    const orden: Orden = [id, n, Number(r[c.i]) || 0, +((t2.getTime() - t1.getTime()) / 36e5).toFixed(4), String(r[c.t] ?? ''), ymd(tp),
+    const orden: Orden = [id, n, Number(r[c.i]) || 0, +((t2.getTime() - t1.getTime()) / 36e5).toFixed(4), String(r[c.t] ?? ''), ymd(t1),
       x.zn < 0 ? '' : String(r[x.zn] ?? '').replace(/\s+/g, ' ').trim(), Math.round(t1.getTime() / 1000), Math.round(t2.getTime() / 1000)];
     out.push({
       orden,

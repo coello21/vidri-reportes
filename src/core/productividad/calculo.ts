@@ -42,13 +42,21 @@ export interface FilaPersona {
   j?: Jornada; jr: number | null; cap: number | null;
 }
 
+/** Día de la orden = día en que se empezó a preparar (1er código preparado), no el de asignación:
+ *  una orden asignada el jueves en la tarde y preparada el viernes cuenta el viernes. */
+export const diaDePreparacion = (o: Orden): Orden => {
+  if (o[7] == null) return o;
+  const d = new Date(o[7] * 1000), dia = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  return dia === o[5] ? o : [o[0], o[1], o[2], o[3], o[4], dia, o[6], o[7], o[8]];
+};
+
 export class Productividad {
   db = new Map<number, Orden>();
   extra: Persona[] = [];
   idx = new Map<string, Persona>();
 
   constructor(ordenes: Orden[] = [], extra: Persona[] = []) {
-    ordenes.forEach((o) => this.db.set(o[0], o));
+    ordenes.forEach((o) => this.db.set(o[0], diaDePreparacion(o)));
     this.extra = extra.slice();
     this.reconstruir();
   }
@@ -57,7 +65,7 @@ export class Productividad {
   /** Agrega órdenes de un Excel (la más nueva reemplaza). */
   integrar(ordenes: Orden[]): { nuevas: number; actualizadas: number; meses: Set<string> } {
     let nuevas = 0, actualizadas = 0; const meses = new Set<string>();
-    for (const o of ordenes) { if (this.db.has(o[0])) actualizadas++; else nuevas++; meses.add(o[5].slice(0, 7)); this.db.set(o[0], o); }
+    for (let o of ordenes) { o = diaDePreparacion(o); if (this.db.has(o[0])) actualizadas++; else nuevas++; meses.add(o[5].slice(0, 7)); this.db.set(o[0], o); }
     return { nuevas, actualizadas, meses };
   }
   dias(): string[] { return [...new Set([...this.db.values()].map((o) => o[5]))].sort(); }
