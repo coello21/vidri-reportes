@@ -23,24 +23,17 @@
   }
   ponerTema(leerTema());
 
-  /* Arriba a la derecha: Radar | Productividad y el botón de modo (en el HTML compartido solo queda el modo). */
-  var PAGINAS = [['Radar', '../radar/', /\/(radar|app)\//], ['Productividad', '../productividad/', /\/productividad\//], ['Picking', '../picking/', /\/picking\//]];
+  /* Arriba a la derecha: solo el botón de modo. Cada página es independiente (su propio enlace, sin menú entre páginas). */
   function botones() {
     document.querySelectorAll('.vxh .top').forEach(function (top) {
       if (top.querySelector('.vx-sw')) return;
       var meta = top.querySelector('.meta'), der = document.createElement('div'), sw = document.createElement('div');
       der.className = 'vx-der'; sw.className = 'vx-sw';
-      var nav = document.createElement('nav'); nav.className = 'vx-pg'; nav.setAttribute('aria-label', 'Páginas');
-      PAGINAS.forEach(function (p) {
-        var a = document.createElement('a'), on = p[2].test(location.pathname);
-        a.href = on ? '#' : p[1]; a.textContent = p[0]; if (on) { a.className = 'on'; a.setAttribute('aria-current', 'page'); a.addEventListener('click', function (e) { e.preventDefault(); }); }
-        nav.appendChild(a);
-      });
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'lnk tema-btn'; b.title = 'Cambia entre modo claro y oscuro';
       b.innerHTML = '<i></i><span></span>';
       b.addEventListener('click', function () { ponerTema(leerTema() === 'dark' ? 'light' : 'dark'); });
-      sw.appendChild(nav); sw.appendChild(b); der.appendChild(sw);
+      sw.appendChild(b); der.appendChild(sw);
       if (meta) { top.insertBefore(der, meta); der.appendChild(meta); } else top.appendChild(der);
     });
     ponerTema(leerTema());
