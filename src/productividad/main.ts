@@ -10,6 +10,7 @@ import { GLOBAL, MAX_HORAS, MIN_SEG, metaZona, clave, type Meta, type Persona } 
 import { leerAuditoria, type Orden } from '../core/productividad/parseo';
 import { lineas, barrasZona, PALETA } from './graficos';
 import { aviso, descargar } from '../app/ui/avisos';
+import { armarReporte, diaDelReporte, mostrarReporte } from './reporte';
 import type { BaseProductividad } from '../nube/productividad';
 
 const COPIA = import.meta.env.MODE === 'copia';
@@ -329,6 +330,12 @@ function montar(ordenes: Orden[], extra: Persona[], usuario: string) {
   archivo('selectBtn', 'fileInput', cargarExcel);
   archivo('importBtn', 'jsonInput', importarJson);
   $('shareBtn').addEventListener('click', () => descargarHtml($('shareBtn') as HTMLButtonElement));
+  $('repBtn').addEventListener('click', () => {
+    const dia = diaDelReporte(P, ($('d1') as HTMLSelectElement).value, ($('d2') as HTMLSelectElement).value);
+    if (!dia) { aviso('err', 'No hay órdenes cargadas.'); return; }
+    const logo = (document.querySelector('.vx-logo') as HTMLImageElement | null)?.src || '';
+    mostrarReporte(armarReporte(P, dia, logo));
+  });
   document.getElementById('acceso')?.remove();
   ponerSeccion((location.hash || '').slice(1) as Seccion);
   render();
