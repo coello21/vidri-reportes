@@ -115,19 +115,20 @@ export class BaseSupabase implements BaseDatos {
     return (r.data as Meta | null) || null;
   }
   async guardarDias(filas: { fecha: string; data: Dia }[]) {
-    await enParalelo(trozos(filas, 5).map((t) => async () => { revisar(await this.sb.from('radar_dias').upsert(t, { onConflict: 'fecha' }), 'Guardar negados'); }), 4);
+    // de 2 en 2 días (cada día pesa ~100–150 KB) y con reintentos: guardar el mismo día otra vez no duplica
+    await enParalelo(trozos(filas, 2).map((t) => async () => { await conReintentos(async () => revisar(await this.sb.from('radar_dias').upsert(t, { onConflict: 'fecha' }), 'Guardar negados')); }), 3);
   }
   async borrarDias(fechas: string[]) {
-    if (fechas.length) revisar(await this.sb.from('radar_dias').delete().in('fecha', fechas), 'Quitar días');
+    if (fechas.length) await conReintentos(async () => revisar(await this.sb.from('radar_dias').delete().in('fecha', fechas), 'Quitar días'));
   }
   async guardarPedidos(filas: FilaPedido[]) {
-    await enParalelo(trozos(filas, 1000).map((t) => async () => { revisar(await this.sb.from('pedidos').upsert(t, { onConflict: 'numero,origen' }), 'Guardar pedidos'); }), 4);
+    await enParalelo(trozos(filas, 1000).map((t) => async () => { await conReintentos(async () => revisar(await this.sb.from('pedidos').upsert(t, { onConflict: 'numero,origen' }), 'Guardar pedidos')); }), 4);
   }
   async guardarStore(data: unknown) {
-    revisar(await this.sb.from('radar_store').upsert({ id: 1, data }, { onConflict: 'id' }), 'Guardar catálogo');
+    await conReintentos(async () => revisar(await this.sb.from('radar_store').upsert({ id: 1, data }, { onConflict: 'id' }), 'Guardar catálogo'));
   }
   async guardarMeta(meta: Meta) {
-    revisar(await this.sb.from('pedidos_meta').upsert({ id: 1, cortes: meta.cortes, asg_pend: meta.asg_pend }, { onConflict: 'id' }), 'Guardar cortes');
+    await conReintentos(async () => revisar(await this.sb.from('pedidos_meta').upsert({ id: 1, cortes: meta.cortes, asg_pend: meta.asg_pend }, { onConflict: 'id' }), 'Guardar cortes'));
   }
   async registrarCarga(origen: string, detalle: unknown) {
     try { await this.sb.from('cargas').insert({ origen, detalle }); } catch { /* la bitácora no es crítica */ }
