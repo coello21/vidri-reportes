@@ -14,7 +14,7 @@ Tableros de preparación del CD Nejapa (Radar de Preparación: negados y Pedidos
 | 4 | "Descargar HTML" de 45 días como archivo independiente (plantilla.html, se arma con `npm run build`) | ✅ |
 | 5 | Reporte ejecutivo automático (botón **Reporte ejecutivo** en el Radar: pedidos y negados; productividad cuando su tablero esté en la base) | ✅ parcial |
 
-Mientras se hacen los pasos 2–5, **el Radar actual sigue funcionando** (carpeta `public/radar/`, ya conectado a Supabase). Se publica junto con el proyecto en la misma dirección y se reemplaza cuando la versión nueva esté lista.
+El Radar es la página `/app/`. La versión anterior (`public/radar/`, JavaScript en un solo archivo) se retiró el 4 nov 2026; `/radar/` solo redirige a `/app/` para que sigan funcionando los enlaces guardados.
 
 ## Estructura
 
@@ -60,11 +60,11 @@ node scripts/fixture-desde-html.mjs "ruta/Radar_de_Negados_2026-10-19.html"
 - **Supabase**: proyecto `cd-nejapa-reportes`. Tablas creadas con `supabase/01_esquema.sql`; los correos con acceso van en la tabla `app_usuarios` (`supabase/02_mi_correo.sql`).
 - **`public/config.js`**: ya tiene la URL y la clave pública del proyecto. La clave pública puede ir en el código; nunca pongas aquí la clave secreta (`service_role`).
 - **GitHub Pages**: en el repositorio, **Settings → Pages → Source: GitHub Actions**. Cada cambio en `main` corre las pruebas y, si pasan, publica en `https://coello21.github.io/vidri-reportes/`.
-- **Inicio de sesión**: en Supabase, **Authentication → URL Configuration**, agrega `https://coello21.github.io/vidri-reportes/**` en Redirect URLs y pon `https://coello21.github.io/vidri-reportes/radar/` como Site URL.
+- **Inicio de sesión**: en Supabase, **Authentication → URL Configuration**, agrega `https://coello21.github.io/vidri-reportes/**` en Redirect URLs y pon `https://coello21.github.io/vidri-reportes/app/` como Site URL.
 
 ## Uso diario (mientras tanto)
 
-Abre `.../radar/`, entra con tu correo, carga los Excel y usa **Descargar HTML** para el correo, igual que antes. **Reporte ejecutivo** arma el PDF del día con los datos cargados (en la ventana de impresión elige «Guardar como PDF»). La primera vez usa **Importar respaldo** con tu último HTML del Radar para pasar el historial a la base.
+Abre `.../app/`, entra con tu correo, carga los Excel y usa **Descargar HTML** para el correo. **Reporte ejecutivo** arma el PDF del día con los datos cargados (en la ventana de impresión elige «Guardar como PDF»).
 
 ## Productividad (`/productividad/`)
 
