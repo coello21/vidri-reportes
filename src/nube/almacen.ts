@@ -10,6 +10,13 @@ export interface Datos {
   pedidos: { rows: Pedido[]; cortes: Corte[]; asgP: Record<string, number> };
 }
 
+/**
+ * Partes del catálogo que hacen falta para dibujar. Las grandes que solo se usan al cargar un Excel
+ * (seen: líneas ya contadas, revK: líneas en revisión) se leen después, en segundo plano.
+ * Si el catálogo gana una parte nueva y no se pone aquí, igual se lee después (no se pierde al guardar).
+ */
+export const STORE_LIGERO = ['skus', 'pending', 'pneg', 'b2b', 'covered', 'revN', 'backlog', 'updatedAt', 'revKT', 'legacyCutoff', 'revX'];
+
 export interface ResultadoGuardar { dias: number; diasQuitados: number; pedidos: number; catalogo: boolean; cortes: boolean }
 
 const isoLocal = (d: Date) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -31,6 +38,10 @@ export class Almacen {
 
   /** Lo que falta leer después de abrir rápido (ver `leer` con `rapido`). */
   private falta: { desde: string; antesDe: string; pedDesde: number; pedAntesDe: number } | null = null;
+  /** Partes del catálogo leídas al abrir rápido (el resto se lee en `completar`). */
+  private ligeras: string[] | null = null;
+  /** Con `rapido` y `pedidosLuego`: los pedidos de la pestaña, que llegan después de abrir. */
+  pedidosLuego: Promise<Pedido[]> | null = null;
 
   /**
    * Lee los datos de la base.
@@ -38,7 +49,7 @@ export class Almacen {
    * de pedidos, los de la ventana de la pestaña más los que siguen sin terminar); el resto se lee
    * después con `completar()`. Así la página se abre en segundos.
    */
-  async leer(opc: { diasRadar: number; diasPedidos: number; todo?: boolean; hoy?: Date; rapido?: { dias: number; pedidos: number } }, progreso?: Progreso): Promise<Datos> {
+  async leer(opc: { diasRadar: number; diasPedidos: number; todo?: boolean; hoy?: Date; rapido?: { dias: number; pedidos: number }; pedidosLuego?: boolean }, progreso?: Progreso): Promise<Datos> {
     const hoy = opc.hoy || new Date();
     const dia = (n: number) => isoLocal(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - n));
     const desde = opc.todo ? '1900-01-01' : dia(opc.diasRadar);
@@ -52,7 +63,12 @@ export class Almacen {
         this.base.leerPedidos(corteMin, undefined, { antesDeMin: pDesde, actualizadoDesdeMin: pDesde }),
       ]).then((a) => a.flat())
       : this.base.leerPedidos(corteMin, progreso);
-    const [dias, store, ped, meta] = await Promise.all([this.base.leerDias(dDesde, progreso), this.base.leerStore(), pedidos, this.base.leerMeta()]);
+    // con pedidosLuego la página se dibuja sin esperar los pedidos (llegan por this.pedidosLuego)
+    const luego = !!(R && opc.pedidosLuego);
+    this.ligeras = luego ? STORE_LIGERO : null;
+    const [dias, store, ped, meta] = await Promise.all([
+      this.base.leerDias(dDesde, progreso), this.base.leerStore(this.ligeras || undefined), luego ? Promise.resolve([]) : pedidos, this.base.leerMeta()]);
+    if (luego) this.pedidosLuego = pedidos.then((p) => this.sinRepetir(p.map(aPedido)));
     this.falta = R ? { desde, antesDe: dDesde, pedDesde: corteMin, pedAntesDe: pDesde } : null;
     const history: Historial = {};
     dias.forEach((r) => { history[r.fecha] = r.data; this.fDias.set(r.fecha, JSON.stringify(r.data)); });
@@ -73,14 +89,26 @@ export class Almacen {
   /** ¿Falta leer días o pedidos anteriores? */
   get incompleto(): boolean { return !!this.falta; }
 
-  /** Lee lo que quedó pendiente al abrir rápido: días de negados anteriores y pedidos terminados anteriores. */
-  async completar(progreso?: Progreso): Promise<{ history: Historial; rows: Pedido[] }> {
+  /**
+   * Lee lo que quedó pendiente al abrir rápido: días de negados anteriores, pedidos terminados anteriores y,
+   * si se abrió con el catálogo parcial, el resto del catálogo, que se pone en `store` (el de la página).
+   */
+  async completar(progreso?: Progreso, store?: Partial<StoreRadar>): Promise<{ history: Historial; rows: Pedido[] }> {
     const F = this.falta;
     if (!F) return { history: {}, rows: [] };
-    const [dias, ped] = await Promise.all([
+    const lig = this.ligeras;
+    const [dias, ped, todoStore] = await Promise.all([
       this.base.leerDias(F.desde, progreso, F.antesDe),
       this.base.leerPedidos(F.pedDesde, undefined, { antesDeMin: F.pedAntesDe }),
+      lig ? this.base.leerStore() : Promise.resolve(null),
     ]);
+    if (lig) {
+      const S = (store || {}) as Record<string, unknown>;
+      for (const [k, v] of Object.entries((todoStore || {}) as Record<string, unknown>)) if (!lig.includes(k)) S[k] = v;
+      // la foto se toma del catálogo ya completo, tal como lo tiene la página
+      this.fStore = JSON.stringify(S);
+      this.ligeras = null;
+    }
     const history: Historial = {};
     dias.forEach((r) => { if (this.fDias.has(r.fecha)) return; history[r.fecha] = r.data; this.fDias.set(r.fecha, JSON.stringify(r.data)); });
     this.falta = null;
@@ -102,6 +130,8 @@ export class Almacen {
       }
       if (mesesConDias) this.fDias.forEach((_, f) => { if (mesesConDias.has(f.slice(0, 7)) && !(f in d.history!)) delDias.push(f); });
     }
+    // con el catálogo a medias (abrió rápido y aún no termina) nunca se guarda: se perderían seen y revK
+    if (d.store && this.ligeras) throw new Error('todavía se están leyendo los datos anteriores; espera unos segundos e intenta otra vez');
     let nStore: string | null = null;
     if (d.store) { const s = JSON.stringify(d.store); if (s !== this.fStore) nStore = s; }
     if (d.pedidos) {

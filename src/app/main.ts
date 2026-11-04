@@ -112,7 +112,9 @@ function completarDespues(app: App) {
   const barra = document.getElementById('modo');
   const txt = barra ? barra.innerHTML : '';
   if (barra) barra.innerHTML = txt + ' · <span id="cargandoMas">cargando días anteriores…</span>';
-  app.listo = A.completar().then((r) => {
+  // primero terminan de llegar los pedidos de la pestaña (si se abrió sin esperarlos) y después lo anterior
+  const antes = A.pedidosLuego ? A.pedidosLuego.then(() => undefined, () => undefined) : Promise.resolve();
+  app.listo = antes.then(() => A.completar(undefined, app.radar.store)).then((r) => {
     Object.assign(app.radar.history, r.history);
     r.rows.forEach((x) => { if (!esViejo(x)) app.pedidos.rows.set(clavePedido(x), x); });
     app.redibujar();
@@ -145,6 +147,9 @@ async function arrancarPrueba(): Promise<boolean> {
   const E = JSON.parse(txt);
   if (!new URLSearchParams(location.search).get('lento')) { montar(E, null, 'prueba'); return true; }
   // ?lento=1: igual que en la página, abre con 8 días y lee el resto 4 segundos después (para probar la apertura rápida)
+  document.body.classList.remove('nodata'); document.body.classList.add('esq', 'esq-ped');
+  await new Promise((r) => setTimeout(r, 2500));
+  setTimeout(() => document.body.classList.remove('esq-ped'), 2000);
   const ds = Object.keys(E.history).sort(), corte = ds[ds.length - 8], resto: Record<string, unknown> = {};
   ds.filter((d) => d < corte).forEach((d) => { resto[d] = E.history[d]; delete E.history[d]; });
   const falso = {
@@ -153,6 +158,7 @@ async function arrancarPrueba(): Promise<boolean> {
     guardar: async () => ({ dias: 0, diasQuitados: 0, pedidos: 0, catalogo: false, cortes: false }),
   };
   const app = montar(E, falso as unknown as Almacen, 'prueba');
+  document.body.classList.remove('esq');
   completarDespues(app);
   return true;
 }
@@ -161,7 +167,7 @@ async function arrancar() {
   if (COPIA) { await arrancarCopia(); return; }
   if (await arrancarPrueba()) return;
   // solo en la página: inicio de sesión y base de datos (no van dentro de la copia)
-  const [{ crearCliente, iniciarSesion, cargando }, { CONFIG }, { BaseSupabase }, { Almacen }] =
+  const [{ crearCliente, iniciarSesion, quitarPantalla }, { CONFIG }, { BaseSupabase }, { Almacen }] =
     await Promise.all([import('./sesion'), import('../nube/config'), import('../nube/base'), import('../nube/almacen')]);
   const sb = crearCliente();
   await iniciarSesion(sb, async (s) => {
@@ -169,9 +175,29 @@ async function arrancar() {
     const todo = !!new URLSearchParams(location.search).get('todo');
     // Abre con la última semana (8 días: hoy y el mismo día de la semana pasada) y los pedidos de la pestaña;
     // el resto se lee en segundo plano.
-    const datos = await almacen.leer({ diasRadar: CONFIG.DIAS_RADAR, diasPedidos: CONFIG.DIAS_PEDIDOS, todo, rapido: { dias: 8, pedidos: 16 } }, (e, p) => cargando(e + '… ' + p + '%'));
-    cargando('Armando el tablero…');
+    // Esqueleto: la página aparece de una vez con bloques grises donde van los datos; se llenan al llegar.
+    // 1) días recientes + catálogo ligero → Resumen y Top  2) pedidos de la pestaña → Pedidos CD  3) lo anterior, en segundo plano
+    quitarPantalla();
+    document.body.classList.remove('nodata');
+    document.body.classList.add('esq', 'esq-ped');
+    let datos;
+    try {
+      datos = await almacen.leer({ diasRadar: CONFIG.DIAS_RADAR, diasPedidos: CONFIG.DIAS_PEDIDOS, todo, rapido: { dias: 8, pedidos: 16 }, pedidosLuego: true });
+    } catch (e) {
+      document.body.classList.remove('esq', 'esq-ped');
+      throw e;
+    }
     const app = montar(datos, almacen, s.user?.email || '');
+    document.body.classList.remove('esq');
+    if (almacen.pedidosLuego) {
+      almacen.pedidosLuego.then((rows) => {
+        rows.forEach((x) => { if (!esViejo(x)) app.pedidos.rows.set(clavePedido(x), x); });
+        app.ped.render();
+      }).catch((e) => {
+        console.error(e);
+        aviso('err', 'No se pudieron leer los pedidos: ' + ((e as Error)?.message || 'error') + '. Recarga la página.', 30000);
+      }).finally(() => document.body.classList.remove('esq-ped'));
+    } else document.body.classList.remove('esq-ped');
     $('usuario').textContent = app.usuario; $('nbUser').textContent = app.usuario;
     $('salir').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
     if (todo) $('todoBtn').hidden = true;

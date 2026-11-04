@@ -14,7 +14,13 @@ class BaseMemoria implements BaseDatos {
   llamadas: string[] = [];
   cargas: unknown[] = [];
   async leerDias(desde: string, _p?: unknown, antesDe?: string) { return [...this.dias].filter(([f]) => f >= desde && (!antesDe || f < antesDe)).map(([fecha, data]) => ({ fecha, data: structuredClone(data) })); }
-  async leerStore() { return this.store ? structuredClone(this.store) as object : null; }
+  async leerStore(claves?: string[]) {
+    if (!this.store) return null;
+    const S = structuredClone(this.store) as Record<string, unknown>;
+    if (!claves) return S;
+    const o: Record<string, unknown> = {}; claves.forEach((k) => { if (S[k] != null) o[k] = S[k]; });
+    return o;
+  }
   async leerPedidos(desdeMin: number, _p?: unknown, o: FiltroPedidos = {}) {
     return [...this.pedidos.values()].filter((r) => r.fecha_min >= desdeMin && (o.antesDeMin == null || r.fecha_min < o.antesDeMin) &&
       (!o.sinTerminar || r.estado !== 'A') && (o.actualizadoDesdeMin == null || (r.actualizado_min || 0) >= o.actualizadoDesdeMin)).map((r) => ({ ...r }));
@@ -106,6 +112,26 @@ describe('Almacen', () => {
     Object.assign(d.history, r.history); d.pedidos.rows.push(...r.rows);
     b.llamadas = [];
     await a.guardar(d, 'prueba');
+    expect(b.llamadas).toEqual([]);
+  });
+
+  it('abre con esqueleto: catálogo ligero y pedidos después; no guarda el catálogo a medias', async () => {
+    const b = new BaseMemoria();
+    for (let i = 0; i < 40; i++) b.dias.set('2026-10-' + String(20 - (i % 20)).padStart(2, '0') + (i < 20 ? '' : 'x'), dia(10));
+    const p1: Pedido = [1, 67, MIN_HOY - 2 * 1440, 'A', 3, 'exi', MIN_HOY - 1440, 0, MIN_HOY, 'N'];
+    b.pedidos.set('1-67', aFilaBase(p1));
+    b.store = { skus: { a: ['x'] }, seen: { k: 1 }, revK: { r: 2 }, pending: {}, nuevaParte: 5 };
+    b.meta = { cortes: [], asg_pend: {} };
+    const a = new Almacen(b);
+    const d = await a.leer({ diasRadar: 120, diasPedidos: 62, hoy: HOY, rapido: { dias: 8, pedidos: 16 }, pedidosLuego: true });
+    expect(d.pedidos.rows).toEqual([]);
+    expect('seen' in d.store).toBe(false);
+    expect((await a.pedidosLuego!).map((x) => x[0])).toEqual([1]);
+    await expect(a.guardar({ store: d.store as never }, 'prueba')).rejects.toThrow();
+    await a.completar(undefined, d.store);
+    expect(d.store).toMatchObject({ seen: { k: 1 }, revK: { r: 2 }, nuevaParte: 5, skus: { a: ['x'] } });
+    b.llamadas = [];
+    await a.guardar({ store: d.store as never }, 'prueba');
     expect(b.llamadas).toEqual([]);
   });
 

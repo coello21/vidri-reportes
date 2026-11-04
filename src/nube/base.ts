@@ -18,7 +18,8 @@ type Consulta = any;
 export interface BaseDatos {
   /** Días desde `desde` (y antes de `antesDe`, si se da). */
   leerDias(desde: string, progreso?: Progreso, antesDe?: string): Promise<{ fecha: string; data: Dia }[]>;
-  leerStore(): Promise<Partial<StoreRadar> | null>;
+  /** Catálogo del Radar; con `claves`, solo esas partes (para abrir rápido). */
+  leerStore(claves?: string[]): Promise<Partial<StoreRadar> | null>;
   /** Pedidos con fecha desde `desdeMin`; `opc` acota más (antes de, solo sin terminar, terminados desde). */
   leerPedidos(desdeMin: number, progreso?: Progreso, opc?: FiltroPedidos): Promise<FilaPedido[]>;
   leerMeta(): Promise<Meta | null>;
@@ -87,8 +88,16 @@ export class BaseSupabase implements BaseDatos {
     const f = (q: Consulta) => { q = q.gte('fecha', desde); return antesDe ? q.lt('fecha', antesDe) : q; };
     return this.paginado<{ fecha: string; data: Dia }>('radar_dias', 'fecha,data', f, ['fecha'], 10, 'Negados por día', progreso);
   }
-  async leerStore() {
-    const r = revisar(await this.sb.from('radar_store').select('data').eq('id', 1).maybeSingle(), 'Catálogo');
+  async leerStore(claves?: string[]) {
+    if (claves && claves.length) {
+      const sel = claves.map((k) => k + ':data->' + k).join(',');
+      const r = await conReintentos(async () => revisar(await this.sb.from('radar_store').select(sel).eq('id', 1).maybeSingle(), 'Catálogo'));
+      if (!r.data) return null;
+      const o: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(r.data as unknown as Record<string, unknown>)) if (v != null) o[k] = v;
+      return o as Partial<StoreRadar>;
+    }
+    const r = await conReintentos(async () => revisar(await this.sb.from('radar_store').select('data').eq('id', 1).maybeSingle(), 'Catálogo'));
     return r.data ? (r.data as { data: Partial<StoreRadar> }).data : null;
   }
   leerPedidos(desdeMin: number, progreso?: Progreso, opc: FiltroPedidos = {}) {

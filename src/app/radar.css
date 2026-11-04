@@ -632,3 +632,20 @@ body.nodata #tab-pedidos .kpis{display:grid!important}.brand .mark-logo{height:5
 .pmot i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 .barrow .fill.mfill{display:flex;background:transparent!important;overflow:hidden}
 .barrow .fill.mfill>span{height:100%;display:block}
+
+/* Esqueleto al abrir (4 nov 2026): la página sale de una vez y los bloques grises se llenan cuando llegan los datos.
+   .esq = Resumen y Top todavía sin datos; .esq-ped = Pedidos CD todavía sin datos. */
+@keyframes esq-brillo{0%{background-position:100% 0}100%{background-position:0 0}}
+body.esq #tab-resumen .kpi, body.esq #tab-resumen .chart, body.esq #tab-top .chart, body.esq #tab-top .kpi,
+body.esq-ped #tab-pedidos .kpi, body.esq-ped #tab-pedidos .chart{position:relative;pointer-events:none}
+body.esq #tab-resumen .chart, body.esq #tab-top .chart, body.esq-ped #tab-pedidos .chart{min-height:240px}
+body.esq #tab-resumen .kpi::after, body.esq #tab-resumen .chart::after, body.esq #tab-top .chart::after, body.esq #tab-top .kpi::after,
+body.esq-ped #tab-pedidos .kpi::after, body.esq-ped #tab-pedidos .chart::after{
+  content:'';position:absolute;border-radius:6px;z-index:2;
+  background-color:var(--surface);
+  background-image:linear-gradient(90deg,color-mix(in srgb,var(--ink) 6%,transparent) 30%,color-mix(in srgb,var(--ink) 11%,transparent) 50%,color-mix(in srgb,var(--ink) 6%,transparent) 70%);
+  background-size:300% 100%;animation:esq-brillo 1.3s ease-in-out infinite}
+body.esq #tab-resumen .kpi::after, body.esq #tab-top .kpi::after, body.esq-ped #tab-pedidos .kpi::after{inset:30px 12px 12px}
+body.esq #tab-resumen .chart::after, body.esq #tab-top .chart::after, body.esq-ped #tab-pedidos .chart::after{inset:58px 0 8px 0}
+body.esq .datebadge, body.esq .branchwrap, body.esq #tab-resumen .leg, body.esq-ped #tab-pedidos .leg{visibility:hidden}
+@media (prefers-reduced-motion:reduce){body.esq .chart::after, body.esq .kpi::after, body.esq-ped .chart::after, body.esq-ped .kpi::after{animation:none}}
