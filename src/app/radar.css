@@ -626,3 +626,9 @@ body.nodata #tab-pedidos .kpis{display:grid!important}.brand .mark-logo{height:5
 #codigoPrepBars .barrow{grid-template-columns:minmax(0,190px) 1fr 40px}
 #codigoPrepBars .barrow .code{white-space:normal;line-height:1.2}
 .prres-q input{padding-left:10px!important}
+
+/* Motivo de negado registrado (4 nov 2026) */
+.pmot{display:flex;flex-wrap:wrap;gap:4px 12px;margin:2px 0 8px;font:11px var(--font-mono);color:var(--ink-2)}
+.pmot i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.barrow .fill.mfill{display:flex;background:transparent!important;overflow:hidden}
+.barrow .fill.mfill>span{height:100%;display:block}

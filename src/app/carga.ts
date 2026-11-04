@@ -104,6 +104,7 @@ export async function cargarNegados(ctx: Contexto, files: File[]) {
       const p: string[] = [];
       p.push(res.added ? fmtInt(res.added) + ' líneas nuevas listas para despacho (' + days.map((d) => fmtDateShort(d) + ': ' + fmtInt(res.addedByDay[d])).join(', ') + ')' : 'Sin líneas nuevas');
       if (res.already) p.push(fmtInt(res.already) + ' ya estaban registradas');
+      if (res.motDias) p.push('motivo de negado en ' + fmtInt(res.motDias) + ' día' + (res.motDias === 1 ? '' : 's'));
       if (res.resolved) p.push(fmtInt(res.resolved) + ' pendientes completados');
       p.push(fmtInt(res.pendingNow) + ' pendientes de despacho');
       if (res.legacyIgnored) p.push(fmtInt(res.legacyIgnored) + ' del período de la versión anterior (ya contadas)');

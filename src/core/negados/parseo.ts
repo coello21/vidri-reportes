@@ -10,6 +10,7 @@ const FIELD_MAP: Record<string, string> = {
   um: 'UM', disponible: 'Disponible', razondepedido: 'Razon', descripcion: 'Desc',
   categoria: 'Categoria', estado: 'Estado', preparador: 'Preparador', revisador: 'Revisador',
   fechacreacion: 'Fecha', fechaenviadorevision: 'FechaRevision', fechaactualizado: 'FechaAct',
+  motivodenegado: 'Motivo', motivonegado: 'Motivo',
 };
 
 const NEED_LABEL: Record<string, string> = {

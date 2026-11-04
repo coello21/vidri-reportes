@@ -1,5 +1,6 @@
 import { ymd, addDays, timeOf } from '../comun/fechas';
 import { dedupRecords } from './dedup';
+import { motivosDeRegistros, aplicarMotivos } from './motivos';
 import {
   BIDX, BUCKETS,
   type Bucket, type Dia, type DiaLegacy, type DiaResumen, type Historial, type Registro,
@@ -259,6 +260,8 @@ export class RadarNegados {
     S.covered = S.covered.filter((d) => H[d] || (maxDay && d >= addDays(maxDay, -KEEP_DAYS)));
 
     res.pendingNow = Object.keys(S.pending).length;
+    const motDias = aplicarMotivos(H, motivosDeRegistros(records)).length;
+    if (motDias) res.motDias = motDias;
     S.updatedAt = new Date().toISOString();
     this.cache.clear();
     return res;

@@ -8,6 +8,8 @@ import type { RadarNegados, VistaAgregada, PreparadorVista } from '../core/negad
 import { parsePreparadorName, EXACTITUD_META } from '../core/negados/radar';
 import { addDays } from '../core/comun/fechas';
 import { lineasPreparadas } from '../core/negados/extras';
+import { motColor, motLabel, motSort, motivosDePreparador } from '../core/negados/motivos';
+import type { DiaResumen } from '../core/negados/tipos';
 import { $, esc, fmtInt, fmtPct, fmtDateShort, fechaLarga } from './ui/formato';
 import { barrasApiladas, tendenciaSobrePuntos, globoEnPuntos } from './ui/graficos';
 
@@ -265,10 +267,28 @@ export class Resumen {
     });
     // se muestran los últimos 7 días, sin línea de tendencia (diseño del 20 oct)
     const k = Math.max(0, days.length - 7), d7 = days.slice(k), p7 = new Set([...part].map((i) => i - k).filter((i) => i >= 0));
-    barrasApiladas(el, d7, [
-      { name: 'Error en el proceso', color: '#DE7A2C', tcolor: '#B5591A', vals: pos.slice(k) },
-      { name: 'Sin stock', color: '#3A76B0', tcolor: '#24557F', vals: sin.slice(k) },
-    ], { partial: p7, noTrend: true, unit: 'líneas negadas', sel: vm.meta.fecha, onClick: (i) => this.elegir(d7[i], d7[i]) });
+    const dia = (d: string) => this.radar.history[d] as DiaResumen | undefined;
+    const leg = document.querySelector<HTMLElement>('#vxMotCard .leg');
+    if (leg && !leg.dataset.orig) leg.dataset.orig = leg.innerHTML;
+    let series: { name: string; color: string; tcolor: string; vals: number[] }[];
+    if (d7.some((d) => dia(d)?.mot?.n)) {
+      // los días que ya traen el motivo registrado van por ese motivo
+      const ks = new Set<string>();
+      d7.forEach((d) => { const mo = dia(d)?.mot; if (mo) Object.keys(mo.m).forEach((x) => ks.add(x)); });
+      series = [...ks].sort(motSort).map((x) => ({ name: motLabel(x), color: motColor(x), tcolor: motColor(x), vals: d7.map((d) => dia(d)?.mot?.m[x] || 0) }));
+      const sd = d7.map((d) => Math.max(0, (dia(d)?.meta?.totalNegados || 0) - (dia(d)?.mot?.n || 0)));
+      if (sd.some((v) => v)) series.push({ name: 'Sin dato (antes del registro)', color: '#D8CFBE', tcolor: '#D8CFBE', vals: sd });
+      $('vxMotQ').textContent = 'Líneas negadas por día según el motivo que registró el preparador.';
+      if (leg) leg.innerHTML = series.map((x) => '<span><i style="background:' + x.color + '"></i>' + esc(x.name) + '</span>').join('');
+    } else {
+      series = [
+        { name: 'Error en el proceso', color: '#DE7A2C', tcolor: '#B5591A', vals: pos.slice(k) },
+        { name: 'Sin stock', color: '#3A76B0', tcolor: '#24557F', vals: sin.slice(k) },
+      ];
+      $('vxMotQ').textContent = 'Líneas negadas por día y motivo.';
+      if (leg && leg.dataset.orig) leg.innerHTML = leg.dataset.orig;
+    }
+    barrasApiladas(el, d7, series, { partial: p7, noTrend: true, unit: 'líneas negadas', sel: vm.meta.fecha, onClick: (i) => this.elegir(d7[i], d7[i]) });
     $('vxMotT').textContent = 'Negados por motivo · últimos 7 días';
     document.querySelectorAll<HTMLElement>('#vxMotCard .leg i.dash').forEach((i) => { i.parentElement!.style.display = 'none'; });
   }
@@ -401,8 +421,27 @@ export class Resumen {
     const rango = dias <= 1 ? 'en el día seleccionado' : 'en ' + conActividad + ' de ' + dias + ' días del rango seleccionado';
     sub.textContent = fmtInt(total) + ' negados en ' + list.length + ' código' + (list.length === 1 ? '' : 's') + ' distinto' + (list.length === 1 ? '' : 's') + ' — ' + rango;
     const shown = list.slice(0, 10), max = Math.max(...shown.map((d) => d.count), 1);
-    el.innerHTML = shown.map((d) => '<div class="barrow' + (d.count > 1 ? ' repeat' : '') + '"><span class="code">' + esc(d.sku) + '</span>' +
-      '<span class="track" title="' + esc(d.desc) + ' — ' + d.count + ' veces"><span class="fill" style="width:' + Math.max(3, d.count / max * 100) + '%"></span></span>' +
+    // motivo registrado: cada barra se parte por motivo y arriba va la leyenda del preparador
+    const M = motivosDePreparador(this.radar.history, this.radar.diasEnRango(this.desde, this.hasta), raw);
+    const relleno = (d: { sku: string; desc: string; count: number }) => {
+      const ancho = Math.max(3, d.count / max * 100);
+      if (!M) return '<span class="track" title="' + esc(d.desc) + ' — ' + d.count + ' veces"><span class="fill" style="width:' + ancho + '%"></span></span>';
+      const mm: Record<string, number> = { ...(M[d.sku] || {}) }, reg = Object.values(mm).reduce((a, b) => a + b, 0), sd = Math.max(0, d.count - reg);
+      const ks = Object.keys(mm).sort(motSort), sum = reg + sd || 1;
+      const seg = ks.map((x) => '<span style="width:' + (mm[x] / sum * 100).toFixed(2) + '%;background:' + motColor(x) + '"></span>').join('') +
+        (sd ? '<span style="width:' + (sd / sum * 100).toFixed(2) + '%;background:var(--surface-2)"></span>' : '');
+      const tip = d.sku + ' — ' + ks.map((x) => motLabel(x) + ': ' + mm[x]).concat(sd ? ['Sin dato: ' + sd] : []).join(' · ');
+      return '<span class="track" title="' + esc(tip) + '"><span class="fill mfill" style="width:' + ancho + '%">' + seg + '</span></span>';
+    };
+    let leyenda = '';
+    if (M) {
+      const all: Record<string, number> = {};
+      for (const s in M) for (const x in M[s]) all[x] = (all[x] || 0) + M[s][x];
+      const ks = Object.keys(all).sort(motSort);
+      if (ks.length) leyenda = '<div class="pmot">' + ks.map((x) => '<span><i style="background:' + motColor(x) + '"></i>' + esc(motLabel(x)) + ' <b>' + fmtInt(all[x]) + '</b></span>').join('') + '</div>';
+    }
+    el.innerHTML = leyenda + shown.map((d) => '<div class="barrow' + (d.count > 1 ? ' repeat' : '') + '"><span class="code">' + esc(d.sku) + '</span>' +
+      relleno(d) +
       '<span class="num tabular">' + d.count + '</span></div>').join('') +
       (list.length > 10 ? '<div class="history-empty">y ' + fmtInt(list.length - 10) + ' código' + (list.length - 10 === 1 ? '' : 's') + ' más · descarga la tabla para ver el detalle</div>' : '');
   }

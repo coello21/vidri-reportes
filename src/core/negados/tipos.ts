@@ -52,6 +52,16 @@ export interface DiaResumen {
   prepSkus: Record<string, Record<string, number>>;
   /** sku -> unidades negadas */
   qty?: Record<string, number>;
+  /** motivo de negado registrado por el preparador (ver motivos.ts) */
+  mot?: MotivosDia;
+}
+
+/** Motivo de negado registrado en un día: n = negadas, m = motivo -> líneas, k = motivos, q = preparador -> código -> veces por motivo (orden de k). */
+export interface MotivosDia {
+  n: number;
+  m: Record<string, number>;
+  k: string[];
+  q: Record<string, Record<string, number[]>>;
 }
 
 /** Día guardado con la versión anterior del tablero (se muestra tal cual). */
@@ -103,6 +113,8 @@ export interface ResultadoIntegracion {
   dedupOrdenSku: number;
   totalRows: number;
   fechaRespaldo?: number;
+  /** días a los que se les puso o actualizó el motivo registrado */
+  motDias?: number;
   /** días quitados por tener más de un año */
   recortados?: string[];
 }
