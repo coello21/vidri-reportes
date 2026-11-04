@@ -4138,6 +4138,36 @@ function motPrep(raw){
   }catch(e){ console.error(e); }
 }; })();
 
+// "Negados por motivo · últimos 7 días": si esos días ya traen el motivo registrado, las barras van por ese motivo
+(function(){ const _v = vxMotivo; vxMotivo = function(vm){
+  const el = document.getElementById('vxMot'), leg = document.querySelector('#vxMotCard .leg');
+  if(leg && !leg.dataset.orig) leg.dataset.orig = leg.innerHTML;
+  try{
+    if(el && !document.getElementById('tab-resumen').hidden){
+      const all = Object.keys(HISTORY).sort(); let days;
+      if(vm.meta && vm.meta.fecha){ const end = vm.meta.fecha; days = all.filter(d => d <= end).slice(-30); }
+      else days = all.filter(d => d >= vm.rangeFrom && d <= vm.rangeTo);
+      if(days.length < 2){ const end = days[0] || all[all.length - 1]; days = all.filter(d => d <= end).slice(-30); }
+      days = days.slice(-7);
+      if(days.some(d => HISTORY[d] && HISTORY[d].mot && HISTORY[d].mot.n)){
+        const ks = new Set(); days.forEach(d => { const mo = HISTORY[d].mot; if(mo) Object.keys(mo.m).forEach(k => ks.add(k)); });
+        const keys = [...ks].sort(motSort), part = new Set();
+        const series = keys.map(k => ({name:motLabel(k), color:motColor(k), tcolor:motColor(k), vals:days.map(d => { const mo = HISTORY[d].mot; return mo && mo.m[k] || 0; })}));
+        const sd = days.map(d => { const mo = HISTORY[d].mot; return Math.max(0, (HISTORY[d].meta.totalNegados || 0) - (mo ? mo.n : 0)); });
+        if(sd.some(v => v)) series.push({name:'Sin dato (antes del registro)', color:'#D8CFBE', tcolor:'#D8CFBE', vals:sd});
+        days.forEach((d, i) => { if(isPartialDay(d)) part.add(i); });
+        pedStack(el, days, series, {partial:part, noTrend:true, unit:'líneas negadas', sel:vm.meta && vm.meta.fecha, onClick:i => selectRange(days[i], days[i])});
+        const t = document.getElementById('vxMotT'); if(t) t.textContent = 'Negados por motivo · últimos 7 días';
+        const q = document.getElementById('vxMotQ'); if(q) q.textContent = 'Líneas negadas por día según el motivo que registró el preparador.';
+        if(leg) leg.innerHTML = series.map(x => '<span><i style="background:' + x.color + '"></i>' + escapeHtml(x.name) + '</span>').join('');
+        return;
+      }
+    }
+  }catch(e){ console.error(e); }
+  if(leg && leg.dataset.orig) leg.innerHTML = leg.dataset.orig;
+  _v(vm);
+}; })();
+
 // Protección: nunca guardar el índice de pedidos vacío (si los pedidos no terminaron de cargar, se perdería la lista de meses y cortes)
 (function(){ const _s = pedSave; pedSave = async function(force){
   if(!PED.rows || !PED.rows.size){ PED.loaded = false; PED.loading = null;
