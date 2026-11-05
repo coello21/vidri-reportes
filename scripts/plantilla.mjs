@@ -1,5 +1,5 @@
 // Junta dist-copia/<PAGINA>/index.html con su JS y CSS en un solo archivo: dist/<PAGINA>/plantilla.html
-import { readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 
 const pagina = process.env.PAGINA || 'app';
@@ -12,6 +12,8 @@ let n = 0;
 html = html.replace(/<script type="module" crossorigin src="([^"]+)"><\/script>/g, (_, src) => { n++; return '<script type="module">' + js(leer(src)) + '</script>'; });
 html = html.replace(/<link rel="stylesheet" crossorigin href="([^"]+)">/g, (_, href) => { n++; return '<style>' + leer(href) + '</style>'; });
 if (!n || /src="\.\/assets|href="\.\/assets|src="\.\.\/assets|href="\.\.\/assets/.test(html)) throw new Error('plantilla: quedaron archivos sin juntar');
-writeFileSync(resolve('dist/' + pagina + '/plantilla.html'), html);
+const destino = process.env.SALIDA ? resolve(process.env.SALIDA) : resolve('dist/' + pagina + '/plantilla.html');
+mkdirSync(dirname(destino), { recursive: true });
+writeFileSync(destino, html);
 rmSync(resolve('dist-copia'), { recursive: true, force: true });
-console.log(pagina + '/plantilla.html: ' + Math.round(html.length / 1024) + ' KB');
+console.log(destino + ': ' + Math.round(html.length / 1024) + ' KB');

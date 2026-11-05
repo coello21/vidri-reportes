@@ -4,3 +4,4 @@ dist
 .env.local
 tests/fixtures/*.local.*
 dist-copia
+limpieza-html/
