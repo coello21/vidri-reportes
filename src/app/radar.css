@@ -649,3 +649,23 @@ body.esq #tab-resumen .kpi::after, body.esq #tab-top .kpi::after, body.esq-ped #
 body.esq #tab-resumen .chart::after, body.esq #tab-top .chart::after, body.esq-ped #tab-pedidos .chart::after{inset:58px 0 8px 0}
 body.esq .datebadge, body.esq .branchwrap, body.esq #tab-resumen .leg, body.esq-ped #tab-pedidos .leg{visibility:hidden}
 @media (prefers-reduced-motion:reduce){body.esq .chart::after, body.esq .kpi::after, body.esq-ped .chart::after, body.esq-ped .kpi::after{animation:none}}
+
+/* Pie "Cómo se calcula" (5 nov 2026) */
+footer.vxf-calc ul{margin:6px 0 0;padding-left:18px;font:12px/1.6 var(--font-body);color:var(--ink-2)}
+footer.vxf-calc li{margin:2px 0}
+footer.vxf-calc b{color:var(--ink)}
+
+/* Mapa de calor de negados por motivo (5 nov 2026) */
+table.hm{width:100%;border-collapse:collapse;font:12px var(--font-body);font-variant-numeric:tabular-nums}
+table.hm th{font:10px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+table.hm th span{letter-spacing:0;text-transform:none}
+table.hm th[data-i]{cursor:pointer}
+table.hm th.sel{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+table.hm td{padding:7px 8px;border-bottom:1px solid var(--border);color:var(--ink)}
+table.hm .r{text-align:right}
+table.hm td.mo{white-space:nowrap}
+table.hm td.mo i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+table.hm td.sel{outline:1px solid var(--ink);outline-offset:-1px}
+table.hm td.tot, table.hm tr.hmt td{font-weight:600}
+table.hm tr.hmt td{border-top:1px solid var(--ink);border-bottom:0}
+p.hmn{margin:6px 0 0;font:11px var(--font-mono);color:var(--ink-muted)}

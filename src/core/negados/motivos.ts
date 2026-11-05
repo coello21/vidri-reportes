@@ -17,6 +17,9 @@ export const MOT_COL: Record<string, string> = {
 };
 const MOT_ORD = ['Físico no se encuentra', 'Existencia a cero', 'Sin existencia ubicación picking', 'Producto incompleto o averiado', 'Pasillo bloqueado'];
 
+/** Negados que no cuentan en el fill rate: no había producto en el CD. ("Sin existencia ubicación picking" sí cuenta: hay en tarimas.) */
+export const EXIST_CERO = 'Existencia a cero';
+
 export const motClean = (v: unknown): string => (v == null ? '' : String(v).replace(/\s+/g, ' ').trim());
 export const motLabel = (k: string): string => (k === '' ? 'Sin motivo' : k);
 export const motColor = (k: string): string => MOT_COL[k] || '#6F685C';
@@ -28,17 +31,41 @@ export function motivosDeRegistros(records: Registro[]): Record<string, MotivosD
   if (!records.some((r) => 'Motivo' in r)) return {};
   const { rows } = dedupRecords(records);
   const tmp: Record<string, { n: number; m: Record<string, number>; q: Record<string, Record<string, Record<string, number>>> }> = {};
+  const dia = (d: string) => tmp[d] || (tmp[d] = { n: 0, m: {}, q: {} });
+  // B2B: pedido corporativo cerrado (todas sus líneas en A) en el día de su última línea; cumple si todo se mandó
+  // completo, sin contar lo negado por "Existencia a cero". Un pedido negado entero por existencia a cero no cuenta.
+  const b2bPed = new Set(records.filter((r) => /CORPORATIVA/i.test(String(r.Razon || ''))).map((r) => r.Pedido));
+  const ped = new Map<string, { abierto: boolean; dia: string; lineas: number; ok: boolean }>();
+  for (const r of rows) {
+    if (!b2bPed.has(r.Pedido)) continue;
+    const p = ped.get(r.Pedido) || { abierto: false, dia: '', lineas: 0, ok: true };
+    ped.set(r.Pedido, p);
+    const fin = r.FechaAct || r.FechaRevision;
+    if (r.Estado !== 'A' || r.CantPrep == null || r.Cantidad == null || !fin) { p.abierto = true; continue; }
+    const d = ymd(fin);
+    if (d > p.dia) p.dia = d;
+    if (r.CantPrep <= 0 && motClean(r.Motivo) === EXIST_CERO) continue;
+    p.lineas++;
+    if (!(r.CantPrep >= r.Cantidad)) p.ok = false;
+  }
+  const b2b: Record<string, [number, number]> = {};
+  ped.forEach((p) => {
+    if (p.abierto || !p.lineas) return;
+    const b = b2b[p.dia] || (b2b[p.dia] = [0, 0]);
+    b[0]++; if (p.ok) b[1]++;
+  });
   for (const r of rows) {
     if (r.Estado !== 'A' || r.CantPrep == null || r.Cantidad == null || r.Disponible == null) continue;
     if (!(r.CantPrep <= 0)) continue;
     const fin = r.FechaAct || r.FechaRevision;
     if (!fin) continue;
-    const day = ymd(fin), o = tmp[day] || (tmp[day] = { n: 0, m: {}, q: {} }), mot = motClean(r.Motivo);
+    const day = ymd(fin), o = dia(day), mot = motClean(r.Motivo);
     o.n++;
     o.m[mot] = (o.m[mot] || 0) + 1;
     const pq = o.q[r.Preparador] || (o.q[r.Preparador] = {}), c = pq[r.SKU] || (pq[r.SKU] = {});
     c[mot] = (c[mot] || 0) + 1;
   }
+  for (const d in b2b) dia(d);
   // compacto: los motivos van en una lista y por código solo los conteos en ese orden
   const out: Record<string, MotivosDia> = {};
   for (const d in tmp) {
@@ -55,6 +82,7 @@ export function motivosDeRegistros(records: Registro[]): Record<string, MotivosD
       }
     }
     out[d] = { n: o.n, m: o.m, k, q };
+    if (b2b[d]) out[d].b = b2b[d];
   }
   return out;
 }
@@ -65,7 +93,8 @@ export function aplicarMotivos(history: Historial, porDia: Record<string, Motivo
   for (const d in porDia) {
     const h = history[d] as DiaResumen | undefined;
     if (!h || h.v !== 2) continue;
-    if (h.mot && h.mot.n > porDia[d].n) continue;
+    // un archivo más viejo o parcial no baja el día: menos negadas, o las mismas con menos pedidos B2B
+    if (h.mot && (h.mot.n > porDia[d].n || (h.mot.n === porDia[d].n && (h.mot.b?.[0] || 0) > (porDia[d].b?.[0] || 0)))) continue;
     if (h.mot && JSON.stringify(h.mot) === JSON.stringify(porDia[d])) continue;
     h.mot = porDia[d];
     cambiados.push(d);
@@ -89,4 +118,40 @@ export function motivosDePreparador(history: Historial, dias: string[], raw: str
     }
   }
   return con ? out : null;
+}
+
+/** Negadas del día que no cuentan en el fill rate: "Existencia a cero" registrada; si el día no trae motivo, las de disponible 0 o negativo. */
+export function exclusionDia(h: DiaResumen | undefined): number {
+  if (!h || h.v !== 2 || !h.meta) return 0;
+  const neg = h.meta.totalNegados || 0;
+  if (h.mot) return Math.min(h.mot.m[EXIST_CERO] || 0, neg);
+  return Math.min((h.bucket?.cero || 0) + (h.bucket?.negativo || 0), neg);
+}
+
+/** Fill rate del CD en unos días: preparadas ÷ (preparadas + negadas que sí se podían preparar). */
+export function fillRateCD(history: Historial, dias: string[]): { prep: number; neg: number; excl: number; base: number; pct: number | null } {
+  let prep = 0, neg = 0, excl = 0;
+  for (const d of dias) {
+    const h = history[d] as DiaResumen | undefined;
+    if (!h || !h.meta) continue;
+    const t = h.meta.totalFinal || 0, n = h.meta.totalNegados || 0;
+    prep += h.meta.totalPreparados != null ? h.meta.totalPreparados : Math.max(t - n, 0);
+    neg += n;
+    excl += exclusionDia(h);
+  }
+  const base = prep + neg - excl;
+  return { prep, neg, excl, base, pct: base ? (prep / base) * 100 : null };
+}
+
+/** Negadas por "Existencia a cero" de cada preparador en unos días (solo días con motivo registrado). */
+export function exclusionPorPreparador(history: Historial, dias: string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const d of dias) {
+    const mo = (history[d] as DiaResumen | undefined)?.mot;
+    if (!mo || !mo.q || !mo.k) continue;
+    const i = mo.k.indexOf(EXIST_CERO);
+    if (i < 0) continue;
+    for (const pr in mo.q) for (const sku in mo.q[pr]) { const v = mo.q[pr][sku][i] || 0; if (v) out[pr] = (out[pr] || 0) + v; }
+  }
+  return out;
 }

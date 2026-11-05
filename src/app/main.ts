@@ -1,3 +1,4 @@
+import { fillRateCD } from '../core/negados/motivos';
 import './radar.css';
 import './estilos.css';
 import { RadarNegados } from '../core/negados/radar';
@@ -88,7 +89,12 @@ function montar(E: { history?: DatosCopia['history']; store?: ConstructorParamet
   if (R && !COPIA) {
     // el reporte espera a que estén los días anteriores (compara contra la semana pasada y el promedio)
     (window as unknown as { pedEnsure: () => Promise<void> }).pedEnsure = async () => { if (!(await app.listo)) throw new Error('faltan los días anteriores; recarga la página'); };
-    R.usarFuente(() => ({ rows: app.pedidos.rows, lc: app.pedidos.ultimoCorte(), H: app.radar.history, S: app.radar.store }), (t) => aviso('err', t, 15000));
+    R.usarFuente(() => ({
+      rows: app.pedidos.rows, lc: app.pedidos.ultimoCorte(), H: app.radar.history, S: app.radar.store,
+      // mismo fill rate y B2B que la tarjeta de la página
+      FR: (ds: string[]) => fillRateCD(app.radar.history, ds),
+      B2B: (ds: string[]) => app.radar.fillRateB2B(ds[0], ds[ds.length - 1]),
+    }), (t) => aviso('err', t, 15000));
     R.ponerBotones();
   }
   return app;

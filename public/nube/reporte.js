@@ -37,6 +37,7 @@
      Radar actual (/radar/): variables de la página (PED, HISTORY, STORE).
      Versión nueva (/app/): la página registra una fuente con VidriReporte.usarFuente(fn). */
   var FUENTE = null, AVISO = null;
+  function HISTORY_MOT(d) { var H = src().H || {}, m = H[d] && H[d].mot; return m && m.n ? m : null; }
   function src() {
     if (FUENTE) return FUENTE();
     return {
@@ -156,9 +157,11 @@
     top.sort(function (a, b) { return b.t - a.t; });
     top = top.slice(0, 5).map(function (x) { var s = (STORE.skus || {})[x.sku]; x.desc = s && s[0] ? s[0] : ''; return x; });
 
-    var b2b = typeof b2bForDates === 'function' ? b2bForDates([d]) : { tot: 0, ok: 0 };
+    // fill rate y B2B con el mismo cálculo que la tarjeta de la página (los da la página en la fuente)
+    var b2b = F.B2B ? F.B2B([d]) : typeof b2bForDates === 'function' ? b2bForDates([d]) : { tot: 0, ok: 0 };
+    var fr = F.FR ? F.FR([d]) : null;
 
-    return { hoy: hoy, parcial: parcial, prevW: prevW, prom: prom, ventana: ventana, pHoy: pHoy, desde: desde, tipo: tipo, serie: serie, negMan: negMan, negTar: negTar, tiendas: tiendas, top: top, b2b: b2b };
+    return { hoy: hoy, parcial: parcial, prevW: prevW, prom: prom, ventana: ventana, pHoy: pHoy, desde: desde, tipo: tipo, serie: serie, negMan: negMan, negTar: negTar, tiendas: tiendas, top: top, b2b: b2b, fr: fr };
   }
 
   /* ---------------- gráficos ---------------- */
@@ -376,15 +379,29 @@
       var col2 = function (r) { return r ? '<b>' + n(r.sst) + '</b> · ' + pctInt(r.sst, r.neg) : '–'; };
       var colT = function (r) { return r ? n(r.neg) + ' · ' + dec(pct(r.neg, r.lin)) + '%' : '–'; };
       var hd2 = function (r) { return (DOW[dowOf(r.d)] + ' ' + (+r.d.slice(8))).toUpperCase(); };
-      out.push('<table class="mot"><thead><tr><th>MOTIVO</th><th class="r">' + hd2(H) + (N.parcial ? ' (PARCIAL)' : ' (DÍA)') + '</th>' + (pW ? '<th class="r">' + hd2(pW) + ' (DÍA)</th>' : '') + '</tr></thead><tbody>');
-      out.push('<tr><td><b>Negadas por error en el proceso</b> (había stock)</td><td class="r">' + col(H) + '</td>' + (pW ? '<td class="r">' + col(pW) + '</td>' : '') + '</tr>');
-      out.push('<tr><td><b>Negadas sin stock</b> (0 o negativo)</td><td class="r">' + col2(H) + '</td>' + (pW ? '<td class="r">' + col2(pW) + '</td>' : '') + '</tr>');
-      out.push('<tr class="sub"><td>↳ existencia 0 · existencia negativa</td><td class="r">' + n(H.cero) + ' · ' + n(H.negat) + '</td>' + (pW ? '<td class="r">' + n(pW.cero) + ' · ' + n(pW.negat) + '</td>' : '') + '</tr>');
-      out.push('<tr class="tot"><td>Total negados</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
+      // con motivo registrado por el preparador (desde el 27 oct 2026) la tabla va por ese motivo; si no, por el disponible
+      var MH = HISTORY_MOT(H.d), MW = pW ? HISTORY_MOT(pW.d) : null;
+      if (MH) {
+        var ks = Object.keys(MH.m).concat(MW ? Object.keys(MW.m) : []).filter(function (k, i, a) { return a.indexOf(k) === i; });
+        var ORD = ['Físico no se encuentra', 'Existencia a cero', 'Sin existencia ubicación picking', 'Producto incompleto o averiado', 'Pasillo bloqueado'];
+        var rk = function (k) { return k === '' ? 99 : (ORD.indexOf(k) + 1 || 50); };
+        ks.sort(function (x, y) { return rk(x) - rk(y); });
+        var cm = function (M, k) { return M ? '<b>' + n(M.m[k] || 0) + '</b> · ' + pctInt(M.m[k] || 0, M.n) : '–'; };
+        out.push('<table class="mot"><thead><tr><th>MOTIVO REGISTRADO</th><th class="r">' + hd2(H) + (N.parcial ? ' (PARCIAL)' : ' (DÍA)') + '</th>' + (pW ? '<th class="r">' + hd2(pW) + ' (DÍA)</th>' : '') + '</tr></thead><tbody>');
+        ks.forEach(function (k) { out.push('<tr><td>' + (k === '' ? '<b>Sin motivo</b>' : esc(k)) + '</td><td class="r">' + cm(MH, k) + '</td>' + (pW ? '<td class="r">' + cm(MW, k) + '</td>' : '') + '</tr>'); });
+        out.push('<tr class="tot"><td>Total negados</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
+      } else {
+        out.push('<table class="mot"><thead><tr><th>MOTIVO</th><th class="r">' + hd2(H) + (N.parcial ? ' (PARCIAL)' : ' (DÍA)') + '</th>' + (pW ? '<th class="r">' + hd2(pW) + ' (DÍA)</th>' : '') + '</tr></thead><tbody>');
+        out.push('<tr><td><b>Negadas por error en el proceso</b> (había stock)</td><td class="r">' + col(H) + '</td>' + (pW ? '<td class="r">' + col(pW) + '</td>' : '') + '</tr>');
+        out.push('<tr><td><b>Negadas sin stock</b> (0 o negativo)</td><td class="r">' + col2(H) + '</td>' + (pW ? '<td class="r">' + col2(pW) + '</td>' : '') + '</tr>');
+        out.push('<tr class="sub"><td>↳ existencia 0 · existencia negativa</td><td class="r">' + n(H.cero) + ' · ' + n(H.negat) + '</td>' + (pW ? '<td class="r">' + n(pW.cero) + ' · ' + n(pW.negat) + '</td>' : '') + '</tr>');
+        out.push('<tr class="tot"><td>Total negados</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
+      }
       out.push('<p class="mt2"><b>Negados en la mañana:</b> ' + n(N.negMan) + ' · <b>en la tarde:</b> ' + n(N.negTar) + ' (por hora en que se cerró la línea)</p>');
       var t1 = N.tiendas[0], t2 = N.tiendas[1];
       out.push('<div class="mini"><div><div class="v">' + (H.prep ? dec(pct(H.exactas, H.prep)) + '%' : '–') + '</div><div class="s">exactitud de picking · meta 99,5%</div></div>');
-      out.push('<div><div class="v">' + (N.b2b.tot ? dec(pct(N.b2b.ok, N.b2b.tot)) + '%' : '–') + '</div><div class="s">fill rate B2B' + (N.b2b.tot ? ' · ' + n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos completos' : ' · sin pedidos B2B cerrados') + '</div></div>');
+      var fr = N.fr, b2bTxt = N.b2b.tot ? 'B2B ' + dec(pct(N.b2b.ok, N.b2b.tot)) + '% · ' + n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos' : 'B2B: sin pedidos cerrados';
+      out.push('<div><div class="v">' + (fr && fr.base ? dec(pct(fr.prep, fr.base)) + '%' : '–') + '</div><div class="s">fill rate' + (fr && fr.base ? ' · ' + n(fr.prep) + ' de ' + n(fr.base) + ' líneas' : '') + ' · ' + b2bTxt + '</div></div>');
       out.push('<div><div class="v">' + (t1 ? n(t1.neg) : '–') + '</div><div class="s">' + (t1 ? 'negados en ' + esc(nombre(t1.s)) + (t2 ? ' · ' + esc(nombre(t2.s)) + ' ' + n(t2.neg) : '') : 'sin negados por sucursal') + '</div></div></div>');
       out.push('</div></div>');
       if (N.top.length) {

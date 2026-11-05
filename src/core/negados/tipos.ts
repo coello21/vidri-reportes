@@ -62,6 +62,8 @@ export interface MotivosDia {
   m: Record<string, number>;
   k: string[];
   q: Record<string, Record<string, number[]>>;
+  /** B2B del día (pedidos corporativos cerrados ese día): [pedidos, completos sin contar lo negado por "Existencia a cero"] */
+  b?: [number, number];
 }
 
 /** Día guardado con la versión anterior del tablero (se muestra tal cual). */

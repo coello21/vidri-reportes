@@ -31,3 +31,34 @@ describe('Motivo de negado registrado', () => {
     expect((R.history['2026-11-03'] as DiaResumen).mot).toBeUndefined();
   });
 });
+
+import { fillRateCD, exclusionPorPreparador } from '../src/core/negados/motivos';
+
+describe('Fill rate sin «Existencia a cero»', () => {
+  const base = (ped: number, sku: string, prep: number, mot: string, razon = 'EXISTENCIA', disp = 0): Registro => ({
+    Pedido: String(ped), SKU: sku, Estado: 'A', Fecha: new Date('2026-11-03T08:00:00'), FechaAct: new Date('2026-11-03T10:00:00'), FechaRevision: null,
+    Sucursal: 'S', Orden: 'O' + ped, Preparador: 'P1 - Ana', Cantidad: 2, CantPrep: prep, Disponible: disp, Desc: 'd', Categoria: 'c', Motivo: mot, Razon: razon,
+  });
+  it('quita del fill rate las negadas por existencia a cero (tarjeta, preparador y B2B)', () => {
+    const R = new RadarNegados();
+    R.integrar([
+      base(1, 'a', 2, ''), base(1, 'b', 0, 'Existencia a cero'),                       // B2B: cumple (la negada no cuenta)
+      base(2, 'a', 2, ''), base(2, 'c', 0, 'Físico no se encuentra'),                  // B2B: no cumple
+      base(3, 'd', 0, 'Existencia a cero'),                                           // B2B entero sin existencia: no cuenta
+      base(4, 'e', 2, '', 'EXISTENCIA'), base(5, 'f', 0, 'Sin existencia ubicación picking', 'EXISTENCIA'),
+    ].map((r, i) => (i < 5 ? { ...r, Razon: 'VENTA CORPORATIVA' } : r)));
+    const f = fillRateCD(R.history, ['2026-11-03']);
+    expect(f).toMatchObject({ prep: 3, neg: 4, excl: 2, base: 5 });
+    expect(f.pct).toBeCloseTo(60);
+    expect(exclusionPorPreparador(R.history, ['2026-11-03'])).toEqual({ 'P1 - Ana': 2 });
+    const b = R.fillRateB2B('2026-11-03', '2026-11-03');
+    expect([b.tot, b.ok]).toEqual([2, 1]);
+  });
+  it('días sin motivo registrado: quita las de disponible 0 o negativo', () => {
+    const R = new RadarNegados();
+    const sin = (r: Registro) => { const x = { ...r }; delete x.Motivo; return x; };
+    R.integrar([sin(base(1, 'a', 2, '')), sin(base(2, 'b', 0, '', 'X', 0)), sin(base(3, 'c', 0, '', 'X', 5))]);
+    const f = fillRateCD(R.history, ['2026-11-03']);
+    expect(f).toMatchObject({ prep: 1, neg: 2, excl: 1, base: 2 });
+  });
+});

@@ -8,12 +8,14 @@ import type { RadarNegados, VistaAgregada, PreparadorVista } from '../core/negad
 import { parsePreparadorName, EXACTITUD_META } from '../core/negados/radar';
 import { addDays } from '../core/comun/fechas';
 import { lineasPreparadas } from '../core/negados/extras';
-import { motColor, motLabel, motSort, motivosDePreparador } from '../core/negados/motivos';
+import { motColor, motLabel, motSort, motivosDePreparador, fillRateCD, exclusionPorPreparador } from '../core/negados/motivos';
 import type { DiaResumen } from '../core/negados/tipos';
 import { $, esc, fmtInt, fmtPct, fmtDateShort, fechaLarga } from './ui/formato';
 import { barrasApiladas, tendenciaSobrePuntos, globoEnPuntos } from './ui/graficos';
 
-type ClaveOrden = 'name' | 'solicitado' | 'preparados' | 'negados' | 'fillRate';
+type ClaveOrden = 'name' | 'solicitado' | 'preparados' | 'negados' | 'exist' | 'fillRate';
+/** Fila de la tabla de preparadores: exist = negadas por "Existencia a cero" (no cuentan en su fill rate). */
+type FilaPrep = PreparadorVista & { exist: number };
 
 export class Resumen {
   vm: VistaAgregada | null = null;
@@ -180,13 +182,16 @@ export class Resumen {
       (vm.legacyDays && lc ? ' · desde el ' + fmtDateShort(addDays(lc, 1)) : '');
   }
 
-  /** Fill rate general (líneas preparadas ÷ líneas cerradas) y abajo el fill rate B2B (pedidos corporativos completos). */
+  /**
+   * Fill rate del CD: líneas preparadas ÷ (preparadas + negadas que sí se podían preparar). Las negadas por
+   * "Existencia a cero" no cuentan (sin motivo registrado: las de disponible 0 o negativo). Abajo, el B2B por pedidos.
+   */
   private renderB2B(vm: VistaAgregada) {
     const val = $('kpiB2B'), foot = $('kpiB2BFoot');
-    const m = vm.meta, tot = m.totalFinal || 0, neg = m.totalNegados || 0, prep = m.totalPreparados != null ? m.totalPreparados : Math.max(tot - neg, 0);
+    const f = fillRateCD(this.radar.history, this.radar.diasEnRango(vm.rangeFrom, vm.rangeTo));
     const r = this.radar.fillRateB2B(vm.rangeFrom, vm.rangeTo), lc = this.radar.store.legacyCutoff;
-    val.textContent = tot ? fmtPct(prep / tot * 100) : '—';
-    const gen = tot ? '<b>' + fmtInt(prep) + '</b> de ' + fmtInt(tot) + ' líneas' : 'Sin líneas cerradas';
+    val.textContent = f.pct != null ? fmtPct(f.pct) : '—';
+    const gen = f.base ? '<b>' + fmtInt(f.prep) + '</b> de ' + fmtInt(f.base) + ' líneas' : 'Sin líneas cerradas';
     const b2b = r.tot ? 'B2B <b>' + fmtPct(r.ok / r.tot * 100) + '</b> · <b>' + fmtInt(r.ok) + '</b> de ' + fmtInt(r.tot) + ' pedidos'
       : vm.newDays ? 'B2B: sin pedidos corporativos cerrados' : 'B2B disponible desde el ' + (lc ? fmtDateShort(addDays(lc, 1)) : 'próximo reporte');
     foot.innerHTML = gen + '<br>' + b2b;
@@ -270,26 +275,41 @@ export class Resumen {
     const dia = (d: string) => this.radar.history[d] as DiaResumen | undefined;
     const leg = document.querySelector<HTMLElement>('#vxMotCard .leg');
     if (leg && !leg.dataset.orig) leg.dataset.orig = leg.innerHTML;
-    let series: { name: string; color: string; tcolor: string; vals: number[] }[];
+    $('vxMotT').textContent = 'Negados por motivo · últimos 7 días';
     if (d7.some((d) => dia(d)?.mot?.n)) {
-      // los días que ya traen el motivo registrado van por ese motivo
+      // Mapa de calor: un renglón por motivo registrado y una columna por día; más oscuro = más negadas de ese motivo
       const ks = new Set<string>();
       d7.forEach((d) => { const mo = dia(d)?.mot; if (mo) Object.keys(mo.m).forEach((x) => ks.add(x)); });
-      series = [...ks].sort(motSort).map((x) => ({ name: motLabel(x), color: motColor(x), tcolor: motColor(x), vals: d7.map((d) => dia(d)?.mot?.m[x] || 0) }));
+      const filas = [...ks].sort(motSort).map((x) => ({ name: motLabel(x), color: motColor(x), vals: d7.map((d) => dia(d)?.mot?.m[x] || 0) }));
       const sd = d7.map((d) => Math.max(0, (dia(d)?.meta?.totalNegados || 0) - (dia(d)?.mot?.n || 0)));
-      if (sd.some((v) => v)) series.push({ name: 'Sin dato (antes del registro)', color: '#D8CFBE', tcolor: '#D8CFBE', vals: sd });
-      $('vxMotQ').textContent = 'Líneas negadas por día según el motivo que registró el preparador.';
-      if (leg) leg.innerHTML = series.map((x) => '<span><i style="background:' + x.color + '"></i>' + esc(x.name) + '</span>').join('');
-    } else {
-      series = [
-        { name: 'Error en el proceso', color: '#DE7A2C', tcolor: '#B5591A', vals: pos.slice(k) },
-        { name: 'Sin stock', color: '#3A76B0', tcolor: '#24557F', vals: sin.slice(k) },
-      ];
-      $('vxMotQ').textContent = 'Líneas negadas por día y motivo.';
-      if (leg && leg.dataset.orig) leg.innerHTML = leg.dataset.orig;
+      if (sd.some((v) => v)) filas.push({ name: 'Sin dato (antes del registro)', color: '#A39C90', vals: sd });
+      const totDia = d7.map((_, i) => filas.reduce((a, f) => a + f.vals[i], 0)), totAll = totDia.reduce((a, b) => a + b, 0);
+      const DOW = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'], sel = vm.meta.fecha;
+      const th = d7.map((d, i) => '<th class="r' + (d === sel ? ' sel' : '') + '" data-i="' + i + '" title="Ver este día">' + DOW[new Date(d + 'T12:00:00').getDay()] +
+        '<br><span>' + esc(fmtDateShort(d)) + (p7.has(i) ? '*' : '') + '</span></th>').join('');
+      const celda = (v: number, mx: number, color: string, d: string) => {
+        const a = mx ? Math.round(8 + (v / mx) * 62) : 0;
+        return '<td class="r' + (d === sel ? ' sel' : '') + '"' + (v ? ' style="background:color-mix(in srgb,' + color + ' ' + a + '%,transparent)' + (a > 48 ? ';color:#fff' : '') + '"' : '') + '>' + (v ? fmtInt(v) : '·') + '</td>';
+      };
+      el.innerHTML = '<div class="tablescroll"><table class="hm"><thead><tr><th>Motivo</th>' + th + '<th class="r">Total</th><th class="r">%</th></tr></thead><tbody>' +
+        filas.map((f) => {
+          const mx = Math.max(...f.vals), t = f.vals.reduce((a, b) => a + b, 0);
+          return '<tr><td class="mo"><i style="background:' + f.color + '"></i>' + esc(f.name) + '</td>' + f.vals.map((v, i) => celda(v, mx, f.color, d7[i])).join('') +
+            '<td class="r tot">' + fmtInt(t) + '</td><td class="r">' + (totAll ? fmtPct(t / totAll * 100) : '—') + '</td></tr>';
+        }).join('') +
+        '<tr class="hmt"><td>Total negadas</td>' + totDia.map((v, i) => '<td class="r' + (d7[i] === sel ? ' sel' : '') + '">' + fmtInt(v) + '</td>').join('') + '<td class="r tot">' + fmtInt(totAll) + '</td><td class="r">100%</td></tr></tbody></table></div>' +
+        (p7.size ? '<p class="hmn">* día parcial (el reporte se sacó antes de terminar el día)</p>' : '');
+      el.querySelectorAll<HTMLElement>('th[data-i]').forEach((h) => h.addEventListener('click', () => { const d = d7[+h.dataset.i!]; this.elegir(d, d); }));
+      $('vxMotQ').textContent = 'Líneas negadas por día según el motivo que registró el preparador. Cada motivo se colorea con su propia escala: más oscuro = el día con más negadas de ese motivo.';
+      if (leg) leg.style.display = 'none';
+      return;
     }
-    barrasApiladas(el, d7, series, { partial: p7, noTrend: true, unit: 'líneas negadas', sel: vm.meta.fecha, onClick: (i) => this.elegir(d7[i], d7[i]) });
-    $('vxMotT').textContent = 'Negados por motivo · últimos 7 días';
+    if (leg) { if (leg.dataset.orig) leg.innerHTML = leg.dataset.orig; leg.style.display = ''; }
+    $('vxMotQ').textContent = 'Líneas negadas por día y motivo.';
+    barrasApiladas(el, d7, [
+      { name: 'Error en el proceso', color: '#DE7A2C', tcolor: '#B5591A', vals: pos.slice(k) },
+      { name: 'Sin stock', color: '#3A76B0', tcolor: '#24557F', vals: sin.slice(k) },
+    ], { partial: p7, noTrend: true, unit: 'líneas negadas', sel: vm.meta.fecha, onClick: (i) => this.elegir(d7[i], d7[i]) });
     document.querySelectorAll<HTMLElement>('#vxMotCard .leg i.dash').forEach((i) => { i.parentElement!.style.display = 'none'; });
   }
 
@@ -354,8 +374,19 @@ export class Resumen {
   }
 
   /* ---------------- preparadores ---------------- */
-  private filasFill(): PreparadorVista[] {
-    const rows = (this.vm?.fillRateByPreparador || []).slice(), { key, dir } = this.orden;
+  /** Preparadores con su fill rate sin contar lo negado por "Existencia a cero" (solo días con motivo registrado). */
+  private filasPrep(): FilaPrep[] {
+    const vm = this.vm;
+    if (!vm) return [];
+    const ex = exclusionPorPreparador(this.radar.history, this.radar.diasEnRango(vm.rangeFrom, vm.rangeTo));
+    return (vm.fillRateByPreparador || []).map((r) => {
+      const exist = Math.min(ex[r.raw] || 0, r.negados), base = r.solicitado - exist;
+      return { ...r, exist, fillRate: base > 0 ? (r.preparados / base) * 100 : 100 };
+    });
+  }
+
+  private filasFill(): FilaPrep[] {
+    const rows = this.filasPrep(), { key, dir } = this.orden;
     return rows.sort((a, b) => {
       let av: string | number = a[key], bv: string | number = b[key];
       if (typeof av === 'string') { av = av.toLowerCase(); bv = String(bv).toLowerCase(); }
@@ -377,9 +408,9 @@ export class Resumen {
       const c = clase(r.fillRate);
       return '<tr data-raw="' + esc(r.raw) + '" title="Ver qué códigos negó"' + (r.raw === this.prepSel ? ' class="sel"' : '') + '>' +
         '<td class="desc">' + esc(r.name) + '</td><td class="count tabular">' + fmtInt(r.solicitado) + '</td><td class="count tabular">' + fmtInt(r.preparados) +
-        '</td><td class="count tabular">' + fmtInt(r.negados) + '</td><td><span class="fillrate-val ' + c + '">' + fmtPct(r.fillRate) + '</span>' +
+        '</td><td class="count tabular">' + fmtInt(r.negados) + '</td><td class="count tabular">' + (r.exist ? fmtInt(r.exist) : '—') + '</td><td><span class="fillrate-val ' + c + '">' + fmtPct(r.fillRate) + '</span>' +
         '<div class="fillrate-bar"><span class="fill ' + c + '" style="width:' + Math.min(100, Math.max(0, r.fillRate)) + '%"></span></div></td></tr>';
-    }).join('') : '<tr class="empty-row"><td colspan="5">No hay datos para este día.</td></tr>';
+    }).join('') : '<tr class="empty-row"><td colspan="6">No hay datos para este día.</td></tr>';
     body.querySelectorAll<HTMLTableRowElement>('tr[data-raw]').forEach((tr) => tr.addEventListener('click', () => {
       this.prepSel = tr.dataset.raw!; this.renderFillRateTable();
     }));
@@ -462,10 +493,10 @@ export class Resumen {
       const A2 = { origin: 'A2' } as unknown as XLSX.JSON2SheetOpts; // la versión 0.18 acepta origin aunque sus tipos no lo digan
       const wb = XLSX.utils.book_new();
       // fill rate
-      const fr = vm.fillRateByPreparador.slice().sort((a, b) => b.solicitado - a.solicitado)
-        .map((r) => ({ 'Preparador': r.name, 'Solicitado': r.solicitado, 'Preparado': r.preparados, 'Negado': r.negados, 'Fill rate (%)': Math.round(r.fillRate * 10) / 10 }));
+      const fr = this.filasPrep().sort((a, b) => b.solicitado - a.solicitado)
+        .map((r) => ({ 'Preparador': r.name, 'Solicitado': r.solicitado, 'Preparado': r.preparados, 'Negado': r.negados, 'Existencia a cero': r.exist, 'Fill rate (%)': Math.round(r.fillRate * 10) / 10 }));
       const fTxt = vm.date ? 'Día: ' + vm.date : 'Rango: ' + vm.rangeFrom + ' a ' + vm.rangeTo + ' (' + vm.rangeDays + ' días)';
-      XLSX.utils.book_append_sheet(wb, titulo(XLSX.utils.json_to_sheet(fr.length ? fr : [{ 'Preparador': '', 'Solicitado': '', 'Preparado': '', 'Negado': '', 'Fill rate (%)': '' }], A2), fTxt, [32, 14, 14, 14, 16]), 'Fill rate por preparador');
+      XLSX.utils.book_append_sheet(wb, titulo(XLSX.utils.json_to_sheet(fr.length ? fr : [{ 'Preparador': '', 'Solicitado': '', 'Preparado': '', 'Negado': '', 'Existencia a cero': '', 'Fill rate (%)': '' }], A2), fTxt, [32, 14, 14, 14, 18, 16]), 'Fill rate por preparador');
       // resumen y detalle por preparador
       const raws = new Set<string>(), prepSkus = new Map<string, Set<string>>();
       for (const d of dates) {
