@@ -124,8 +124,10 @@
     if (!dias.length) return null;
     var d = (diaPreferido && HISTORY[diaPreferido] && dias.indexOf(diaPreferido) >= 0) ? diaPreferido : dias[dias.length - 1];
     var info = function (x) {
-      var r = HISTORY[x], m = r.meta || {}, b = r.bucket || {};
-      return { d: x, lin: m.totalFinal || 0, neg: m.totalNegados || 0, err: b.positivo || 0, sst: (b.cero || 0) + (b.negativo || 0), cero: b.cero || 0, negat: b.negativo || 0, prep: m.totalPreparados || 0, exactas: m.exactas || 0, v: r.v };
+      var r = HISTORY[x], m = r.meta || {}, b = r.bucket || {}, neg = m.totalNegados || 0;
+      // con motivo registrado: sin stock = "Existencia a cero" y error en el proceso = el resto (igual que la página)
+      if (r.mot) { var ec = Math.min((r.mot.m || {})['Existencia a cero'] || 0, neg); return { d: x, lin: m.totalFinal || 0, neg: neg, err: neg - ec, sst: ec, cero: ec, negat: 0, prep: m.totalPreparados || 0, exactas: m.exactas || 0, v: r.v, mot: true }; }
+      return { d: x, lin: m.totalFinal || 0, neg: neg, err: b.positivo || 0, sst: (b.cero || 0) + (b.negativo || 0), cero: b.cero || 0, negat: b.negativo || 0, prep: m.totalPreparados || 0, exactas: m.exactas || 0, v: r.v };
     };
     var hoy = info(d);
     var parcial = typeof isPartialDay === 'function' ? isPartialDay(d) : false;
@@ -155,7 +157,14 @@
     var codes = HISTORY[d].codes || {}, top = [];
     for (var sku in codes) { var c = codes[sku], t = (c[0] || 0) + (c[1] || 0) + (c[2] || 0); if (t) top.push({ sku: sku, t: t, err: c[0] || 0 }); }
     top.sort(function (a, b) { return b.t - a.t; });
-    top = top.slice(0, 5).map(function (x) { var s = (STORE.skus || {})[x.sku]; x.desc = s && s[0] ? s[0] : ''; return x; });
+    // motivo principal registrado de cada código del día (si el día trae motivo)
+    var MO = HISTORY[d].mot, motSku = {};
+    if (MO && MO.q && MO.k) for (var pr in MO.q) for (var sk in MO.q[pr]) { var t2 = motSku[sk] || (motSku[sk] = {}); MO.q[pr][sk].forEach(function (v, i) { if (v) t2[MO.k[i]] = (t2[MO.k[i]] || 0) + v; }); }
+    top = top.slice(0, 5).map(function (x) {
+      var s = (STORE.skus || {})[x.sku]; x.desc = s && s[0] ? s[0] : '';
+      var mm = motSku[x.sku]; if (mm) { var k = Object.keys(mm).sort(function (a, b) { return mm[b] - mm[a]; })[0]; x.mp = (k === '' ? 'Sin motivo' : k) + ' (' + mm[k] + ')'; }
+      return x;
+    });
 
     // fill rate y B2B con el mismo cálculo que la tarjeta de la página (los da la página en la fuente)
     var b2b = F.B2B ? F.B2B([d]) : typeof b2bForDates === 'function' ? b2bForDates([d]) : { tot: 0, ok: 0 };
@@ -246,7 +255,7 @@
       mejorar.push({ q: 'Asignar primero los ' + n(P.viejos) + ' pedidos con más de 72 h sin preparador (' + n(P.porDiaV[vdM[0]].c) + ' del ' + DOW_L[dowOf(vdM[0])] + '; ' + n(P.skV) + ' SKUs).', a: true });
     }
     if (P && P.fin > P.ini) mejorar.push({ q: 'Recuperar el ritmo de asignación: plan con maestros de olas para los ' + n(P.sinAsig) + ' pedidos por asignar (' + n(P.skR) + ' SKUs).', a: true });
-    if (N && N.hoy.err && (N.prom == null || N.pHoy > N.prom)) mejorar.push({ q: 'Bajar el error en el proceso: ' + n(N.hoy.err) + ' líneas se negaron con stock en sistema. Revisar por zona y preparador' + (N.prom != null ? ' para volver al promedio de ' + dec(N.prom) + '%' : '') + '.', a: false });
+    if (N && N.hoy.err && (N.prom == null || N.pHoy > N.prom)) mejorar.push({ q: 'Bajar el error en el proceso: ' + n(N.hoy.err) + ' líneas se negaron ' + (N.hoy.mot ? 'habiendo producto en el CD' : 'con stock en sistema') + '. Revisar por zona y preparador' + (N.prom != null ? ' para volver al promedio de ' + dec(N.prom) + '%' : '') + '.', a: false });
     if (N && N.prevW && N.hoy.sst > N.prevW.sst * 1.25 && N.hoy.sst >= 50) mejorar.push({ q: 'Coordinar con inventario las ' + n(N.hoy.sst) + ' líneas negadas sin stock.', a: false });
     if (ex != null && ex < 99.5) mejorar.push({ q: 'Llevar la exactitud de picking de ' + dec(ex) + '% hacia la meta de 99,5%: ' + n(N.hoy.prep - N.hoy.exactas) + ' líneas se mandaron incompletas.', a: false });
     if (N && N.tiendas.length && N.hoy.neg && N.tiendas[0].neg / N.hoy.neg >= 0.12) mejorar.push({ q: 'Revisar con ' + nombre(N.tiendas[0].s) + ' sus ' + n(N.tiendas[0].neg) + ' líneas negadas (' + pctInt(N.tiendas[0].neg, N.hoy.neg) + ' del día).', a: false });
@@ -373,7 +382,7 @@
       var H = N.hoy, pW = N.prevW;
       out.push('<div class="sec"><div class="eb">' + (sec++) + ' · Negados (día' + (N.parcial ? ', parcial' : '') + ')</div><h2>' + esc(h.s2t) + '</h2><div class="two"><div>');
       out.push('<p class="cap">% de líneas negadas por día y motivo.' + (N.prom != null ? ' Línea discontinua: promedio de los ' + N.ventana.length + ' días anteriores (' + dec(N.prom) + '%).' : '') + '</p>');
-      out.push('<div class="lg"><span><i style="background:' + C.ORANGE + '"></i>Negadas por error en el proceso (había stock)</span><span><i style="background:' + C.BLUE + '"></i>Negadas sin stock</span></div>');
+      out.push('<div class="lg"><span><i style="background:' + C.ORANGE + '"></i>Negadas por error en el proceso (había producto)</span><span><i style="background:' + C.BLUE + '"></i>Negadas sin stock (existencia a cero)</span></div>');
       out.push(grafNegados(N.serie, N.prom) + '</div><div>');
       var col = function (r) { return r ? '<b>' + n(r.err) + '</b> · ' + pctInt(r.err, r.neg) : '–'; };
       var col2 = function (r) { return r ? '<b>' + n(r.sst) + '</b> · ' + pctInt(r.sst, r.neg) : '–'; };
@@ -405,8 +414,9 @@
       out.push('<div><div class="v">' + (t1 ? n(t1.neg) : '–') + '</div><div class="s">' + (t1 ? 'negados en ' + esc(nombre(t1.s)) + (t2 ? ' · ' + esc(nombre(t2.s)) + ' ' + n(t2.neg) : '') : 'sin negados por sucursal') + '</div></div></div>');
       out.push('</div></div>');
       if (N.top.length) {
-        out.push('<table class="mot" style="margin-top:2px"><thead><tr><th>CÓDIGOS CON MÁS NEGADOS</th><th>DESCRIPCIÓN</th><th class="r">VECES</th><th class="r">ERROR EN EL PROCESO</th></tr></thead><tbody>' +
-          N.top.map(function (x) { return '<tr><td>' + esc(x.sku) + '</td><td class="desc">' + esc(x.desc) + '</td><td class="r"><b>' + n(x.t) + '</b></td><td class="r">' + n(x.err) + '</td></tr>'; }).join('') + '</tbody></table>');
+        var conMp = N.top.some(function (x) { return x.mp; });
+        out.push('<table class="mot" style="margin-top:2px"><thead><tr><th>CÓDIGOS CON MÁS NEGADOS</th><th>DESCRIPCIÓN</th><th class="r">VECES</th><th class="r">' + (conMp ? 'MOTIVO PRINCIPAL' : 'ERROR EN EL PROCESO') + '</th></tr></thead><tbody>' +
+          N.top.map(function (x) { return '<tr><td>' + esc(x.sku) + '</td><td class="desc">' + esc(x.desc) + '</td><td class="r"><b>' + n(x.t) + '</b></td><td class="r">' + (conMp ? esc(x.mp || '–') : n(x.err)) + '</td></tr>'; }).join('') + '</tbody></table>');
       }
       out.push('</div>');
     }

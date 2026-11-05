@@ -669,3 +669,10 @@ table.hm td.sel{outline:1px solid var(--ink);outline-offset:-1px}
 table.hm td.tot, table.hm tr.hmt td{font-weight:600}
 table.hm tr.hmt td{border-top:1px solid var(--ink);border-bottom:0}
 p.hmn{margin:6px 0 0;font:11px var(--font-mono);color:var(--ink-muted)}
+table.hm td span{font-size:11px;opacity:.75}
+table.hm td{white-space:nowrap}
+/* Top negados: motivo principal (5 nov 2026) */
+.rk-tbl td.mp{white-space:nowrap;font-size:12px}
+.rk-tbl td.mp i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.rk-tbl td.mp span{color:var(--ink-muted)}
+.rk-tbl td.q{font-size:11px;color:var(--ink-muted)}

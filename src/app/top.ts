@@ -9,6 +9,12 @@ import { $, esc, fmtInt, fmtDateShort, fechaLarga, normText } from './ui/formato
 import { aviso, descargar } from './ui/avisos';
 import { sinActualizarPorCodigo } from '../core/negados/extras';
 import { ymd } from '../core/comun/fechas';
+import { motivosPorCodigo, negadosPorMotivo, motLabel, motColor, motSort } from '../core/negados/motivos';
+
+/** Fila del detalle: por código y motivo (registrado, o por disponible en días sin motivo). */
+interface FilaDet { sku: string; desc: string; bucket: string; label: string; color: string; count: number }
+const SIN_DATO = '\u0000sd';
+const BUCKET_COLOR: Record<Bucket, string> = { positivo: 'var(--orange)', cero: 'var(--blue)', negativo: 'var(--blue)' };
 
 const BUCKET_LABEL: Record<Bucket, string> = { positivo: 'Error en el proceso', cero: 'Sin existencia', negativo: 'Inventario negativo' };
 type ClaveDetalle = 'sku' | 'desc' | 'bucket' | 'count';
@@ -50,6 +56,10 @@ export class TopNegados {
   vm: VistaAgregada | null = null;
   codigoSel: string | null = null;
   buckets = new Set<Bucket>();
+  /** Con motivo registrado en el día o rango: código -> {motivo: veces}; null si no hay. */
+  motCod: Record<string, Record<string, number>> | null = null;
+  /** Motivos registrados elegidos en el detalle. */
+  motSel = new Set<string>();
   busqueda = '';
   orden: { key: ClaveDetalle; dir: 'asc' | 'desc' } = { key: 'count', dir: 'desc' };
   /** Al hacer clic en un día de un gráfico. */
@@ -65,6 +75,14 @@ export class TopNegados {
     $('searchInput').addEventListener('input', (e) => { this.busqueda = (e.target as HTMLInputElement).value; this.renderDetalle(); });
     $('bucketFilter').addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest('button'); if (!btn) return;
+      if (this.motCod) {
+        // filtro por motivo registrado
+        const k = btn.getAttribute('data-mot'), M = this.motSel;
+        if (k == null || k === '*') M.clear(); else if (M.has(k)) M.delete(k); else M.add(k);
+        $('bucketFilter').querySelectorAll('button').forEach((x) => { const v = x.getAttribute('data-mot'); x.classList.toggle('active', v === '*' ? !M.size : M.has(v!)); });
+        this.renderDetalle();
+        return;
+      }
       const b = btn.getAttribute('data-bucket') as Bucket | 'all', F = this.buckets;
       if (b === 'all') F.clear(); else { if (F.has(b)) F.delete(b); else F.add(b); if (F.size === BUCKETS.length) F.clear(); }
       $('bucketFilter').querySelectorAll('button').forEach((x) => { const k = x.getAttribute('data-bucket') as Bucket | 'all'; x.classList.toggle('active', k === 'all' ? !F.size : F.has(k)); });
@@ -119,6 +137,9 @@ export class TopNegados {
 
   render(vm: VistaAgregada) {
     this.vm = vm;
+    const antes = !!this.motCod;
+    this.motCod = motivosPorCodigo(this.radar.history, this.diasSel(vm));
+    if (antes !== !!this.motCod || this.motCod) this.botonesFiltro();
     if (!this.codigoSel && vm.topCodes.length) this.codigoSel = vm.topCodes[0].sku;
     const m = vm.meta, p = m.fecha ? 'el ' + fechaLarga(m.fecha) + (this.radar.isPartialDay(m.fecha) ? ' (corte parcial)' : '') : 'del ' + fechaLarga(vm.rangeFrom) + ' al ' + fechaLarga(vm.rangeTo);
     const tn = m.totalNegados || 0, top = vm.topCodes.slice(0, 10), s10 = top.reduce((a, c) => a + c.count, 0), p10 = tn ? Math.round(s10 / tn * 100) : 0;
@@ -143,12 +164,20 @@ export class TopNegados {
     if (!list.length || !vm) { el.innerHTML = '<p class="q">Sin datos</p>'; return; }
     const { days, part } = this.ventana(vm), Q = this.cantidades(vm), pos: Record<string, number> = {};
     vm.codes.forEach((c) => { if (c.bucket === 'positivo') pos[c.sku] = (pos[c.sku] || 0) + c.count; });
-    let h = '<div class="tw"><table class="rk-tbl"><thead><tr><th>#</th><th>Código</th><th>Descripción</th><th class="n">Veces</th><th class="n">Unidades</th><th class="n">Con existencia</th><th>Tendencia · ' + days.length + ' días</th></tr></thead><tbody>';
+    const MC = this.motCod;
+    let h = '<div class="tw"><table class="rk-tbl"><thead><tr><th>#</th><th>Código</th><th>Descripción</th><th class="n">Veces</th><th class="n">Unidades</th><th' + (MC ? '>Motivo principal' : ' class="n">Con existencia') + '</th><th>Tendencia · ' + days.length + ' días</th></tr></thead><tbody>';
+    const motCelda = (sku: string, veces: number) => {
+      const m = MC && MC[sku];
+      if (!m) return '<td class="q">sin motivo registrado</td>';
+      const k = Object.keys(m).sort((a, b) => m[b] - m[a] || motSort(a, b))[0], otros = Object.keys(m).length - 1;
+      return '<td class="mp" title="' + esc(Object.keys(m).sort(motSort).map((x) => motLabel(x) + ': ' + m[x]).join(' · ')) + '"><i style="background:' + motColor(k) + '"></i>' + esc(motLabel(k)) +
+        ' <b>' + Math.round(m[k] / veces * 100) + '%</b>' + (otros > 0 ? '<span> +' + otros + '</span>' : '') + '</td>';
+    };
     list.forEach((d, i) => {
       const um = this.um(d.sku), g = umGrupo(um), q = Q.has ? (Q.qty[d.sku] || 0) * umFactor(um) : null, sp = sparkProm(this.vecesPorDia(d.sku, days), part, '#DE7A2C');
       h += '<tr class="clk' + (d.sku === this.codigoSel ? ' sel' : '') + '" data-sku="' + esc(d.sku) + '"><td class="n0">' + (i + 1) + '</td><td class="sku">' + esc(d.sku) + '</td><td>' + esc(d.desc) +
         '</td><td class="n"><b>' + fmtInt(d.count) + '</b></td><td class="n">' + (q == null ? '—' : qtyFmt(q, g === 'otr' ? '' : g) + (g === 'otr' ? ' ' + esc(um) : '')) +
-        '</td><td class="n">' + Math.round((pos[d.sku] || 0) / d.count * 100) + '%</td><td class="trc">' + (sp ? sp.svg + '<span>' + promTxt(sp.avg) + '</span>' : '') + '</td></tr>';
+        '</td>' + (MC ? motCelda(d.sku, d.count) : '<td class="n">' + Math.round((pos[d.sku] || 0) / d.count * 100) + '%</td>') + '<td class="trc">' + (sp ? sp.svg + '<span>' + promTxt(sp.avg) + '</span>' : '') + '</td></tr>';
     });
     el.innerHTML = h + '</tbody></table></div>';
     el.querySelectorAll<HTMLElement>('tr.clk').forEach((r) => r.addEventListener('click', () => this.elegirCodigo(r.dataset.sku!)));
@@ -191,6 +220,20 @@ export class TopNegados {
 
   private renderMotivo() {
     const el = $('donutLegend'), c = this.vm!.bucketCounts;
+    const sub = el.closest('.chart')?.querySelector('.cardsub');
+    if (this.motCod) {
+      // barras por motivo registrado por el preparador
+      const N = negadosPorMotivo(this.radar.history, this.diasSel(this.vm!));
+      const G = Object.keys(N.m).sort(motSort).map((k) => ({ l: motLabel(k), v: N.m[k], c: motColor(k) }));
+      const sd = Math.max(0, N.neg - N.negMot);
+      if (sd) G.push({ l: 'Sin dato', v: sd, c: '#D8CFBE' });
+      const total = G.reduce((a, g) => a + g.v, 0), max = Math.max(1, ...G.map((g) => g.v));
+      if (sub) sub.textContent = 'Líneas negadas según el motivo que registró el preparador' + (sd ? ' («Sin dato»: días antes del registro)' : '');
+      el.className = 'vx-bars';
+      el.innerHTML = G.map((g) => '<div class="vb"><div class="vb-l"><b>' + esc(g.l) + '</b></div><div class="vb-t"><i style="width:' + Math.max(g.v ? 1 : 0, g.v / max * 100) + '%;background:' + g.c + '"></i></div><div class="vb-n">' + fmtInt(g.v) + '<span>' + (total ? Math.round(g.v / total * 100) : 0) + '%</span></div></div>').join('');
+      return;
+    }
+    if (sub) sub.textContent = 'Líneas negadas según la existencia en sistema';
     const G = [
       { l: 'Error en el proceso', d: 'había stock en sistema y no se encontró', v: c.positivo || 0, c: 'var(--orange)' },
       { l: 'Sin stock', d: 'disponible en 0 (' + fmtInt(c.cero || 0) + ') o negativo (' + fmtInt(c.negativo || 0) + ')', v: (c.cero || 0) + (c.negativo || 0), c: 'var(--blue)' },
@@ -209,18 +252,52 @@ export class TopNegados {
   }
 
   /** Filas del detalle con los motivos y la búsqueda elegidos. */
-  filasDetalle() {
-    let rows = this.vm?.codes || [];
-    if (this.buckets.size) rows = rows.filter((r) => this.buckets.has(r.bucket));
+  filasDetalle(): FilaDet[] {
+    let rows: FilaDet[];
+    const MC = this.motCod;
+    if (MC) {
+      // por código y motivo registrado; lo que no tiene registro (días anteriores) va como "Sin dato"
+      const tot = new Map<string, { desc: string; n: number }>();
+      (this.vm?.codes || []).forEach((c) => { const t = tot.get(c.sku) || { desc: c.desc, n: 0 }; t.n += c.count; tot.set(c.sku, t); });
+      rows = [];
+      tot.forEach((t, sku) => {
+        const m = MC[sku] || {};
+        let reg = 0;
+        for (const k in m) { reg += m[k]; rows.push({ sku, desc: t.desc, bucket: k, label: motLabel(k), color: motColor(k), count: m[k] }); }
+        if (t.n > reg) rows.push({ sku, desc: t.desc, bucket: SIN_DATO, label: 'Sin dato', color: '#A39C90', count: t.n - reg });
+      });
+      if (this.motSel.size) rows = rows.filter((r) => this.motSel.has(r.bucket));
+    } else {
+      rows = (this.vm?.codes || []).map((c) => ({ sku: c.sku, desc: c.desc, bucket: c.bucket, label: BUCKET_LABEL[c.bucket], color: BUCKET_COLOR[c.bucket], count: c.count }));
+      if (this.buckets.size) rows = rows.filter((r) => this.buckets.has(r.bucket as Bucket));
+    }
     if (this.busqueda) { const q = normText(this.busqueda); rows = rows.filter((r) => normText(r.sku).includes(q) || normText(r.desc).includes(q)); }
     return rows;
+  }
+
+  /** Botones del filtro del detalle: por motivo registrado si lo hay; si no, por disponible (como antes). */
+  private botonesFiltro() {
+    const seg = $('bucketFilter');
+    if (this.motCod) {
+      const ks = new Set<string>();
+      Object.values(this.motCod).forEach((m) => Object.keys(m).forEach((k) => ks.add(k)));
+      [...this.motSel].forEach((k) => { if (!ks.has(k) && k !== SIN_DATO) this.motSel.delete(k); });
+      const L = [...ks].sort(motSort).map((k) => [k, motLabel(k)]).concat([[SIN_DATO, 'Sin dato']]);
+      seg.setAttribute('aria-label', 'Filtrar por motivo registrado');
+      seg.innerHTML = '<button data-mot="*"' + (!this.motSel.size ? ' class="active"' : '') + '>Todos</button>' +
+        L.map(([k, l]) => '<button data-mot="' + esc(k) + '"' + (this.motSel.has(k) ? ' class="active"' : '') + '>' + esc(l) + '</button>').join('');
+    } else if (!seg.querySelector('[data-bucket]')) {
+      this.buckets.clear();
+      seg.setAttribute('aria-label', 'Filtrar por disponibilidad');
+      seg.innerHTML = '<button data-bucket="all" class="active">Todos</button><button data-bucket="positivo">Error en el proceso</button><button data-bucket="cero">Sin existencia</button><button data-bucket="negativo">Inventario negativo</button>';
+    }
   }
 
   private renderDetalle() {
     if (!this.vm) return;
     const { key, dir } = this.orden;
     const rows = this.filasDetalle().slice().sort((a, b) => {
-      let av: string | number = a[key], bv: string | number = b[key];
+      let av: string | number = key === 'bucket' ? a.label : a[key], bv: string | number = key === 'bucket' ? b.label : b[key];
       if (typeof av === 'string') { av = av.toLowerCase(); bv = String(bv).toLowerCase(); }
       if (av < bv) return dir === 'asc' ? -1 : 1;
       if (av > bv) return dir === 'asc' ? 1 : -1;
@@ -228,7 +305,7 @@ export class TopNegados {
     });
     const body = $('tableBody');
     body.innerHTML = rows.length ? rows.slice(0, 500).map((r) => '<tr class="' + (r.sku === this.codigoSel ? 'selected' : '') + '" data-sku="' + esc(r.sku) + '"><td class="code">' + esc(r.sku) + '</td><td class="desc">' + esc(r.desc) +
-      '</td><td><span class="pill ' + r.bucket + '"><span class="dot"></span>' + BUCKET_LABEL[r.bucket] + '</span></td><td class="count tabular">' + r.count + '</td></tr>').join('')
+      '</td><td><span class="pill"><span class="dot" style="background:' + r.color + '"></span>' + esc(r.label) + '</span></td><td class="count tabular">' + r.count + '</td></tr>').join('')
       : '<tr class="empty-row"><td colspan="4">No hay resultados para este filtro.</td></tr>';
     body.querySelectorAll<HTMLElement>('tr[data-sku]').forEach((tr) => tr.addEventListener('click', () => this.elegirCodigo(tr.dataset.sku!)));
     $('tableCount').textContent = rows.length + ' código' + (rows.length === 1 ? '' : 's') + (rows.length > 500 ? ' (mostrando 500)' : '');
@@ -261,12 +338,12 @@ export class TopNegados {
     const vm = this.vm; if (!vm) { aviso('err', 'No hay datos cargados todavía.'); return; }
     try {
       const rows = this.filasDetalle().slice().sort((a, b) => b.count - a.count || (a.sku < b.sku ? -1 : 1));
-      const sel = BUCKETS.filter((b) => this.buckets.has(b));
-      const motTxt = sel.length ? sel.map((b) => BUCKET_LABEL[b]).join(' + ') : 'Todos los motivos';
-      const aoa: (string | number)[][] = rows.map((r) => [r.sku, r.desc, this.um(r.sku), BUCKET_LABEL[r.bucket], r.count]);
+      const sel = this.motCod ? [...this.motSel].map((k) => (k === SIN_DATO ? 'Sin dato' : motLabel(k))) : BUCKETS.filter((b) => this.buckets.has(b)).map((b) => BUCKET_LABEL[b]);
+      const motTxt = sel.length ? sel.join(' + ') : 'Todos los motivos';
+      const aoa: (string | number)[][] = rows.map((r) => [r.sku, r.desc, this.um(r.sku), r.label, r.count]);
       const ws = this.hoja('', ['Código', 'Descripción', 'UM', 'Motivo', 'Veces negado'], aoa, [12, 55, 8, 22, 14]);
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Negados');
-      const tag = sel.length ? sel.map((b) => ({ positivo: 'Error_proceso', cero: 'Sin_existencia', negativo: 'Inventario_negativo' })[b]).join('_') : 'Todos';
+      const tag = sel.length ? sel.map((x) => x.replace(/[^A-Za-zÁÉÍÓÚáéíóúñÑ0-9]+/g, '_')).join('_') : 'Todos';
       this.bajar(wb, 'Negados_' + tag + '_' + this.sufijo(vm) + '.xlsx');
       aviso('ok', 'Descargando ' + fmtInt(rows.length) + ' códigos negados (' + motTxt + ')…');
     } catch (err) { console.error(err); aviso('err', 'No se pudo generar el Excel: ' + ((err as Error)?.message || 'error')); }
@@ -279,10 +356,12 @@ export class TopNegados {
       vm.codes.forEach((c) => { tot[c.sku] = (tot[c.sku] || 0) + c.count; if (c.bucket === 'positivo') pos[c.sku] = (pos[c.sku] || 0) + c.count; });
       const t10 = vm.topCodes.slice(0, 10).map((d, i) => {
         const um = this.um(d.sku), q = Q.has ? Math.round((Q.qty[d.sku] || 0) * umFactor(um) * 100) / 100 : '';
-        return [i + 1, d.sku, d.desc, d.count, q, um, tot[d.sku] ? Math.round((pos[d.sku] || 0) / tot[d.sku] * 100) / 100 : ''];
+        const m = this.motCod && this.motCod[d.sku];
+        const mp = m ? Object.keys(m).sort((a, b) => m[b] - m[a] || motSort(a, b)).map((k) => motLabel(k) + ' ' + m[k]).join(' · ') : 'sin motivo registrado';
+        return [i + 1, d.sku, d.desc, d.count, q, um, this.motCod ? mp : tot[d.sku] ? Math.round((pos[d.sku] || 0) / tot[d.sku] * 100) / 100 : ''];
       });
-      const ws1 = this.hoja('Top 10 por cantidad de veces negado · ' + this.fechaTxt(vm), ['#', 'Código', 'Descripción', 'Veces negado', 'Unidades negadas', 'UM', 'Con existencia (%)'], t10, [5, 12, 55, 14, 16, 8, 18]);
-      for (let r = 1; r < 1 + t10.length; r++) { const c = ws1[XLSX.utils.encode_cell({ r, c: 6 })]; if (c && typeof c.v === 'number') c.z = '0%'; }
+      const ws1 = this.hoja('Top 10 por cantidad de veces negado · ' + this.fechaTxt(vm), ['#', 'Código', 'Descripción', 'Veces negado', 'Unidades negadas', 'UM', this.motCod ? 'Motivos registrados' : 'Con existencia (%)'], t10, [5, 12, 55, 14, 16, 8, this.motCod ? 50 : 18]);
+      if (!this.motCod) for (let r = 1; r < 1 + t10.length; r++) { const c = ws1[XLSX.utils.encode_cell({ r, c: 6 })]; if (c && typeof c.v === 'number') c.z = '0%'; }
       const rows2: (string | number)[][] = [];
       if (!Q.has) rows2.push(['Las unidades negadas se registran desde el 7 oct 2026. Elige un día o rango desde esa fecha.']);
       else {

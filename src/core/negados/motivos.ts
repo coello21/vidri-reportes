@@ -155,3 +155,39 @@ export function exclusionPorPreparador(history: Historial, dias: string[]): Reco
   }
   return out;
 }
+
+/**
+ * Negadas de unos días partidas como el fill rate: "sin stock" = "Existencia a cero" (en días sin motivo registrado,
+ * disponible 0 o negativo) y "error en el proceso" = el resto (sí había producto en el CD). Además, los motivos registrados.
+ */
+export function negadosPorMotivo(history: Historial, dias: string[]) {
+  let neg = 0, sinStock = 0, diasMot = 0, negMot = 0, cero = 0, negativo = 0;
+  const m: Record<string, number> = {};
+  for (const d of dias) {
+    const h = history[d] as DiaResumen | undefined;
+    if (!h || h.v !== 2 || !h.meta) continue;
+    neg += h.meta.totalNegados || 0;
+    sinStock += exclusionDia(h);
+    if (h.mot) {
+      diasMot++; negMot += h.mot.n;
+      for (const k in h.mot.m) m[k] = (m[k] || 0) + h.mot.m[k];
+    } else { cero += h.bucket?.cero || 0; negativo += h.bucket?.negativo || 0; }
+  }
+  return { neg, sinStock, error: Math.max(0, neg - sinStock), m, diasMot, negMot, cero, negativo };
+}
+
+/** Veces negado de cada código por motivo registrado en unos días (suma de todos los preparadores). */
+export function motivosPorCodigo(history: Historial, dias: string[]): Record<string, Record<string, number>> | null {
+  const out: Record<string, Record<string, number>> = {};
+  let con = false;
+  for (const d of dias) {
+    const mo = (history[d] as DiaResumen | undefined)?.mot;
+    if (!mo || !mo.q || !mo.k) continue;
+    con = true;
+    for (const pr in mo.q) for (const sku in mo.q[pr]) {
+      const t = out[sku] || (out[sku] = {});
+      mo.q[pr][sku].forEach((v, i) => { if (v) t[mo.k[i]] = (t[mo.k[i]] || 0) + v; });
+    }
+  }
+  return con ? out : null;
+}

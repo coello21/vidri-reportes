@@ -8,7 +8,7 @@ import type { RadarNegados, VistaAgregada, PreparadorVista } from '../core/negad
 import { parsePreparadorName, EXACTITUD_META } from '../core/negados/radar';
 import { addDays } from '../core/comun/fechas';
 import { lineasPreparadas } from '../core/negados/extras';
-import { motColor, motLabel, motSort, motivosDePreparador, fillRateCD, exclusionPorPreparador } from '../core/negados/motivos';
+import { motColor, motLabel, motSort, motivosDePreparador, fillRateCD, exclusionPorPreparador, negadosPorMotivo, EXIST_CERO } from '../core/negados/motivos';
 import type { DiaResumen } from '../core/negados/tipos';
 import { $, esc, fmtInt, fmtPct, fmtDateShort, fechaLarga } from './ui/formato';
 import { barrasApiladas, tendenciaSobrePuntos, globoEnPuntos } from './ui/graficos';
@@ -122,7 +122,7 @@ export class Resumen {
     const st = vm.byStore[0];
     $('kpiTopStore').textContent = st ? st.name : '—';
     $('kpiTopStoreCount').textContent = st ? fmtInt(st.count) : '—';
-    $('kpiFalloProceso').textContent = fmtInt(vm.bucketCounts.positivo || 0);
+    $('kpiFalloProceso').textContent = fmtInt(this.negMot(vm).error);
 
     this.renderNegPrepCompare(vm);
     this.renderNegPrepTrend();
@@ -138,31 +138,52 @@ export class Resumen {
     $('kpiTotal').textContent = fmtInt(prep);
     $('kpiDupesFoot').innerHTML = 'de <b>' + fmtInt(tot) + '</b> líneas (' + pc(prep) + ')';
     $('kpiPct').parentElement!.innerHTML = '<b id="kpiPct">' + pc(neg) + '</b> de ' + fmtInt(tot) + ' líneas cerradas';
-    const bc = vm.bucketCounts, pos = bc.positivo || 0, pp = neg ? Math.round(pos / neg * 100) : 0;
-    $('vxFalloFoot').innerHTML = '<b>' + pp + '%</b> de las negadas · había stock';
-    $('vxSinStockFoot').innerHTML = '<b>' + (neg ? 100 - pp : 0) + '%</b> · ' + fmtInt(bc.cero || 0) + ' en 0 y ' + fmtInt(bc.negativo || 0) + ' negativo';
+    this.tarjetasMotivo(vm);
     if (m.prepEval && vm.newDays) $('kpiExactFoot').innerHTML = '<b>' + fmtInt(m.exactas) + '</b> de ' + fmtInt(m.prepEval) + ' completas <span class="meta-tag">meta ≥ 99,5%</span>';
     const lp = lineasPreparadas(this.radar.store, vm.date || vm.rangeFrom, vm.date || vm.rangeTo);
     $('kpiTotal').textContent = lp == null ? '—' : fmtInt(lp);
     $('kpiDupesFoot').innerHTML = '<b>' + fmtInt(tot) + '</b> líneas actualizadas';
   }
 
+  /** Negadas del día o rango partidas como el fill rate (ver negadosPorMotivo). */
+  private negMot(vm: VistaAgregada) { return negadosPorMotivo(this.radar.history, this.radar.diasEnRango(vm.rangeFrom, vm.rangeTo)); }
+
+  /**
+   * Tarjetas "Negadas por error en el proceso" y "Negadas sin stock" con el motivo registrado:
+   * sin stock = "Existencia a cero"; error en el proceso = el resto (había producto en el CD).
+   * En días sin motivo registrado se usa el disponible en sistema, como antes.
+   */
+  private tarjetasMotivo(vm: VistaAgregada) {
+    const N = this.negMot(vm), neg = N.neg, pc = (v: number) => (neg ? Math.round(v / neg * 100) : 0);
+    $('kpiFalloProceso').textContent = fmtInt(N.error);
+    $('vxSinStock').textContent = fmtInt(N.sinStock);
+    if (N.diasMot) {
+      const top = Object.keys(N.m).filter((k) => k !== EXIST_CERO).sort((a, b) => N.m[b] - N.m[a])[0];
+      $('vxFalloFoot').innerHTML = '<b>' + pc(N.error) + '%</b> de las negadas · había producto en el CD' +
+        (top ? '<br>Más: ' + esc(motLabel(top)) + ' <b>' + fmtInt(N.m[top]) + '</b>' : '');
+      const ant = N.cero + N.negativo;
+      $('vxSinStockFoot').innerHTML = '<b>' + pc(N.sinStock) + '%</b> · existencia a cero' + (ant ? '<br>' + fmtInt(ant) + ' en 0 o negativo (días sin motivo)' : '');
+    } else {
+      $('vxFalloFoot').innerHTML = '<b>' + pc(N.error) + '%</b> de las negadas · había stock';
+      $('vxSinStockFoot').innerHTML = '<b>' + pc(N.sinStock) + '%</b> · ' + fmtInt(N.cero) + ' en 0 y ' + fmtInt(N.negativo) + ' negativo';
+    }
+  }
+
   private renderTitular(vm: VistaAgregada) {
     const m = vm.meta, p = this.periodo(vm);
     $('rsEyebrow').textContent = 'Motivo de los negados · ' + (p.replace(/^(el|del) /, '') || '—');
-    const bc = vm.bucketCounts, tn = m.totalNegados || 0, pos = bc.positivo || 0, sin = (bc.cero || 0) + (bc.negativo || 0);
+    const N = this.negMot(vm), tn = m.totalNegados || 0, pos = N.error, sin = N.sinStock;
     const pp = tn ? Math.round(pos / tn * 100) : 0, ps = tn ? 100 - pp : 0;
-    $('vxSinStock').textContent = fmtInt(sin);
-    $('vxFalloFoot').innerHTML = '<b>' + pp + '%</b> de los negados · había stock en sistema y no se encontró';
-    $('vxSinStockFoot').innerHTML = '<b>' + ps + '%</b> de los negados · disponible en 0 o negativo';
+    this.tarjetasMotivo(vm);
     const t = $('rsTitle'), l = $('rsLead');
     if (!m.totalFinal) { t.textContent = 'Sin líneas cerradas ' + p; l.textContent = ''; return; }
+    const sinTxt = N.diasMot ? 'existencia a cero' : 'falta de stock (disponible en 0 o negativo)';
     t.textContent = pp >= ps
-      ? pp + '% de los negados ' + p + ' fue error en el proceso: había stock y no se encontró'
-      : ps + '% de los negados ' + p + ' fue por falta de stock';
+      ? pp + '% de los negados ' + p + ' fue error en el proceso: había producto en el CD'
+      : ps + '% de los negados ' + p + ' fue por ' + (N.diasMot ? 'existencia a cero' : 'falta de stock');
     const st = vm.byStore[0];
     l.innerHTML = 'Se negaron <b>' + fmtInt(tn) + '</b> de ' + fmtInt(m.totalFinal) + ' líneas listas para despacho (' + fmtPct(m.pct) + '). <b>' + fmtInt(pos) +
-      '</b> fueron error en el proceso y <b>' + fmtInt(sin) + '</b> fueron por falta de stock (disponible en 0 o negativo).' +
+      '</b> fueron error en el proceso y <b>' + fmtInt(sin) + '</b> por ' + sinTxt + '.' +
       (st ? ' La sucursal más afectada fue <b>' + esc(st.name) + '</b>.' : '');
     this.renderMotivo(vm);
   }
@@ -283,24 +304,25 @@ export class Resumen {
       const filas = [...ks].sort(motSort).map((x) => ({ name: motLabel(x), color: motColor(x), vals: d7.map((d) => dia(d)?.mot?.m[x] || 0) }));
       const sd = d7.map((d) => Math.max(0, (dia(d)?.meta?.totalNegados || 0) - (dia(d)?.mot?.n || 0)));
       if (sd.some((v) => v)) filas.push({ name: 'Sin dato (antes del registro)', color: '#A39C90', vals: sd });
-      const totDia = d7.map((_, i) => filas.reduce((a, f) => a + f.vals[i], 0)), totAll = totDia.reduce((a, b) => a + b, 0);
+      const totDia = d7.map((_, i) => filas.reduce((a, f) => a + f.vals[i], 0));
       const DOW = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'], sel = vm.meta.fecha;
       const th = d7.map((d, i) => '<th class="r' + (d === sel ? ' sel' : '') + '" data-i="' + i + '" title="Ver este día">' + DOW[new Date(d + 'T12:00:00').getDay()] +
         '<br><span>' + esc(fmtDateShort(d)) + (p7.has(i) ? '*' : '') + '</span></th>').join('');
-      const celda = (v: number, mx: number, color: string, d: string) => {
-        const a = mx ? Math.round(8 + (v / mx) * 62) : 0;
-        return '<td class="r' + (d === sel ? ' sel' : '') + '"' + (v ? ' style="background:color-mix(in srgb,' + color + ' ' + a + '%,transparent)' + (a > 48 ? ';color:#fff' : '') + '"' : '') + '>' + (v ? fmtInt(v) : '·') + '</td>';
+      // cada celda: % de las negadas de ese día (la columna suma 100 %) y entre paréntesis las líneas
+      const celda = (v: number, mx: number, color: string, i: number) => {
+        const a = mx ? Math.round(8 + (v / mx) * 62) : 0, d = d7[i], t = totDia[i];
+        return '<td class="r' + (d === sel ? ' sel' : '') + '"' + (v ? ' style="background:color-mix(in srgb,' + color + ' ' + a + '%,transparent)' + (a > 48 ? ';color:#fff' : '') + '"' : '') + '>' +
+          (v ? '<b>' + (t ? fmtPct(v / t * 100) : '—') + '</b> <span>(' + fmtInt(v) + ')</span>' : '·') + '</td>';
       };
-      el.innerHTML = '<div class="tablescroll"><table class="hm"><thead><tr><th>Motivo</th>' + th + '<th class="r">Total</th><th class="r">%</th></tr></thead><tbody>' +
+      el.innerHTML = '<div class="tablescroll"><table class="hm"><thead><tr><th>Motivo</th>' + th + '</tr></thead><tbody>' +
         filas.map((f) => {
-          const mx = Math.max(...f.vals), t = f.vals.reduce((a, b) => a + b, 0);
-          return '<tr><td class="mo"><i style="background:' + f.color + '"></i>' + esc(f.name) + '</td>' + f.vals.map((v, i) => celda(v, mx, f.color, d7[i])).join('') +
-            '<td class="r tot">' + fmtInt(t) + '</td><td class="r">' + (totAll ? fmtPct(t / totAll * 100) : '—') + '</td></tr>';
+          const mx = Math.max(...f.vals);
+          return '<tr><td class="mo"><i style="background:' + f.color + '"></i>' + esc(f.name) + '</td>' + f.vals.map((v, i) => celda(v, mx, f.color, i)).join('') + '</tr>';
         }).join('') +
-        '<tr class="hmt"><td>Total negadas</td>' + totDia.map((v, i) => '<td class="r' + (d7[i] === sel ? ' sel' : '') + '">' + fmtInt(v) + '</td>').join('') + '<td class="r tot">' + fmtInt(totAll) + '</td><td class="r">100%</td></tr></tbody></table></div>' +
+        '<tr class="hmt"><td>Total negadas</td>' + totDia.map((v, i) => '<td class="r' + (d7[i] === sel ? ' sel' : '') + '"><b>' + (v ? '100%' : '—') + '</b> <span>(' + fmtInt(v) + ')</span></td>').join('') + '</tr></tbody></table></div>' +
         (p7.size ? '<p class="hmn">* día parcial (el reporte se sacó antes de terminar el día)</p>' : '');
       el.querySelectorAll<HTMLElement>('th[data-i]').forEach((h) => h.addEventListener('click', () => { const d = d7[+h.dataset.i!]; this.elegir(d, d); }));
-      $('vxMotQ').textContent = 'Líneas negadas por día según el motivo que registró el preparador. Cada motivo se colorea con su propia escala: más oscuro = el día con más negadas de ese motivo.';
+      $('vxMotQ').textContent = 'Por día: % de las negadas de ese día según el motivo que registró el preparador (cada columna suma 100 %) y, entre paréntesis, las líneas. Más oscuro = el día con más negadas de ese motivo.';
       if (leg) leg.style.display = 'none';
       return;
     }
