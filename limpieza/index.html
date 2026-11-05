@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiNENzI2MkIiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIyMSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjUiLz48cGF0aCBkPSJNMzIgMzIgTDQ3IDE3IiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iNSIgZmlsbD0iI2ZmZiIvPjxjaXJjbGUgY3g9IjQwIiBjeT0iNDIiIHI9IjQiIGZpbGw9IiNmZmYiLz48L3N2Zz4=">
+<title>Limpieza de datos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/src/limpieza/limpieza.css">
+</head>
+<body>
+<main>
+  <div class="eb">CD Nejapa · Limpieza de datos</div>
+  <h1>Limpiar el Rpt_OrdenesPreparacion</h1>
+  <p class="lead">Arrastra el Excel crudo del ERP. Se limpia aquí mismo, en tu computadora: no se sube a ningún lado. Descargas el Excel limpio y ese es el que cargas en el Radar.</p>
+
+  <label class="drop" id="drop">
+    <input type="file" id="files" accept=".xlsx,.xls,.xlsm" multiple hidden>
+    <b>Arrastra aquí los Excel</b><span>o haz clic para elegirlos · puedes elegir varios</span>
+  </label>
+
+  <div id="out"></div>
+
+  <details class="que">
+    <summary>Qué hace la limpieza</summary>
+    <table class="t">
+      <thead><tr><th>Paso</th><th>Qué hace</th></tr></thead>
+      <tbody>
+        <tr><td>Columnas</td><td>Deja solo las que usa el Radar, con el mismo nombre del ERP. Quita las demás (por ejemplo Revisador).</td></tr>
+        <tr><td>Textos</td><td>Quita espacios de más. Estado en mayúsculas. El motivo de negado siempre escrito igual (por ejemplo «existencia  a CERO» → «Existencia a cero»).</td></tr>
+        <tr><td>Números y fechas</td><td>Cantidades como número y fechas como fecha.</td></tr>
+        <tr><td>Filas que sobran</td><td>Quita filas sin código (totales, filas en blanco) y filas repetidas idénticas en todo.</td></tr>
+        <tr><td>Lo que no toca</td><td>Un mismo pedido + código con algo distinto (otra razón de pedido, otro preparador) se deja: el Radar decide cuál vale al cargarlo.</td></tr>
+        <tr><td>Control de calidad</td><td>Cuenta lo que hay que revisar (negadas sin motivo, líneas cerradas sin fecha, motivos nuevos) y lo deja en la hoja «Calidad» del Excel limpio.</td></tr>
+      </tbody>
+    </table>
+  </details>
+</main>
+<script type="module" src="/src/limpieza/main.ts"></script>
+</body>
+</html>

@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
+    "fflate": "^0.8.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
