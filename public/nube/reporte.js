@@ -243,6 +243,20 @@
     var ex = N && N.hoy.prep ? pct(N.hoy.exactas, N.hoy.prep) : null, exAnt = N && N.prevW && N.prevW.prep ? pct(N.prevW.exactas, N.prevW.prep) : null;
     var b2b = N && N.b2b.tot ? pct(N.b2b.ok, N.b2b.tot) : null;
     var sem = function (d) { return 'el ' + DOW_L[dowOf(d)] + ' pasado'; };
+    // ----- motivo registrado por el preparador (día del reporte y mismo día de la semana pasada) -----
+    var MO = N ? HISTORY_MOT(N.hoy.d) : null, MOW = N && N.prevW ? HISTORY_MOT(N.prevW.d) : null;
+    var MOT_SIG = { 'Físico no se encuentra': 'había en sistema y no se encontró', 'Existencia a cero': 'no había producto', 'Sin existencia ubicación picking': 'estaba en tarimas, no en picking', 'Producto incompleto o averiado': 'llegó incompleto o dañado', 'Pasillo bloqueado': 'no se pudo llegar a la ubicación', '': 'el preparador no anotó el motivo' };
+    var motLbl = function (k) { return k === '' ? 'Sin motivo' : k; };
+    var motKs = MO ? Object.keys(MO.m).sort(function (a, b) { return MO.m[b] - MO.m[a]; }) : [];
+    var motPct = function (M, k, tot) { return M && tot ? (M.m[k] || 0) / tot * 100 : 0; };
+    // códigos y preparadores por motivo (del detalle guardado por día)
+    var motDet = function (M) {
+      var cod = {}, prep = {};
+      if (M && M.q && M.k) for (var pr in M.q) for (var sk in M.q[pr]) M.q[pr][sk].forEach(function (v, i) { if (!v) return; var k = M.k[i]; (cod[k] || (cod[k] = {}))[sk] = (cod[k][sk] || 0) + v; (prep[k] || (prep[k] = {}))[pr] = (prep[k][pr] || 0) + v; });
+      return { cod: cod, prep: prep };
+    };
+    var MD = motDet(MO);
+    var topDe = function (o, k) { var x = o[k] || {}; return Object.keys(x).sort(function (a, b) { return x[b] - x[a]; }).slice(0, k === '' ? 1 : 2).map(function (y) { return { id: y, v: x[y] }; }); };
     var F2 = function (d) { var F = src(); if (!F.FR) return null; var r = F.FR([d]); return r && r.base ? pct(r.prep, r.base) : null; };
 
     /* ----- lo bueno y lo que hay que mejorar (reglas fijas, en positivo) ----- */
@@ -265,12 +279,20 @@
       mejorar.push({ q: 'Asignar primero los ' + n(P.viejos) + ' pedidos con más de 72 h sin preparador (' + n(P.porDiaV[vdM[0]].c) + ' del ' + DOW_L[dowOf(vdM[0])] + '; ' + n(P.skV) + ' SKUs).', a: true });
     }
     if (P && P.fin > P.ini) mejorar.push({ q: 'Recuperar el ritmo de asignación: plan con maestros de olas para los ' + n(P.sinAsig) + ' pedidos por asignar (' + n(P.skR) + ' SKUs).', a: true });
-    if (N && N.hoy.err && (N.prom == null || N.pHoy > N.prom)) mejorar.push({ q: 'Bajar el error en el proceso: ' + n(N.hoy.err) + ' líneas se negaron ' + (N.hoy.mot ? 'habiendo producto en el CD' : 'con stock en sistema') + '. Revisar por zona y preparador' + (N.prom != null ? ' para volver al promedio de ' + dec(N.prom) + '%' : '') + '.', a: false });
-    if (N && N.prevW && N.hoy.sst > N.prevW.sst * 1.25 && N.hoy.sst >= 50) mejorar.push({ q: 'Coordinar con inventario las ' + n(N.hoy.sst) + ' líneas negadas sin stock.', a: false });
-    if (ex != null && ex < 99.5) mejorar.push({ q: 'Llevar la exactitud de picking de ' + dec(ex) + '% hacia la meta de 99,5%: ' + n(N.hoy.prep - N.hoy.exactas) + ' líneas se mandaron incompletas.', a: false });
+    if (MO) {
+      var tn = N.hoy.neg, fis = MO.m['Físico no se encuentra'] || 0, ec = MO.m['Existencia a cero'] || 0, sep = MO.m['Sin existencia ubicación picking'] || 0, sm = MO.m[''] || 0;
+      var cods = function (k) { return topDe(MD.cod, k).map(function (x) { return x.id + ' (' + x.v + ')'; }).join(', '); };
+      if (fis && fis / tn >= 0.15) mejorar.push({ q: 'Físico no se encuentra: ' + n(fis) + ' líneas (' + pctInt(fis, tn) + '). Revisar ubicación y conteo de los códigos que más se repiten: ' + cods('Físico no se encuentra') + '.', a: false });
+      if (ec && ec / tn >= 0.15) mejorar.push({ q: 'Existencia a cero: ' + n(ec) + ' líneas (' + pctInt(ec, tn) + '). Pasar a inventario y compras: ' + cods('Existencia a cero') + '.', a: false });
+      if (sep >= 20) mejorar.push({ q: 'Sin existencia ubicación picking: ' + n(sep) + ' líneas con producto en tarimas. Reabastecer picking: ' + cods('Sin existencia ubicación picking') + '.', a: false });
+      if (sm >= 10) { var tp = topDe(MD.prep, '')[0]; mejorar.push({ q: n(sm) + ' negadas sin motivo registrado' + (tp ? ', ' + n(tp.v) + ' de ' + nombre(String(tp.id).replace(/^\s*\S+\s*-\s*/, '')) : '') + '. Recordar anotar el motivo al negar.', a: false }); }
+    } else if (N && N.hoy.err && (N.prom == null || N.pHoy > N.prom)) mejorar.push({ q: 'Bajar el error en el proceso: ' + n(N.hoy.err) + ' líneas se negaron ' + (N.hoy.mot ? 'habiendo producto en el CD' : 'con stock en sistema') + '. Revisar por zona y preparador' + (N.prom != null ? ' para volver al promedio de ' + dec(N.prom) + '%' : '') + '.', a: false });
+    if (!MO && N && N.prevW && N.hoy.sst > N.prevW.sst * 1.25 && N.hoy.sst >= 50) mejorar.push({ q: 'Coordinar con inventario las ' + n(N.hoy.sst) + ' líneas negadas sin stock.', a: false });
+    if (ex != null && ex < 99.5 && !MO) mejorar.push({ q: 'Llevar la exactitud de picking de ' + dec(ex) + '% hacia la meta de 99,5%: ' + n(N.hoy.prep - N.hoy.exactas) + ' líneas se mandaron incompletas.', a: false });
     if (N && N.tiendas.length && N.hoy.neg && N.tiendas[0].neg / N.hoy.neg >= 0.12) mejorar.push({ q: 'Revisar con ' + nombre(N.tiendas[0].s) + ' sus ' + n(N.tiendas[0].neg) + ' líneas negadas (' + pctInt(N.tiendas[0].neg, N.hoy.neg) + ' del día).', a: false });
     if (!bueno.length) bueno.push('Se cargaron los datos del día.');
-    h.bueno = bueno; h.mejorar = mejorar.slice(0, 5);
+    // una sola hoja: con la lectura de motivos, un poco menos de lo bueno
+    h.bueno = MO ? bueno.slice(0, 3) : bueno; h.mejorar = mejorar.slice(0, MO ? 4 : 5);
 
     /* ----- titular y párrafo ----- */
     var t = [], cerroLlev = (amanecer || cierre) ? ' cerró con ' : ' lleva ';
@@ -320,7 +342,7 @@
     /* ----- sección 2: negados ----- */
     if (N) {
       var d2 = N.hoy.d;
-      h.s2t = cap((amanecer ? 'ayer ' : 'el ') + DOW_L[dowOf(d2)]) + (frV != null ? ((amanecer || cierre) ? ' cerró con' : ' lleva') + ' fill rate de ' + dec(frV) + '%' : ': ' + dec(100 - N.pHoy) + '% de las líneas sin negado') + (N.prom != null && N.pHoy <= N.prom ? ', negados por debajo del promedio' : '') + '; de lo negado, ' + pctInt(N.hoy.err, N.hoy.neg) + ' fue por error en el proceso';
+      h.s2t = cap((amanecer ? 'ayer ' : 'el ') + DOW_L[dowOf(d2)]) + (frV != null ? ((amanecer || cierre) ? ' cerró con' : ' lleva') + ' fill rate de ' + dec(frV) + '%' : ': ' + dec(100 - N.pHoy) + '% de las líneas sin negado') + (N.prom != null && N.pHoy <= N.prom ? ', negados por debajo del promedio' : '') + (motKs.length ? '; lo que más se negó: ' + lista(motKs.slice(0, 2).map(function (k) { return motLbl(k) + ' (' + pctInt(MO.m[k], N.hoy.neg) + ')'; })) : '; de lo negado, ' + pctInt(N.hoy.err, N.hoy.neg) + ' fue por error en el proceso');
       h.n = N;
     }
 
@@ -331,6 +353,11 @@
     void b2b;
 
     if (amanecer) momento = 'al amanecer (' + corteTxt + ')';
+    // lectura de motivos: qué significa cada uno y cómo va contra el mismo día de la semana pasada
+    h.motLect = MO ? motKs.slice(0, 4).map(function (k) {
+      var p = motPct(MO, k, N.hoy.neg), pw = MOW && N.prevW ? motPct(MOW, k, N.prevW.neg) : null, d = pw != null ? p - pw : null;
+      return '<b>' + esc(motLbl(k)) + '</b> ' + Math.round(p) + '%: ' + esc(MOT_SIG[k] || '') + (d != null && Math.abs(d) >= 2 ? ' (' + (d > 0 ? 'sube ' : 'baja ') + Math.round(Math.abs(d)) + ' pts contra ' + sem(N.prevW.d) + ')' : '');
+    }) : null;
     h.meta = { dia: dia, cierre: cierre, momento: momento, corteTxt: corteTxt, negHora: negHora, P: P, N: N, amanecer: amanecer };
     return h;
   }
@@ -421,7 +448,8 @@
         out.push('<tr class="sub"><td>↳ existencia 0 · existencia negativa</td><td class="r">' + n(H.cero) + ' · ' + n(H.negat) + '</td>' + (pW ? '<td class="r">' + n(pW.cero) + ' · ' + n(pW.negat) + '</td>' : '') + '</tr>');
         out.push('<tr class="tot"><td>Total negados</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
       }
-      out.push('<p class="mt2"><b>Negados en la mañana:</b> ' + n(N.negMan) + ' · <b>en la tarde:</b> ' + n(N.negTar) + ' (por hora en que se cerró la línea)</p>');
+      if (h.motLect && h.motLect.length) out.push('<p class="mt2">' + h.motLect.join(' · ') + '.</p>');
+      if (!(h.motLect && h.motLect.length)) out.push('<p class="mt2"><b>Negados en la mañana:</b> ' + n(N.negMan) + ' · <b>en la tarde:</b> ' + n(N.negTar) + ' (por hora en que se cerró la línea)</p>');
       var t1 = N.tiendas[0], t2 = N.tiendas[1];
       // el fill rate y la exactitud ya van en las tarjetas de arriba: aquí B2B y negados sin motivo registrado
       var sinM = MH ? (MH.m[''] || 0) : null;
@@ -432,7 +460,7 @@
       if (N.top.length) {
         var conMp = N.top.some(function (x) { return x.mp; });
         out.push('<table class="mot" style="margin-top:2px"><thead><tr><th>CÓDIGOS CON MÁS NEGADOS</th><th>DESCRIPCIÓN</th><th class="r">VECES</th><th class="r">' + (conMp ? 'MOTIVO PRINCIPAL' : 'ERROR EN EL PROCESO') + '</th></tr></thead><tbody>' +
-          N.top.map(function (x) { return '<tr><td>' + esc(x.sku) + '</td><td class="desc">' + esc(x.desc) + '</td><td class="r"><b>' + n(x.t) + '</b></td><td class="r">' + (conMp ? esc(x.mp || '–') : n(x.err)) + '</td></tr>'; }).join('') + '</tbody></table>');
+          N.top.slice(0, h.motLect && h.motLect.length ? 3 : 5).map(function (x) { return '<tr><td>' + esc(x.sku) + '</td><td class="desc">' + esc(x.desc) + '</td><td class="r"><b>' + n(x.t) + '</b></td><td class="r">' + (conMp ? esc(x.mp || '–') : n(x.err)) + '</td></tr>'; }).join('') + '</tbody></table>');
       }
       out.push('</div>');
     }
