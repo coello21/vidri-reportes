@@ -177,7 +177,7 @@
   function niceMax(v, paso) { return Math.max(paso, Math.ceil(v / paso) * paso); }
   function grafPedidos(s) {
     var W = 430, H = 128, l = 34, r = 10, t = 12, b = 28, iw = W - l - r, ih = H - t - b, N = s.length;
-    var top = Math.max.apply(null, s.map(function (x) { return Math.max(x.ent, x.ter, x.fin); }).concat([1]));
+    var top = Math.max.apply(null, s.map(function (x) { return Math.max(x.ent, x.fin); }).concat([1]));
     var paso = top > 4000 ? 2000 : top > 2000 ? 1000 : top > 800 ? 500 : 100, mx = niceMax(top, paso);
     var slot = iw / N, bw = slot * 0.6, X = function (i) { return l + slot * i + slot / 2; }, Y = function (v) { return t + ih - v / mx * ih; }, g = '';
     for (var v = 0; v <= mx; v += paso) { var y = Y(v); g += '<line x1="' + l + '" x2="' + (W - r) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + C.LINE + '" stroke-width=".5"/><text x="' + (l - 5) + '" y="' + (y + 2.5).toFixed(1) + '" class="ax" text-anchor="end">' + n(v) + '</text>'; }
@@ -186,8 +186,6 @@
       if (i % 2 === (N - 1) % 2) { var w = DOW[dowOf(x.d)], pk = (i === N - 1) ? ' pk' : ''; g += '<text x="' + X(i).toFixed(1) + '" y="' + (H - 17) + '" class="ax' + pk + '" text-anchor="middle">' + w + '</text><text x="' + X(i).toFixed(1) + '" y="' + (H - 8) + '" class="ax' + pk + '" text-anchor="middle">' + (+x.d.slice(8)) + '/' + (+x.d.slice(5, 7)) + '</text>'; }
     });
     var pts = function (k) { return s.map(function (x, i) { return X(i).toFixed(1) + ',' + Y(Math.max(0, x[k])).toFixed(1); }).join(' '); };
-    g += '<polyline points="' + pts('ter') + '" fill="none" stroke="' + C.GREEN + '" stroke-width="1.6"/>';
-    s.forEach(function (x, i) { g += '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(Math.max(0, x.ter)).toFixed(1) + '" r="1.6" fill="' + C.GREEN + '"/>'; });
     g += '<polyline points="' + pts('fin') + '" fill="none" stroke="' + C.ORANGE + '" stroke-width="1.4" stroke-dasharray="4 3"/>';
     var last = s[N - 1]; g += '<text x="' + X(N - 1).toFixed(1) + '" y="' + (Y(last.fin) - 5).toFixed(1) + '" class="lab" fill="' + C.ORANGE + '" text-anchor="middle">' + n(last.fin) + '</text>';
     return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%">' + g + '</svg>';
@@ -213,7 +211,11 @@
   function armar() {
     var STORE = src().S;
     var P = datosPedidos();
-    var N = datosNegados(P ? P.hoy : null);
+    // Reporte de la mañana (corte antes de las 12 m.): cómo cerró AYER (negados, fill rate) y cómo AMANECIMOS hoy (pedidos)
+    var amanecer = !!(P && (P.lc - dStart(P.hoy)) < 12 * 60);
+    var ayer = null;
+    if (amanecer) { var Hs = src().H || {}; ayer = Object.keys(Hs).filter(function (x) { return x < P.hoy && Hs[x] && Hs[x].meta && Hs[x].meta.totalFinal; }).sort().pop() || null; }
+    var N = datosNegados(amanecer && ayer ? ayer : P ? P.hoy : null);
     if (!P && !N) throw new Error('No hay datos cargados para armar el reporte.');
     var dia = P ? P.hoy : N.hoy.d;
     var cierre = P ? (P.lc - dStart(P.hoy)) >= 16 * 60 + 30 : !N.parcial;
@@ -228,19 +230,23 @@
 
     /* ----- números de apoyo ----- */
     var revN = (STORE && STORE.revN) || {};
-    var lp = revN[dia] != null ? revN[dia] : null;                       // líneas preparadas (entregadas al revisador)
-    var diaAnt = addD(dia, -7), lpAnt = revN[diaAnt] != null ? revN[diaAnt] : null;
-    var lAct = N && N.hoy.d === dia ? N.hoy.lin : null;                 // líneas actualizadas (estado A)
+    var dN = N ? N.hoy.d : dia;                                          // día de los negados (ayer en el reporte de la mañana)
+    var lp = revN[dN] != null ? revN[dN] : null;                         // líneas preparadas (entregadas al revisador)
+    var diaAnt = addD(dN, -7), lpAnt = revN[diaAnt] != null ? revN[diaAnt] : null;
+    var lAct = N ? N.hoy.lin : null;                                     // líneas actualizadas (estado A)
+    var frV = N && N.fr && N.fr.base ? pct(N.fr.prep, N.fr.base) : null;
+    var ElDN = cap(amanecer ? 'ayer ' + DOW_L[dowOf(dN)] : 'el ' + DOW_L[dowOf(dN)]);
     var ex = N && N.hoy.prep ? pct(N.hoy.exactas, N.hoy.prep) : null, exAnt = N && N.prevW && N.prevW.prep ? pct(N.prevW.exactas, N.prevW.prep) : null;
     var b2b = N && N.b2b.tot ? pct(N.b2b.ok, N.b2b.tot) : null;
     var sem = function (d) { return 'el ' + DOW_L[dowOf(d)] + ' pasado'; };
+    var F2 = function (d) { var F = src(); if (!F.FR) return null; var r = F.FR([d]); return r && r.base ? pct(r.prep, r.base) : null; };
 
     /* ----- lo bueno y lo que hay que mejorar (reglas fijas, en positivo) ----- */
     var bueno = [], mejorar = [];
-    if (lp != null) bueno.push(n(lp) + ' líneas preparadas (entregadas al revisador)' + (lpAnt != null && lp > lpAnt ? ', ' + n(lp - lpAnt) + ' más que ' + sem(dia) : '') + (lAct != null ? '; ' + n(lAct) + ' líneas actualizadas' : '') + '.');
+    if (lp != null) bueno.push((amanecer ? 'Ayer: ' : '') + n(lp) + ' líneas preparadas (entregadas al revisador)' + (lpAnt != null && lp > lpAnt ? ', ' + n(lp - lpAnt) + ' más que ' + sem(dN) : '') + (lAct != null ? '; ' + n(lAct) + ' líneas actualizadas' : '') + '.');
+    if (frV != null && N.prevW && F2(N.prevW.d) != null && frV > F2(N.prevW.d) + 0.5) bueno.push('Fill rate ' + dec(frV) + '%, arriba de ' + sem(N.prevW.d) + ' (' + dec(F2(N.prevW.d)) + '%).');
     if (P) {
-      if (P.ter) bueno.push('Se terminaron ' + n(P.ter) + ' pedidos' + (P.prev && P.ter > P.prev.ter ? ', ' + n(P.ter - P.prev.ter) + ' más que ' + sem(P.prev.dia) + ' a la misma hora' : '') + '.');
-      if (P.fin < P.ini) bueno.push('El pendiente bajó en ' + n(P.ini - P.fin) + ' pedidos durante el día.');
+      if (cierre && P.fin < P.ini) bueno.push('El pendiente bajó en ' + n(P.ini - P.fin) + ' pedidos durante el día.');
       if (P.asg && P.cobertura >= 0.5) { var viejosAsg = P.asg - (P.asgPorDia[P.hoy] || 0); bueno.push('Se asignaron ' + n(P.asg) + ' pedidos' + (viejosAsg ? ', ' + n(viejosAsg) + ' de días anteriores' : '') + '.'); }
       if (!P.viejos) bueno.push('Todo lo que llevaba más de 72 h ya tiene preparador.');
     }
@@ -263,33 +269,35 @@
     h.bueno = bueno; h.mejorar = mejorar.slice(0, 5);
 
     /* ----- titular y párrafo ----- */
-    var t = [];
-    if (lp != null) t.push(ElDia + (cierre ? ' cerró con ' : ' lleva ') + n(lp) + ' líneas preparadas');
-    if (P && P.ter) t.push((t.length ? '' : ElDia + ' ') + (t.length ? 'y ' : (cierre ? 'cerró con ' : 'lleva ')) + n(P.ter) + ' pedidos terminados');
-    if (!t.length && N) t.push(ElDia + (cierre ? ' cerró con ' : ' lleva ') + n(N.hoy.lin) + ' líneas actualizadas');
-    h.titulo = t.join(' ') + (h.mejorar.length ? '; foco: ' + h.mejorar[0].q.charAt(0).toLowerCase() + h.mejorar[0].q.slice(1).replace(/\s*\(.*$/, '').replace(/[.:].*$/, '') : '');
+    var t = [], cerroLlev = (amanecer || cierre) ? ' cerró con ' : ' lleva ';
+    if (frV != null) t.push(ElDN + cerroLlev + 'fill rate de ' + dec(frV) + '%' + (lp != null ? ' y ' + n(lp) + ' líneas preparadas' : ''));
+    else if (lp != null) t.push(ElDN + cerroLlev + n(lp) + ' líneas preparadas');
+    else if (N) t.push(ElDN + cerroLlev + n(N.hoy.lin) + ' líneas actualizadas');
+    if (P) t.push((t.length ? (amanecer ? '; hoy amanecemos con ' : '; quedan ') : (amanecer ? 'Hoy amanecemos con ' : 'Quedan ')) + n(P.sinAsig) + ' pedidos por asignar');
+    h.titulo = t.join('') + (h.mejorar.length ? '; foco: ' + h.mejorar[0].q.charAt(0).toLowerCase() + h.mejorar[0].q.slice(1).replace(/\s*\(.*$/, '').replace(/[.:].*$/, '') : '');
 
     var lead = [];
-    if (P) {
-      lead.push('Entraron ' + n(P.ent) + ' pedidos y se terminaron ' + n(P.ter) + (P.terTar ? ' (' + n(P.terMan) + ' en la mañana y ' + n(P.terTar) + ' en la tarde)' : '') + '; ' + (cierre ? 'quedan ' : 'van ') + n(P.fin) + ' por terminar.');
-      if (P.prev) lead.push('A la misma hora ' + sem(P.prev.dia) + ' se habían terminado ' + n(P.prev.ter) + '.');
-    }
-    if (N) lead.push('De ' + n(N.hoy.lin) + ' líneas actualizadas, el ' + dec(100 - N.pHoy) + '% se preparó sin negado' + (N.prom != null ? ' (promedio de los ' + N.ventana.length + ' días anteriores: ' + dec(100 - N.prom) + '%)' : '') + '.');
+    if (N) lead.push((amanecer ? 'Ayer: de ' : 'De ') + n(N.hoy.lin) + ' líneas actualizadas se negó el ' + dec(N.pHoy) + '% (' + n(N.hoy.neg) + '): ' + n(N.hoy.err) + ' por error en el proceso y ' + n(N.hoy.sst) + ' sin stock' +
+      (frV != null ? '. Fill rate ' + dec(frV) + '% (' + n(N.fr.prep) + ' de ' + n(N.fr.base) + ' líneas)' : '') + (N.b2b.tot ? ' y B2B ' + dec(pct(N.b2b.ok, N.b2b.tot)) + '% (' + n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos)' : '') + '.');
+    if (P) lead.push((amanecer ? 'Hoy, al corte de ' + horaMin(P.lc) + ', amanecemos con ' : (cierre ? 'Al cierre quedan ' : 'Al corte de ' + horaMin(P.lc) + ' hay ')) + n(P.sinAsig) + ' pedidos por asignar' + (P.viejos ? ' (' + n(P.viejos) + ' con más de 72 h)' : '') + ', ' + n(P.enPrep) + ' en preparación' + (P.nDia ? ' y han entrado ' + n(P.nDia) + ' pedidos nuevos' : '') + '.');
     h.lead = lead.join(' ');
 
     /* ----- tarjetas ----- */
-    if (lp != null) h.kpis.push({ l: 'Líneas preparadas', v: n(lp), o: false, s: (lAct != null ? n(lAct) + ' líneas actualizadas' : 'entregadas al revisador') + (lpAnt != null ? ' · ' + sem(dia) + ': ' + n(lpAnt) : '') });
-    if (P) h.kpis.push({ l: 'Pedidos terminados', v: n(P.ter), o: false, s: 'entraron ' + n(P.ent) + ' · ' + (cierre ? 'quedan ' : 'van ') + n(P.fin) + ' por terminar · ' + n(P.sinAsig) + ' por asignar' });
+    var deDia = amanecer ? ' · cierre de ayer' : cierre ? ' · cierre' : '';
     if (N) {
-      h.kpis.push({ l: 'Negados del día', v: dec(N.pHoy) + '%', o: false, s: n(N.hoy.neg) + ' de ' + n(N.hoy.lin) + ' líneas · ' + pctInt(N.hoy.err, N.hoy.neg) + ' por error en el proceso · ' + pctInt(N.hoy.sst, N.hoy.neg) + ' sin stock' });
-      h.kpis.push({ l: 'Exactitud de picking', v: ex != null ? dec(ex) + '%' : '–', o: false, s: n(N.hoy.exactas) + ' de ' + n(N.hoy.prep) + ' líneas completas · meta 99,5%' });
+      h.kpis.push({ l: 'Fill rate' + deDia, v: frV != null ? dec(frV) + '%' : '–', o: false, s: (frV != null ? n(N.fr.prep) + ' de ' + n(N.fr.base) + ' líneas' : 'sin líneas cerradas') + ' · ' + (N.b2b.tot ? 'B2B ' + dec(pct(N.b2b.ok, N.b2b.tot)) + '% · ' + n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos' : 'B2B: sin pedidos cerrados') });
+      h.kpis.push({ l: 'Negados' + deDia, v: dec(N.pHoy) + '%', o: false, s: n(N.hoy.neg) + ' de ' + n(N.hoy.lin) + ' líneas · ' + pctInt(N.hoy.err, N.hoy.neg) + ' por error en el proceso · ' + pctInt(N.hoy.sst, N.hoy.neg) + ' sin stock' });
+      h.kpis.push({ l: 'Exactitud de picking' + deDia, v: ex != null ? dec(ex) + '%' : '–', o: false, s: n(N.hoy.exactas) + ' de ' + n(N.hoy.prep) + ' líneas completas · meta 99,5%' });
     }
-    if (h.kpis.length < 4 && P) h.kpis.push({ l: 'Por asignar con más de 72 h', v: n(P.viejos), o: false, s: P.viejos ? n(P.skV) + ' SKUs' : 'todo tiene preparador' });
+    if (P) h.kpis.push({ l: amanecer ? 'Por asignar al amanecer' : 'Pedidos por asignar', v: n(P.sinAsig), o: false, s: (P.viejos ? n(P.viejos) + ' con más de 72 h' : 'nada con más de 72 h') + ' · ' + n(P.enPrep) + ' en preparación · ' + n(P.skR) + ' SKUs' });
+    if (h.kpis.length < 4 && lp != null) h.kpis.push({ l: 'Líneas preparadas', v: n(lp), o: false, s: (lAct != null ? n(lAct) + ' líneas actualizadas' : 'entregadas al revisador') + (lpAnt != null ? ' · ' + sem(dN) + ': ' + n(lpAnt) : '') });
 
     /* ----- sección 1: pedidos ----- */
     if (P) {
       var avance = P.asg && P.cobertura >= 0.5 ? (P.asg - (P.asgPorDia[P.hoy] || 0)) : 0;
-      h.s1t = P.nDia ? (avance ? 'Se avanzó con lo de días anteriores (' + n(avance) + ' pedidos asignados); de lo que cayó hoy ' : 'De lo que cayó hoy ') + (cierre ? 'se asignó' : 'va asignado') + ' el ' + pctInt(P.diaAsig, P.nDia) + ' y se terminó el ' + pctInt(P.diaTerm, P.nDia) : 'Hoy no han caído pedidos nuevos';
+      h.s1t = amanecer
+        ? 'Amanecimos con ' + n(P.sinAsig) + ' pedidos por asignar' + (P.viejos ? ', ' + n(P.viejos) + ' con más de 72 h' : '') + ', y ' + n(P.enPrep) + ' en preparación'
+        : cap(P.nDia ? (avance ? 'se avanzó con lo de días anteriores (' + n(avance) + ' pedidos asignados); de lo que cayó hoy ' : 'de lo que cayó hoy ') + (cierre ? 'se asignó' : 'va asignado') + ' el ' + pctInt(P.diaAsig, P.nDia) : 'hoy no han caído pedidos nuevos');
       var det = [];
       var dR = Object.keys(P.porDiaR).sort().reverse(), partesR = [], ant = 0;
       dR.forEach(function (d) { if (d === P.hoy) partesR.push('hoy ' + n(P.porDiaR[d].c)); else if (partesR.length < 4) partesR.push(DOW_L[dowOf(d)] + ' ' + (+d.slice(8)) + ': ' + n(P.porDiaR[d].c)); else ant += P.porDiaR[d].c; });
@@ -308,7 +316,7 @@
     /* ----- sección 2: negados ----- */
     if (N) {
       var d2 = N.hoy.d;
-      h.s2t = cap('el ' + DOW_L[dowOf(d2)]) + ': ' + dec(100 - N.pHoy) + '% de las líneas se preparó sin negado' + (N.prom != null && N.pHoy <= N.prom ? ', mejor que el promedio' : '') + '; de lo negado, ' + pctInt(N.hoy.err, N.hoy.neg) + ' fue por error en el proceso';
+      h.s2t = cap((amanecer ? 'ayer ' : 'el ') + DOW_L[dowOf(d2)]) + (frV != null ? ' cerró con fill rate de ' + dec(frV) + '%' : ': ' + dec(100 - N.pHoy) + '% de las líneas sin negado') + (N.prom != null && N.pHoy <= N.prom ? ', negados por debajo del promedio' : '') + '; de lo negado, ' + pctInt(N.hoy.err, N.hoy.neg) + ' fue por error en el proceso';
       h.n = N;
     }
 
@@ -318,7 +326,8 @@
     if (!h.acciones.length) h.acciones.push({ q: 'Mantener el ritmo: pendiente, pedidos de más de 72 h y negados dentro de lo normal.', c: '–', a: true });
     void b2b;
 
-    h.meta = { dia: dia, cierre: cierre, momento: momento, corteTxt: corteTxt, negHora: negHora, P: P, N: N };
+    if (amanecer) momento = 'al amanecer (' + corteTxt + ')';
+    h.meta = { dia: dia, cierre: cierre, momento: momento, corteTxt: corteTxt, negHora: negHora, P: P, N: N, amanecer: amanecer };
     return h;
   }
 
@@ -363,24 +372,24 @@
     out.push('<style>' + CSS + '</style></head><body>');
     out.push('<div class="tb"><button type="button" id="pdf">Descargar PDF</button><button type="button" class="s" id="cerrar">Cerrar</button><span>En la ventana de impresión elige «Guardar como PDF».</span></div>');
     out.push('<section class="page">');
-    out.push('<div class="hd">' + (logo ? '<img src="' + logo + '" alt="Vidri">' : '<b>VIDRI</b>') + '<div class="r">Reporte ejecutivo · CD Nejapa<br><b>' + esc(lblLargo(M.dia)) + ' · ' + esc(M.momento) + '</b><br>Negados y pedidos' + (P ? ' al corte de ' + esc(M.corteTxt) : '') + '</div></div>');
-    out.push('<div class="eb">' + [P ? 'Pedidos CD' : '', N ? 'Negados' : ''].filter(Boolean).join(' · ') + '</div>');
+    out.push('<div class="hd">' + (logo ? '<img src="' + logo + '" alt="Vidri">' : '<b>VIDRI</b>') + '<div class="r">Reporte ejecutivo · CD Nejapa<br><b>' + esc(lblLargo(M.dia)) + ' · ' + esc(M.momento) + '</b><br>' + (M.amanecer ? 'Cierre de ayer y pedidos al corte de ' + esc(M.corteTxt) : 'Negados y pedidos' + (P ? ' al corte de ' + esc(M.corteTxt) : '')) + '</div></div>');
+    out.push('<div class="eb">' + (M.amanecer ? 'Cómo cerramos ayer y cómo amanecimos hoy' : [P ? 'Pedidos CD' : '', N ? 'Negados' : ''].filter(Boolean).join(' · ')) + '</div>');
     out.push('<h1>' + esc(h.titulo) + '</h1><p class="lead">' + esc(h.lead) + '</p>');
     out.push('<div class="kpis">' + h.kpis.map(function (k) { return '<div class="k"><div class="l">' + esc(k.l) + '</div><div class="v' + (k.o ? ' o' : '') + '">' + esc(k.v) + '</div><div class="s">' + esc(k.s) + '</div></div>'; }).join('') + '</div>');
-    out.push('<div class="bm"><div class="b"><div class="t">Lo bueno del día</div><ul>' + h.bueno.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
+    out.push('<div class="bm"><div class="b"><div class="t">' + (M.amanecer ? 'Lo bueno' : 'Lo bueno del día') + '</div><ul>' + h.bueno.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
       '<div class="m"><div class="t">Qué mejorar</div><ul>' + (h.mejorar.length ? h.mejorar.map(function (x) { return '<li>' + (x.a ? '<b>Prioridad:</b> ' : '') + esc(x.q) + '</li>'; }).join('') : '<li>Mantener el ritmo del día.</li>') + '</ul></div></div>');
     var sec = 1;
     if (P) {
       out.push('<div class="sec"><div class="eb">' + (sec++) + ' · Pedidos CD</div><h2>' + esc(h.s1t) + '</h2><div class="two"><div>');
-      out.push('<p class="cap">Entraron por día (barras), terminados (verde) y pedidos sin terminar al cierre (naranja). El ' + lblFecha(P.hoy) + ' va al corte de ' + esc(M.corteTxt) + '.</p>');
-      out.push('<div class="lg"><span><i style="background:' + C.BLUE + '"></i>Entraron</span><span><i class="ln" style="background:' + C.GREEN + '"></i>Terminados</span><span><i class="ln" style="background:' + C.ORANGE + '"></i>Sin terminar al cierre</span></div>');
+      out.push('<p class="cap">Entraron por día (barras) y pedidos sin terminar al cierre de cada día (naranja). El ' + lblFecha(P.hoy) + ' va al corte de ' + esc(M.corteTxt) + '.</p>');
+      out.push('<div class="lg"><span><i style="background:' + C.BLUE + '"></i>Entraron</span><span><i class="ln" style="background:' + C.ORANGE + '"></i>Sin terminar al cierre</span></div>');
       out.push(grafPedidos(P.serie) + '</div><div>');
-      out.push('<div class="flow"><div class="b"><div class="t">INICIÓ</div><div class="v">' + n(P.ini) + '</div><div class="t">SIN TERMINAR</div></div><span class="op">+</span><div class="b"><div class="t">ENTRARON</div><div class="v">' + n(P.ent) + '</div><div class="t">EN EL DÍA</div></div><span class="op">−</span><div class="b"><div class="t">TERMINADOS</div><div class="v">' + n(P.ter) + '</div><div class="t">EN EL DÍA</div></div><span class="op">=</span><div class="b now"><div class="t">AL CORTE</div><div class="v">' + n(P.fin) + '</div><div class="t">SIN TERMINAR</div></div></div>');
+      out.push('<div class="flow"><div class="b now"><div class="t">POR ASIGNAR</div><div class="v">' + n(P.sinAsig) + '</div><div class="t">' + n(P.skR) + ' SKUS</div></div><div class="b"><div class="t">MÁS DE 72 H</div><div class="v">' + n(P.viejos) + '</div><div class="t">SIN PREPARADOR</div></div><div class="b"><div class="t">EN PREPARACIÓN</div><div class="v">' + n(P.enPrep) + '</div><div class="t">AL CORTE</div></div><div class="b"><div class="t">ENTRARON HOY</div><div class="v">' + n(P.nDia) + '</div><div class="t">AL CORTE</div></div></div>');
       out.push('<div class="det">' + h.s1det.map(function (p) { return '<p>' + p + '</p>'; }).join('') + '</div></div></div></div>');
     }
     if (N) {
       var H = N.hoy, pW = N.prevW;
-      out.push('<div class="sec"><div class="eb">' + (sec++) + ' · Negados (día' + (N.parcial ? ', parcial' : '') + ')</div><h2>' + esc(h.s2t) + '</h2><div class="two"><div>');
+      out.push('<div class="sec"><div class="eb">' + (sec++) + ' · ' + (M.amanecer ? 'Cierre de ayer · fill rate y negados (' + DOW_L[dowOf(H.d)] + ' ' + (+H.d.slice(8)) + ')' : 'Negados (día' + (N.parcial ? ', parcial' : '') + ')') + '</div><h2>' + esc(h.s2t) + '</h2><div class="two"><div>');
       out.push('<p class="cap">% de líneas negadas por día y motivo.' + (N.prom != null ? ' Línea discontinua: promedio de los ' + N.ventana.length + ' días anteriores (' + dec(N.prom) + '%).' : '') + '</p>');
       out.push('<div class="lg"><span><i style="background:' + C.ORANGE + '"></i>Negadas por error en el proceso (había producto)</span><span><i style="background:' + C.BLUE + '"></i>Negadas sin stock (existencia a cero)</span></div>');
       out.push(grafNegados(N.serie, N.prom) + '</div><div>');
@@ -395,9 +404,11 @@
         var ORD = ['Físico no se encuentra', 'Existencia a cero', 'Sin existencia ubicación picking', 'Producto incompleto o averiado', 'Pasillo bloqueado'];
         var rk = function (k) { return k === '' ? 99 : (ORD.indexOf(k) + 1 || 50); };
         ks.sort(function (x, y) { return rk(x) - rk(y); });
-        var cm = function (M, k) { return M ? '<b>' + n(M.m[k] || 0) + '</b> · ' + pctInt(M.m[k] || 0, M.n) : '–'; };
+        // % sobre todas las negadas del día; lo que el archivo no trae con motivo va como "Sin dato"
+        var cm = function (M, r, k) { if (!M) return '–'; var v = k === '\u0000' ? Math.max(0, r.neg - M.n) : (M.m[k] || 0); return '<b>' + n(v) + '</b> · ' + pctInt(v, r.neg); };
+        if ((MH && H.neg > MH.n) || (MW && pW && pW.neg > MW.n)) ks.push('\u0000');
         out.push('<table class="mot"><thead><tr><th>MOTIVO REGISTRADO</th><th class="r">' + hd2(H) + (N.parcial ? ' (PARCIAL)' : ' (DÍA)') + '</th>' + (pW ? '<th class="r">' + hd2(pW) + ' (DÍA)</th>' : '') + '</tr></thead><tbody>');
-        ks.forEach(function (k) { out.push('<tr><td>' + (k === '' ? '<b>Sin motivo</b>' : esc(k)) + '</td><td class="r">' + cm(MH, k) + '</td>' + (pW ? '<td class="r">' + cm(MW, k) + '</td>' : '') + '</tr>'); });
+        ks.forEach(function (k) { out.push('<tr' + (k === '\u0000' ? ' class="sub"' : '') + '><td>' + (k === '' ? '<b>Sin motivo</b>' : k === '\u0000' ? 'Sin dato (sin motivo en el archivo)' : esc(k)) + '</td><td class="r">' + cm(MH, H, k) + '</td>' + (pW ? '<td class="r">' + cm(MW, pW, k) + '</td>' : '') + '</tr>'); });
         out.push('<tr class="tot"><td>Total negados</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
       } else {
         out.push('<table class="mot"><thead><tr><th>MOTIVO</th><th class="r">' + hd2(H) + (N.parcial ? ' (PARCIAL)' : ' (DÍA)') + '</th>' + (pW ? '<th class="r">' + hd2(pW) + ' (DÍA)</th>' : '') + '</tr></thead><tbody>');
@@ -408,9 +419,10 @@
       }
       out.push('<p class="mt2"><b>Negados en la mañana:</b> ' + n(N.negMan) + ' · <b>en la tarde:</b> ' + n(N.negTar) + ' (por hora en que se cerró la línea)</p>');
       var t1 = N.tiendas[0], t2 = N.tiendas[1];
-      out.push('<div class="mini"><div><div class="v">' + (H.prep ? dec(pct(H.exactas, H.prep)) + '%' : '–') + '</div><div class="s">exactitud de picking · meta 99,5%</div></div>');
-      var fr = N.fr, b2bTxt = N.b2b.tot ? 'B2B ' + dec(pct(N.b2b.ok, N.b2b.tot)) + '% · ' + n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos' : 'B2B: sin pedidos cerrados';
-      out.push('<div><div class="v">' + (fr && fr.base ? dec(pct(fr.prep, fr.base)) + '%' : '–') + '</div><div class="s">fill rate' + (fr && fr.base ? ' · ' + n(fr.prep) + ' de ' + n(fr.base) + ' líneas' : '') + ' · ' + b2bTxt + '</div></div>');
+      // el fill rate y la exactitud ya van en las tarjetas de arriba: aquí B2B y negados sin motivo registrado
+      var sinM = MH ? (MH.m[''] || 0) : null;
+      out.push('<div class="mini"><div><div class="v">' + (N.b2b.tot ? dec(pct(N.b2b.ok, N.b2b.tot)) + '%' : '–') + '</div><div class="s">fill rate B2B · ' + (N.b2b.tot ? n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos completos' : 'sin pedidos cerrados') + '</div></div>');
+      out.push('<div><div class="v">' + (sinM != null ? n(sinM) : '–') + '</div><div class="s">' + (sinM != null ? 'negadas sin motivo registrado (' + pctInt(sinM, H.neg) + ')' : 'sin motivo registrado ese día') + '</div></div>');
       out.push('<div><div class="v">' + (t1 ? n(t1.neg) : '–') + '</div><div class="s">' + (t1 ? 'negados en ' + esc(nombre(t1.s)) + (t2 ? ' · ' + esc(nombre(t2.s)) + ' ' + n(t2.neg) : '') : 'sin negados por sucursal') + '</div></div></div>');
       out.push('</div></div>');
       if (N.top.length) {
@@ -421,12 +433,11 @@
       out.push('</div>');
     }
     var foot = [];
-    if (P) foot.push('Pedidos al corte de ' + M.corteTxt + (N ? '; negados al de la última carga' + (M.negHora ? ' (' + M.negHora + ')' : '') : ''));
+    if (P) foot.push('Pedidos al corte de ' + M.corteTxt + (N ? (M.amanecer ? '; fill rate y negados: día completo de ayer (' + lblFecha(N.hoy.d) + ')' : '; negados al de la última carga' + (M.negHora ? ' (' + M.negHora + ')' : '')) : ''));
+    foot.push('Fill rate = líneas preparadas ÷ (preparadas + negadas que sí se podían preparar); no cuentan las negadas por «Existencia a cero»');
     if (N && N.parcial) foot.push('El Radar marca el ' + lblFecha(N.hoy.d) + ' como parcial: las líneas que aún no están en estado A no entran');
     foot.push('Sin asignar = estado Recibido · 72 h = de la fecha del pedido al corte, contando sábado y domingo · Espera hasta asignación = de Recibido a la creación de la orden de preparación');
-    if (P && P.prev) foot.push('Pedidos: comparación contra el ' + DOW_L[dowOf(P.prev.dia)] + ' ' + (+P.prev.dia.slice(8)) + ' a la misma hora');
     if (N && N.prevW) foot.push('Negados: comparación contra el ' + DOW_L[dowOf(N.prevW.d)] + ' ' + (+N.prevW.d.slice(8)) + ' (día completo)');
-    foot.push('Productividad no incluida: sus datos aún no están en la base');
     foot.push('Reporte generado automáticamente por el Radar con reglas fijas');
     out.push('<div class="foot">' + esc(foot.join(' · ')) + '</div></section>');
     out.push('<script>document.getElementById("pdf").onclick=function(){window.print()};document.getElementById("cerrar").onclick=function(){try{parent.__cerrarReporte()}catch(e){window.close()}};<\/script>');
