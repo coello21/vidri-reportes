@@ -5,6 +5,7 @@
  */
 import { ymd, addDays, timeOf } from '../comun/fechas';
 import type { Registro, StoreRadar } from './tipos';
+import { motClean, motSort } from './motivos';
 
 type Store = StoreRadar & {
   revN?: Record<string, number>;
@@ -15,8 +16,8 @@ type Store = StoreRadar & {
   rev?: unknown; revT?: unknown;
 };
 
-/** [pedido, orden, sucursal, sku, descripción, UM, cantidad, disponible, ubicación 1, ubicación 2, preparador, fecha de revisión (ms)] */
-export type FilaSinActualizar = [string, string, string, string, string, string, number | null, number | null, string, string, string, number];
+/** [pedido, orden, sucursal, sku, descripción, UM, cantidad, disponible, ubicación 1, ubicación 2, preparador, fecha de revisión (ms), motivo de negado registrado (si el Excel lo trae)] */
+export type FilaSinActualizar = [string, string, string, string, string, string, number | null, number | null, string, string, string, number, string?];
 
 function corteDe(records: Registro[]): number {
   let corte = 0;
@@ -95,6 +96,7 @@ export function fotoSinActualizar(store: StoreRadar, records: Registro[]): boole
     if (!r || r.CantPrep !== 0) return;
     rows.push([String(r.Pedido), String(r.Orden || ''), r.Sucursal || '', String(r.SKU), r.Desc || '', String(r.UM || ''), r.Cantidad, r.Disponible,
       String(r.Ubic1 || ''), String(r.Ubic2 || ''), r.Preparador || '', r.FechaRevision!.getTime()]);
+    if ('Motivo' in r) rows[rows.length - 1].push(motClean(r.Motivo));
   });
   if (corte && (!S.pneg || corte >= S.pneg.t)) { S.pneg = { t: corte, rows }; return true; }
   return false;
@@ -104,7 +106,11 @@ export function fotoSinActualizar(store: StoreRadar, records: Registro[]): boole
  * rev = última vez que se mandó a revisión (ms), de todas las líneas del código.
  * motivo = según el Disponible del último Excel: positivo (había stock: error en el proceso), cero (sin existencia) o negativo.
  */
-export interface CodigoSinActualizar { sku: string; desc: string; um: string; disp: number; n: number; q: number; ubic: string[]; suc: string[]; pedidos: number; rev: number; motivo: 'positivo' | 'cero' | 'negativo' }
+export interface CodigoSinActualizar {
+  sku: string; desc: string; um: string; disp: number; n: number; q: number; ubic: string[]; suc: string[]; pedidos: number; rev: number; motivo: 'positivo' | 'cero' | 'negativo';
+  /** motivo registrado por el preparador (el que más se repite en sus líneas); null si el Excel no traía la columna */
+  motReg: string | null;
+}
 
 /**
  * Negados que todavía no pasan a actualizado, con el mismo código sumado y los tres motivos
@@ -116,19 +122,25 @@ export function sinActualizarPorCodigo(store: StoreRadar): { t: number; codigos:
   if (!P) return null;
   const rk = (v: number | null) => ((v || 0) > 0 ? 0 : v === 0 ? 1 : 2);
   const rows = P.rows.slice().sort((a, b) => rk(a[7]) - rk(b[7]) || String(a[8]).localeCompare(String(b[8])) || a[11] - b[11]);
-  type G = { sku: string; desc: string; um: string; disp: number; n: number; q: number; min: number; ub: Set<string>; suc: Set<string>; ped: Set<string>; t: number };
+  type G = { sku: string; desc: string; um: string; disp: number; n: number; q: number; min: number; ub: Set<string>; suc: Set<string>; ped: Set<string>; t: number; mot: Record<string, number> | null };
   const M = new Map<string, G>();
   rows.forEach((r) => {
     let g = M.get(r[3]);
-    if (!g) { g = { sku: r[3], desc: r[4], um: r[5], disp: r[7] || 0, n: 0, q: 0, min: Infinity, ub: new Set(), suc: new Set(), ped: new Set(), t: r[11] }; M.set(r[3], g); }
+    if (!g) { g = { sku: r[3], desc: r[4], um: r[5], disp: r[7] || 0, n: 0, q: 0, min: Infinity, ub: new Set(), suc: new Set(), ped: new Set(), t: r[11], mot: null }; M.set(r[3], g); }
+    if (r.length > 12) { const k = r[12] || ''; g.mot = g.mot || {}; g.mot[k] = (g.mot[k] || 0) + 1; }
     g.n++; g.q += r[6] || 0; g.min = Math.min(g.min, r[6] || 0);
     if (r[11] > g.t) { g.t = r[11]; g.disp = r[7] || 0; }
     [r[8], r[9]].forEach((u) => { if (u) g!.ub.add(u); });
     if (r[2]) g.suc.add(r[2]);
     g.ped.add(r[0]);
   });
+  const principal = (m: Record<string, number> | null) => (m ? Object.keys(m).sort((a, b) => m[b] - m[a] || motSort(a, b))[0] : null);
+  const conMot = [...M.values()].some((g) => g.mot);
   const codigos = [...M.values()]
-    .sort((a, b) => rk(a.disp) - rk(b.disp) || b.n - a.n || b.q - a.q || String([...a.ub][0] || '').localeCompare(String([...b.ub][0] || '')))
-    .map((g) => ({ sku: g.sku, desc: g.desc, um: g.um, disp: g.disp, n: g.n, q: g.q, ubic: [...g.ub], suc: [...g.suc], pedidos: g.ped.size, rev: g.t, motivo: (g.disp > 0 ? 'positivo' : g.disp === 0 ? 'cero' : 'negativo') as CodigoSinActualizar['motivo'] }));
+    .map((g) => ({ g, mr: principal(g.mot) }))
+    // con motivo registrado se ordena por motivo; si no, por el disponible como antes
+    .sort((A, B) => (conMot ? motSort(A.mr ?? '', B.mr ?? '') : rk(A.g.disp) - rk(B.g.disp)) || B.g.n - A.g.n || B.g.q - A.g.q || String([...A.g.ub][0] || '').localeCompare(String([...B.g.ub][0] || '')))
+    .map(({ g, mr }) => ({ sku: g.sku, desc: g.desc, um: g.um, disp: g.disp, n: g.n, q: g.q, ubic: [...g.ub], suc: [...g.suc], pedidos: g.ped.size, rev: g.t,
+      motivo: (g.disp > 0 ? 'positivo' : g.disp === 0 ? 'cero' : 'negativo') as CodigoSinActualizar['motivo'], motReg: mr }));
   return { t: P.t, codigos };
 }

@@ -99,7 +99,7 @@ export class TopNegados {
     document.getElementById('pnegDl')?.addEventListener('click', () => this.excelSinActualizar());
     document.getElementById('pnegFiltro')?.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest('button'); if (!b) return;
-      this.pnegFiltro = (b.dataset.m || 'all') as TopNegados['pnegFiltro'];
+      this.pnegFiltro = b.dataset.m ?? 'all';
       this.renderSinActualizar();
     });
   }
@@ -150,7 +150,7 @@ export class TopNegados {
     }
     this.renderRanking1();
     this.renderRanking2();
-    this.renderMotivo();
+    this.renderTopMotivo();
     this.renderSucursales();
     this.renderDetalle();
     this.renderSinActualizar();
@@ -218,29 +218,21 @@ export class TopNegados {
     box.querySelectorAll<HTMLElement>('tr.clk').forEach((r) => r.addEventListener('click', () => this.elegirCodigo(r.dataset.sku!)));
   }
 
-  private renderMotivo() {
-    const el = $('donutLegend'), c = this.vm!.bucketCounts;
-    const sub = el.closest('.chart')?.querySelector('.cardsub');
-    if (this.motCod) {
-      // barras por motivo registrado por el preparador
-      const N = negadosPorMotivo(this.radar.history, this.diasSel(this.vm!));
-      const G = Object.keys(N.m).sort(motSort).map((k) => ({ l: motLabel(k), v: N.m[k], c: motColor(k) }));
-      const sd = Math.max(0, N.neg - N.negMot);
-      if (sd) G.push({ l: 'Sin dato', v: sd, c: '#D8CFBE' });
-      const total = G.reduce((a, g) => a + g.v, 0), max = Math.max(1, ...G.map((g) => g.v));
-      if (sub) sub.textContent = 'Líneas negadas según el motivo que registró el preparador' + (sd ? ' («Sin dato»: días antes del registro)' : '');
-      el.className = 'vx-bars';
-      el.innerHTML = G.map((g) => '<div class="vb"><div class="vb-l"><b>' + esc(g.l) + '</b></div><div class="vb-t"><i style="width:' + Math.max(g.v ? 1 : 0, g.v / max * 100) + '%;background:' + g.c + '"></i></div><div class="vb-n">' + fmtInt(g.v) + '<span>' + (total ? Math.round(g.v / total * 100) : 0) + '%</span></div></div>').join('');
-      return;
-    }
-    if (sub) sub.textContent = 'Líneas negadas según la existencia en sistema';
-    const G = [
-      { l: 'Error en el proceso', d: 'había stock en sistema y no se encontró', v: c.positivo || 0, c: 'var(--orange)' },
-      { l: 'Sin stock', d: 'disponible en 0 (' + fmtInt(c.cero || 0) + ') o negativo (' + fmtInt(c.negativo || 0) + ')', v: (c.cero || 0) + (c.negativo || 0), c: 'var(--blue)' },
-    ];
-    const total = G[0].v + G[1].v, max = Math.max(1, G[0].v, G[1].v);
-    el.className = 'vx-bars';
-    el.innerHTML = G.map((g) => '<div class="vb"><div class="vb-l"><b>' + g.l + '</b><span>' + g.d + '</span></div><div class="vb-t"><i style="width:' + Math.max(g.v ? 1 : 0, g.v / max * 100) + '%;background:' + g.c + '"></i></div><div class="vb-n">' + fmtInt(g.v) + '<span>' + (total ? Math.round(g.v / total * 100) : 0) + '%</span></div></div>').join('');
+  /** Ranking 3: los 5 códigos más negados de cada motivo registrado. */
+  private renderTopMotivo() {
+    const el = $('topMot'), MC = this.motCod;
+    if (!MC) { el.innerHTML = '<p class="q">Aparece con el motivo de negado registrado (desde el 27 oct 2026). Elige un día o rango desde esa fecha.</p>'; return; }
+    const por: Record<string, { sku: string; n: number }[]> = {}, tot: Record<string, number> = {};
+    for (const sku in MC) for (const k in MC[sku]) { (por[k] || (por[k] = [])).push({ sku, n: MC[sku][k] }); tot[k] = (tot[k] || 0) + MC[sku][k]; }
+    const desc = (sku: string) => (this.radar.store.skus[sku] || [''])[0] || '';
+    el.innerHTML = Object.keys(por).sort(motSort).map((k) => {
+      const L = por[k].sort((a, b) => b.n - a.n || (a.sku < b.sku ? -1 : 1)).slice(0, 5);
+      return '<div class="r2"><h4><i class="mdot" style="background:' + motColor(k) + '"></i>' + esc(motLabel(k)) + ' <span>' + fmtInt(tot[k]) + ' líneas</span></h4>' +
+        '<div class="tw"><table class="rk-tbl"><thead><tr><th>Código</th><th>Descripción</th><th class="n">Veces</th></tr></thead><tbody>' +
+        L.map((x) => '<tr class="clk" data-sku="' + esc(x.sku) + '"><td class="sku">' + esc(x.sku) + '</td><td title="' + esc(desc(x.sku)) + '">' + esc(desc(x.sku)) + '</td><td class="n"><b>' + fmtInt(x.n) + '</b></td></tr>').join('') +
+        '</tbody></table></div></div>';
+    }).join('');
+    el.querySelectorAll<HTMLElement>('tr.clk').forEach((r) => r.addEventListener('click', () => this.elegirCodigo(r.dataset.sku!)));
   }
 
   private renderSucursales() {
@@ -375,6 +367,13 @@ export class TopNegados {
       }
       const ws2 = this.hoja('Top 5 por cantidad de unidades negadas · ' + this.fechaTxt(vm) + (Q.has && Q.has < Q.n ? ' · unidades de ' + Q.has + ' de ' + Q.n + ' días' : ''), ['Tipo de unidad', '#', 'Código', 'Descripción', 'Cantidad negada', 'UM', 'Veces negado'], rows2, [22, 5, 12, 55, 16, 8, 14]);
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws1, 'Top 10 veces'); XLSX.utils.book_append_sheet(wb, ws2, 'Top 5 unidades');
+      if (this.motCod) {
+        const MC = this.motCod, por: Record<string, { sku: string; n: number }[]> = {};
+        for (const sku in MC) for (const k in MC[sku]) (por[k] || (por[k] = [])).push({ sku, n: MC[sku][k] });
+        const rows3: (string | number)[][] = [];
+        Object.keys(por).sort(motSort).forEach((k) => por[k].sort((a, b) => b.n - a.n).slice(0, 5).forEach((x, i) => rows3.push([motLabel(k), i + 1, x.sku, (this.radar.store.skus[x.sku] || [''])[0] || '', x.n])));
+        XLSX.utils.book_append_sheet(wb, this.hoja('Top 5 por motivo de negado · ' + this.fechaTxt(vm), ['Motivo', '#', 'Código', 'Descripción', 'Veces negado'], rows3, [32, 5, 12, 55, 14]), 'Top 5 por motivo');
+      }
       this.bajar(wb, 'Top_negados_' + this.sufijo(vm) + '.xlsx');
       aviso('ok', 'Descargando Top 10 y Top 5…');
     } catch (err) { console.error(err); aviso('err', 'No se pudo generar el Excel: ' + ((err as Error)?.message || 'error')); }
@@ -382,7 +381,7 @@ export class TopNegados {
 
   /* ---------------- Negados sin actualizar (foto del último Excel) ---------------- */
   /** Motivo elegido en la tabla de negados sin actualizar. */
-  pnegFiltro: 'all' | 'positivo' | 'cero' | 'negativo' = 'all';
+  pnegFiltro = 'all';
   private static motivo(v: number) { return v > 0 ? 'Error en el proceso' : v === 0 ? 'Sin existencia' : 'Inventario negativo'; }
   private static tagMotivo(v: number) { return v > 0 ? 's' : v === 0 ? 'z' : 'n'; }
   private static hora(ms: number) { const d = new Date(ms); return fmtDateShort(ymd(d)) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
@@ -392,16 +391,22 @@ export class TopNegados {
     if (!tb || !sub) return;
     const R = sinActualizarPorCodigo(this.radar.store);
     if (!R) { sub.textContent = 'Aparece con el próximo Excel cargado.'; tb.innerHTML = ''; return; }
-    const T = R.codigos, cuenta = (m: string) => T.filter((g) => g.motivo === m).length;
-    document.querySelectorAll<HTMLButtonElement>('#pnegFiltro button').forEach((b) => {
-      const m = b.dataset.m || 'all', nombre = { all: 'Todos', positivo: 'Error en el proceso', cero: 'Sin existencia', negativo: 'Inventario negativo' }[m] || m;
-      b.innerHTML = esc(nombre) + '<span>(' + fmtInt(m === 'all' ? T.length : cuenta(m)) + ')</span>';
-      b.classList.toggle('active', m === this.pnegFiltro);
-    });
-    const G = this.pnegFiltro === 'all' ? T : T.filter((g) => g.motivo === this.pnegFiltro), lin = G.reduce((a, g) => a + g.n, 0);
-    sub.textContent = 'Al corte ' + TopNegados.hora(R.t) + ' · ' + fmtInt(G.length) + ' códigos (' + fmtInt(lin) + ' líneas) negados en 0 que todavía no pasan a actualizado · Disponible = existencia en el último Excel';
+    // con motivo registrado (Excel que trae la columna) se filtra y se muestra por ese motivo; si no, por el disponible como antes
+    const T = R.codigos, conMot = T.some((g) => g.motReg != null);
+    const clave = (g: typeof T[number]) => (conMot ? g.motReg ?? '' : g.motivo);
+    const seg = document.getElementById('pnegFiltro')!;
+    const claves = conMot ? [...new Set(T.map((g) => g.motReg ?? ''))].sort(motSort) : ['positivo', 'cero', 'negativo'];
+    if (!['all', ...claves].includes(this.pnegFiltro)) this.pnegFiltro = 'all';
+    const nombre = (m: string) => (m === 'all' ? 'Todos' : conMot ? motLabel(m) : ({ positivo: 'Error en el proceso', cero: 'Sin existencia', negativo: 'Inventario negativo' } as Record<string, string>)[m]);
+    seg.innerHTML = ['all', ...claves].map((m) => '<button data-m="' + esc(m) + '"' + (m === this.pnegFiltro ? ' class="active"' : '') + '>' + esc(nombre(m)) + '<span>(' + fmtInt(m === 'all' ? T.length : T.filter((g) => clave(g) === m).length) + ')</span></button>').join('');
+    const G = this.pnegFiltro === 'all' ? T : T.filter((g) => clave(g) === this.pnegFiltro), lin = G.reduce((a, g) => a + g.n, 0);
+    sub.textContent = 'Al corte ' + TopNegados.hora(R.t) + ' · ' + fmtInt(G.length) + ' códigos (' + fmtInt(lin) + ' líneas) negados en 0 que todavía no pasan a actualizado · ' +
+      (conMot ? 'Motivo = el que registró el preparador · ' : '') + 'Disponible = existencia en el último Excel';
+    const tag = (g: typeof T[number]) => conMot
+      ? '<span class="tg m"><i style="background:' + motColor(g.motReg ?? '') + '"></i>' + esc(motLabel(g.motReg ?? '')) + '</span>'
+      : '<span class="tg ' + TopNegados.tagMotivo(g.disp) + '">' + TopNegados.motivo(g.disp) + '</span>';
     tb.innerHTML = '<thead><tr><th>Motivo</th><th>Código</th><th>Descripción</th><th>UM</th><th class="n">Veces</th><th class="n">Cant. pedida</th><th class="n">Disponible</th><th>Última revisión</th><th>Ubicación</th><th>Sucursales</th><th class="n">Pedidos</th></tr></thead><tbody>' +
-      (G.length ? G.map((g) => '<tr><td><span class="tg ' + TopNegados.tagMotivo(g.disp) + '">' + TopNegados.motivo(g.disp) + '</span></td><td class="c">' + esc(g.sku) + '</td><td class="ds" title="' + esc(g.desc) + '">' + esc(g.desc) + '</td><td>' + esc(g.um) +
+      (G.length ? G.map((g) => '<tr><td>' + tag(g) + '</td><td class="c">' + esc(g.sku) + '</td><td class="ds" title="' + esc(g.desc) + '">' + esc(g.desc) + '</td><td>' + esc(g.um) +
         '</td><td class="n"><b>' + fmtInt(g.n) + '</b></td><td class="n">' + fmtInt(g.q) + '</td><td class="n">' + fmtInt(g.disp || 0) + '</td><td class="c">' + TopNegados.hora(g.rev) + '</td><td class="c">' + esc(g.ubic.join(' / ')) + '</td><td>' + esc(g.suc.join(', ')) + '</td><td class="n">' + fmtInt(g.pedidos) + '</td></tr>').join('')
         : '<tr class="empty-row"><td colspan="11">No hay líneas negadas pendientes de actualizar' + (this.pnegFiltro === 'all' ? '' : ' con este motivo') + '.</td></tr>') + '</tbody>';
   }
@@ -411,7 +416,7 @@ export class TopNegados {
     if (!R) { aviso('err', 'Todavía no hay datos: carga el Rpt_OrdenesPreparacion.'); return; }
     try {
       const ws = this.hoja('', ['Motivo', 'Código', 'Descripción', 'UM', 'Veces', 'Cant. pedida', 'Disponible', 'Última revisión', 'Ubicación', 'Sucursales', 'Pedidos'],
-        R.codigos.map((g) => [TopNegados.motivo(g.disp), g.sku, g.desc, g.um, g.n, g.q, g.disp, null, g.ubic.join(' / '), g.suc.join(', '), g.pedidos]), [20, 12, 50, 7, 8, 12, 12, 17, 24, 30, 9]);
+        R.codigos.map((g) => [g.motReg != null ? motLabel(g.motReg) : TopNegados.motivo(g.disp), g.sku, g.desc, g.um, g.n, g.q, g.disp, null, g.ubic.join(' / '), g.suc.join(', '), g.pedidos]), [20, 12, 50, 7, 8, 12, 12, 17, 24, 30, 9]);
       // Última revisión del código como fecha y hora de Excel (se puede filtrar y ordenar)
       R.codigos.forEach((g, i) => { const d = new Date(g.rev); ws[XLSX.utils.encode_cell({ r: i + 1, c: 7 })] = { t: 'n', v: (g.rev - d.getTimezoneOffset() * 60000) / 864e5 + 25569, z: 'dd/mm/yyyy hh:mm' }; });
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Negados sin actualizar');

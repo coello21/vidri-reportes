@@ -86,7 +86,7 @@ export class PedidosVista {
     const pick = (i: number) => { this.dia = this.dia === D[i] ? null : D[i]; this.render(); };
     // gráficos de los últimos 7 días (diseño del 20 oct)
     const k7 = Math.max(0, n - 7), D7 = D.slice(k7), p7 = new Set([...part].map((i) => i - k7).filter((i) => i >= 0));
-    barrasApiladas($('pdAsig'), D7, MOTIVOS.filter((c) => sum(byCat[c])).map((c) => ({ name: MOTIVO_NOMBRE[c], color: CAT_C[c], vals: byCat[c].slice(k7) })), { partial: p7, sel: DAY, noTrend: true, onClick: (i) => pick(i + k7) });
+    barrasApiladas($('pdAsig'), D7, MOTIVOS.filter((c) => sum(byCat[c])).map((c) => ({ name: MOTIVO_NOMBRE[c], color: CAT_C[c], vals: byCat[c].slice(k7) })), { partial: p7, sel: DAY, noTrend: true, lado: true, onClick: (i) => pick(i + k7) });
 
     // promedio por día de la semana (días completos con pedidos)
     const dw = [0, 0, 0, 0, 0, 0, 0], dn = [0, 0, 0, 0, 0, 0, 0];

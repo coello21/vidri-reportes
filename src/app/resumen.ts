@@ -307,7 +307,7 @@ export class Resumen {
       const totDia = d7.map((_, i) => filas.reduce((a, f) => a + f.vals[i], 0));
       const DOW = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'], sel = vm.meta.fecha;
       const th = d7.map((d, i) => '<th class="r' + (d === sel ? ' sel' : '') + '" data-i="' + i + '" title="Ver este día">' + DOW[new Date(d + 'T12:00:00').getDay()] +
-        '<br><span>' + esc(fmtDateShort(d)) + (p7.has(i) ? '*' : '') + '</span></th>').join('');
+        '<br><span>' + esc(fmtDateShort(d)) + '</span></th>').join('');
       // cada celda: % de las negadas de ese día (la columna suma 100 %) y entre paréntesis las líneas
       const celda = (v: number, mx: number, color: string, i: number) => {
         const a = mx ? Math.round(8 + (v / mx) * 62) : 0, d = d7[i], t = totDia[i];
@@ -319,8 +319,7 @@ export class Resumen {
           const mx = Math.max(...f.vals);
           return '<tr><td class="mo"><i style="background:' + f.color + '"></i>' + esc(f.name) + '</td>' + f.vals.map((v, i) => celda(v, mx, f.color, i)).join('') + '</tr>';
         }).join('') +
-        '<tr class="hmt"><td>Total negadas</td>' + totDia.map((v, i) => '<td class="r' + (d7[i] === sel ? ' sel' : '') + '"><b>' + (v ? '100%' : '—') + '</b> <span>(' + fmtInt(v) + ')</span></td>').join('') + '</tr></tbody></table></div>' +
-        (p7.size ? '<p class="hmn">* día parcial (el reporte se sacó antes de terminar el día)</p>' : '');
+        '<tr class="hmt"><td>Total negadas</td>' + totDia.map((v, i) => '<td class="r' + (d7[i] === sel ? ' sel' : '') + '"><b>' + (v ? '100%' : '—') + '</b> <span>(' + fmtInt(v) + ')</span></td>').join('') + '</tr></tbody></table></div>';
       el.querySelectorAll<HTMLElement>('th[data-i]').forEach((h) => h.addEventListener('click', () => { const d = d7[+h.dataset.i!]; this.elegir(d, d); }));
       $('vxMotQ').textContent = 'Por día: % de las negadas de ese día según el motivo que registró el preparador (cada columna suma 100 %) y, entre paréntesis, las líneas. Más oscuro = el día con más negadas de ese motivo.';
       if (leg) leg.style.display = 'none';

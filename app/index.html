@@ -126,6 +126,11 @@
       <span>Clic en un encabezado para ordenar</span>
     </div></div><div class="prres-r"><div class="prres-h"><b id="prepCodesLbl">Códigos que negó</b><span class="sub" id="prepCodesSub"></span></div><div id="prepCodeBars"></div><div hidden id="codigoCard"><span id="codigoCardSub"></span><div id="codigoPrepBars"></div></div></div></div></div>
   </div>
+  <div class="chart full" id="sucCard">
+    <h3>Negados por sucursal</h3>
+    <p class="cardsub">Ranking de tiendas por líneas negadas, del día o rango elegido</p>
+    <div id="storeBars"></div>
+  </div>
 </section>
 
 <section class="tab" id="tab-top" hidden>
@@ -151,19 +156,11 @@
       <p class="q">Separado por unidad de medida, porque un paquete, un metro y una unidad no se pueden sumar entre sí. <span id="vxR2Note"></span></p>
       <div id="vxR2" class="r2grid"></div>
     </div>
-    <div class="chart">
-        <h3>Motivo del rechazo</h3>
-        <p class="cardsub">Líneas negadas según la existencia en sistema</p>
-        <div class="donutwrap">
-          <svg id="donutSvg" width="150" height="150" viewBox="0 0 150 150"></svg>
-          <div class="legend" id="donutLegend"></div>
-        </div>
-      </div>
-    <div class="chart">
-        <h3>Negados por sucursal</h3>
-        <p class="cardsub">Ranking de tiendas por líneas negadas</p>
-        <div id="storeBars"></div>
-      </div>
+    <div class="chart full" id="topMotCard">
+      <div class="rk-eb">Ranking 3</div><h3>Top 5 por motivo de negado</h3>
+      <p class="q">Los códigos más negados de cada motivo que registró el preparador, para saber a quién le toca: «Físico no se encuentra» y «Pasillo bloqueado», al CD; «Existencia a cero», a inventario y compras; «Sin existencia ubicación picking», bajar de tarimas.</p>
+      <div id="topMot" class="r2grid"></div>
+    </div>
     <div class="chart full tablecard" id="detalleCard" hidden>
         <div class="cardhead">
           <div>

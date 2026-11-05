@@ -50,6 +50,8 @@ export interface Serie { name: string; color: string; tcolor?: string; vals: num
 export interface OpcBarras {
   partial?: Set<number>; trendEach?: boolean; noTrend?: boolean; avg?: boolean;
   onClick?: (i: number) => void; unit?: string; sel?: string | null; h?: number;
+  /** Barras de cada serie una junto a la otra (no apiladas), con su número encima. */
+  lado?: boolean;
 }
 
 /** Barras apiladas por día con tendencia (línea discontinua). */
@@ -57,7 +59,9 @@ export function barrasApiladas(el: HTMLElement, days: string[], series: Serie[],
   const part = opt.partial || new Set<number>(), unit = opt.unit || 'pedidos';
   const W = Math.max(300, el.clientWidth || 900), H = opt.h || 260, m = { l: 50, r: 20, t: 14, b: 38 }, iw = W - m.l - m.r, ih = H - m.t - m.b, n = days.length;
   const tot = days.map((_, i) => series.reduce((a, s) => a + (s.vals[i] || 0), 0));
-  const max = nice(Math.max(1, ...tot)), slot = iw / Math.max(1, n), bw = Math.max(2, Math.min(34, slot * 0.68));
+  const lado = !!opt.lado, ns = Math.max(1, series.length);
+  const max = nice(Math.max(1, ...(lado ? series.flatMap((s) => s.vals.map((v) => v || 0)) : tot))), slot = iw / Math.max(1, n), bw = Math.max(2, Math.min(34, slot * 0.68));
+  const bwL = Math.max(3, Math.min(28, (slot * 0.84) / ns)), labL = bwL >= 16;
   const cx = (i: number) => m.l + slot * i + slot / 2, y = (v: number) => m.t + ih - (v / max) * ih;
   let g = '';
   for (let k = 0; k <= 4; k++) { const v = max * k / 4, yy = y(v).toFixed(1); g += '<line class="gl" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + yy + '" y2="' + yy + '"/><text class="ax" x="' + (m.l - 8) + '" y="' + (+yy + 3.5) + '" text-anchor="end">' + corto(v) + '</text>'; }
@@ -67,7 +71,14 @@ export function barrasApiladas(el: HTMLElement, days: string[], series: Serie[],
     let y0 = m.t + ih;
     const tip = [diaConSemana(d) + (part.has(i) ? ' (parcial)' : '')].concat(series.map((s) => s.name + ': ' + fmtInt(s.vals[i] || 0))).concat(series.length > 1 ? ['Total: ' + fmtInt(tot[i]) + ' ' + unit] : []).join('\n');
     g += '<g class="bar' + (opt.onClick ? ' clk' : '') + (opt.sel === d ? ' sel' : '') + '" data-i="' + i + '" opacity="' + (part.has(i) ? 0.45 : 1) + '"><title>' + tip + '</title>';
-    series.forEach((s) => { const v = s.vals[i] || 0; if (!v) return; const h = (v / max) * ih; y0 -= h; g += '<rect x="' + (cx(i) - bw / 2).toFixed(1) + '" y="' + y0.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0.5, h).toFixed(1) + '" fill="' + s.color + '"/>'; });
+    if (lado) {
+      const x0 = cx(i) - (bwL * ns) / 2;
+      series.forEach((s, k) => {
+        const v = s.vals[i] || 0, h = (v / max) * ih, x = x0 + k * bwL;
+        if (v) g += '<rect x="' + (x + 1).toFixed(1) + '" y="' + (m.t + ih - h).toFixed(1) + '" width="' + (bwL - 2).toFixed(1) + '" height="' + Math.max(0.5, h).toFixed(1) + '" fill="' + s.color + '"/>';
+        if (v && labL) g += '<text class="ax vl" x="' + (x + bwL / 2).toFixed(1) + '" y="' + (m.t + ih - h - 4).toFixed(1) + '" text-anchor="middle">' + fmtInt(v) + '</text>';
+      });
+    } else series.forEach((s) => { const v = s.vals[i] || 0; if (!v) return; const h = (v / max) * ih; y0 -= h; g += '<rect x="' + (cx(i) - bw / 2).toFixed(1) + '" y="' + y0.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0.5, h).toFixed(1) + '" fill="' + s.color + '"/>'; });
     g += '<rect x="' + (cx(i) - slot / 2).toFixed(1) + '" y="' + m.t + '" width="' + slot.toFixed(1) + '" height="' + ih + '" fill="transparent"/></g>';
     if (i % step === 0 || (i === n - 1 && showLast)) {
       const w = diaSemana(d);

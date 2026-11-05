@@ -676,3 +676,19 @@ table.hm td{white-space:nowrap}
 .rk-tbl td.mp i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:-1px}
 .rk-tbl td.mp span{color:var(--ink-muted)}
 .rk-tbl td.q{font-size:11px;color:var(--ink-muted)}
+/* Top 5 por motivo y motivo registrado en "negados sin actualizar" (5 nov 2026) */
+#topMot h4 i.mdot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+#topMot h4 span{font:11px var(--font-mono);color:var(--ink-muted);margin-left:4px}
+.tg.m{background:transparent;color:var(--ink);white-space:nowrap}
+.tg.m i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:0}
+#topMot{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:22px 32px}
+#topMot .r2{margin:0}
+#topMot .tw{overflow:visible;max-height:none}
+#topMot th{position:static}
+#topMot td:nth-child(2){max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#topMot h4{margin:0 0 6px}
+#topMot table{table-layout:fixed;width:100%}
+#topMot th:nth-child(1),#topMot td:nth-child(1){width:72px}
+#topMot th:nth-child(3),#topMot td:nth-child(3){width:52px}
+#topMot td:nth-child(2){max-width:none}
+#tab-top #topMot .rk-tbl th:last-child{display:table-cell}
