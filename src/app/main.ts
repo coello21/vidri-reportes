@@ -43,7 +43,6 @@ function ponerPestana(app: App, t: string) {
 /** Las pestañas comparten el día o rango elegido. */
 function conectarPestanas(app: App) {
   app.resumen.alCambiar = (vm) => app.top.render(vm);
-  $('pedXlsBtn').addEventListener('click', () => app.ped.excel());
   // Cargar Excel
   const ctx: Contexto = {
     radar: app.radar, pedidos: app.pedidos, almacen: app.almacen, listo: () => app.listo,
@@ -95,7 +94,6 @@ function montar(E: { history?: DatosCopia['history']; store?: ConstructorParamet
       FR: (ds: string[]) => fillRateCD(app.radar.history, ds),
       B2B: (ds: string[]) => app.radar.fillRateB2B(ds[0], ds[ds.length - 1]),
     }), (t) => aviso('err', t, 15000));
-    R.ponerBotones();
   }
   return app;
 }
