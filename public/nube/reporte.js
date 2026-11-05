@@ -211,8 +211,9 @@
   function armar() {
     var STORE = src().S;
     var P = datosPedidos();
-    // Reporte de la mañana (corte antes de las 12 m.): cómo cerró AYER (negados, fill rate) y cómo AMANECIMOS hoy (pedidos)
-    var amanecer = !!(P && (P.lc - dStart(P.hoy)) < 12 * 60);
+    // Reporte de la mañana (corte antes de las 10 a. m.): cómo cerró AYER (negados, fill rate) y cómo AMANECIMOS hoy (pedidos).
+    // Más tarde: el día en curso, y el fill rate con el que cerró ayer como referencia.
+    var amanecer = !!(P && (P.lc - dStart(P.hoy)) < 10 * 60);
     var ayer = null;
     if (amanecer) { var Hs = src().H || {}; ayer = Object.keys(Hs).filter(function (x) { return x < P.hoy && Hs[x] && Hs[x].meta && Hs[x].meta.totalFinal; }).sort().pop() || null; }
     var N = datosNegados(amanecer && ayer ? ayer : P ? P.hoy : null);
@@ -235,6 +236,9 @@
     var diaAnt = addD(dN, -7), lpAnt = revN[diaAnt] != null ? revN[diaAnt] : null;
     var lAct = N ? N.hoy.lin : null;                                     // líneas actualizadas (estado A)
     var frV = N && N.fr && N.fr.base ? pct(N.fr.prep, N.fr.base) : null;
+    // fill rate con el que cerró el día hábil anterior (para el reporte del día en curso)
+    var Hx = src().H || {}, diaPrev = Object.keys(Hx).filter(function (x) { return x < dN && Hx[x] && Hx[x].meta && Hx[x].meta.totalFinal; }).sort().pop() || null;
+    var frPrev = null; if (!amanecer && diaPrev && src().FR) { var rp = src().FR([diaPrev]); frPrev = rp && rp.base ? pct(rp.prep, rp.base) : null; }
     var ElDN = cap(amanecer ? 'ayer ' + DOW_L[dowOf(dN)] : 'el ' + DOW_L[dowOf(dN)]);
     var ex = N && N.hoy.prep ? pct(N.hoy.exactas, N.hoy.prep) : null, exAnt = N && N.prevW && N.prevW.prep ? pct(N.prevW.exactas, N.prevW.prep) : null;
     var b2b = N && N.b2b.tot ? pct(N.b2b.ok, N.b2b.tot) : null;
@@ -285,7 +289,7 @@
     /* ----- tarjetas ----- */
     var deDia = amanecer ? ' · cierre de ayer' : cierre ? ' · cierre' : '';
     if (N) {
-      h.kpis.push({ l: 'Fill rate' + deDia, v: frV != null ? dec(frV) + '%' : '–', o: false, s: (frV != null ? n(N.fr.prep) + ' de ' + n(N.fr.base) + ' líneas' : 'sin líneas cerradas') + ' · ' + (N.b2b.tot ? 'B2B ' + dec(pct(N.b2b.ok, N.b2b.tot)) + '% · ' + n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos' : 'B2B: sin pedidos cerrados') });
+      h.kpis.push({ l: 'Fill rate' + deDia, v: frV != null ? dec(frV) + '%' : '–', o: false, s: (frV != null ? n(N.fr.prep) + ' de ' + n(N.fr.base) + ' líneas' : 'sin líneas cerradas') + (frPrev != null ? ' · ayer cerró en ' + dec(frPrev) + '%' : '') + ' · ' + (N.b2b.tot ? 'B2B ' + dec(pct(N.b2b.ok, N.b2b.tot)) + '% · ' + n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos' : 'B2B: sin pedidos cerrados') });
       h.kpis.push({ l: 'Negados' + deDia, v: dec(N.pHoy) + '%', o: false, s: n(N.hoy.neg) + ' de ' + n(N.hoy.lin) + ' líneas · ' + pctInt(N.hoy.err, N.hoy.neg) + ' por error en el proceso · ' + pctInt(N.hoy.sst, N.hoy.neg) + ' sin stock' });
       h.kpis.push({ l: 'Exactitud de picking' + deDia, v: ex != null ? dec(ex) + '%' : '–', o: false, s: n(N.hoy.exactas) + ' de ' + n(N.hoy.prep) + ' líneas completas · meta 99,5%' });
     }
@@ -316,7 +320,7 @@
     /* ----- sección 2: negados ----- */
     if (N) {
       var d2 = N.hoy.d;
-      h.s2t = cap((amanecer ? 'ayer ' : 'el ') + DOW_L[dowOf(d2)]) + (frV != null ? ' cerró con fill rate de ' + dec(frV) + '%' : ': ' + dec(100 - N.pHoy) + '% de las líneas sin negado') + (N.prom != null && N.pHoy <= N.prom ? ', negados por debajo del promedio' : '') + '; de lo negado, ' + pctInt(N.hoy.err, N.hoy.neg) + ' fue por error en el proceso';
+      h.s2t = cap((amanecer ? 'ayer ' : 'el ') + DOW_L[dowOf(d2)]) + (frV != null ? ((amanecer || cierre) ? ' cerró con' : ' lleva') + ' fill rate de ' + dec(frV) + '%' : ': ' + dec(100 - N.pHoy) + '% de las líneas sin negado') + (N.prom != null && N.pHoy <= N.prom ? ', negados por debajo del promedio' : '') + '; de lo negado, ' + pctInt(N.hoy.err, N.hoy.neg) + ' fue por error en el proceso';
       h.n = N;
     }
 
