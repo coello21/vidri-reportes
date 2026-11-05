@@ -473,6 +473,8 @@
     foot.push('Reporte generado automáticamente por el Radar con reglas fijas');
     out.push('<div class="foot">' + esc(foot.join(' · ')) + '</div></section>');
     out.push('<script>document.getElementById("pdf").onclick=function(){window.print()};document.getElementById("cerrar").onclick=function(){try{parent.__cerrarReporte()}catch(e){window.close()}};<\/script>');
+    // si el contenido no cabe en la hoja carta, se achica un poco todo para que nada quede cortado
+    out.push('<script>(function(){var p=document.querySelector(".page"),f=p&&p.querySelector(".foot");if(!f)return;var alto=11*96,usado=f.getBoundingClientRect().bottom-p.getBoundingClientRect().top+0.3*96;if(usado>alto)p.style.zoom=(alto/usado).toFixed(3);})();<\/script>');
     out.push('</body></html>');
     return { html: out.join(''), titulo: titulo };
   }
