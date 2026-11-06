@@ -108,7 +108,13 @@
       return { d: d, ent: e, ter: i0 + e - f, fin: f, parcial: d === hoy };
     }).filter(function (r, i, arr) { return r.ent || r.fin || i === arr.length - 1; });
 
+    // pedidos por día y motivo (fecha del pedido), últimos 7 días con pedidos: mismo gráfico que la pestaña Pedidos CD
+    var d7 = serie.filter(function (r) { return r.ent; }).slice(-7).map(function (r) { return r.d; }), ix7 = {};
+    d7.forEach(function (d, i) { ix7[d] = i; });
+    var porMot7 = { exi: [], b2b: [], rot: [], otr: [] }; Object.keys(porMot7).forEach(function (k) { porMot7[k] = d7.map(function () { return 0; }); });
+    all.forEach(function (x) { var d = dayOfMin(x[2]); if (!(d in ix7)) return; var c = pedC(x); if (porMot7[c]) porMot7[c][ix7[d]]++; });
     return {
+      d7: d7, porMot7: porMot7,
       lc: lc, hoy: hoy, ini: ini, ent: ent, ter: ter, fin: fin, terMan: terMan, terTar: terTar, prev: prev,
       sinAsig: R.length, skR: skR, enPrep: P.length, viejos: viejos.length, skV: skV, porDiaR: porDiaR, porDiaV: porDiaV,
       asg: asg.length, asgMan: asgMan, asgPorDia: asgPorDia, espera: espera, cobertura: cobertura,
@@ -189,6 +195,40 @@
     g += '<polyline points="' + pts('fin') + '" fill="none" stroke="' + C.ORANGE + '" stroke-width="1.4" stroke-dasharray="4 3"/>';
     var last = s[N - 1]; g += '<text x="' + X(N - 1).toFixed(1) + '" y="' + (Y(last.fin) - 5).toFixed(1) + '" class="lab" fill="' + C.ORANGE + '" text-anchor="middle">' + n(last.fin) + '</text>';
     return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%">' + g + '</svg>';
+  }
+  var MOT_PED = [['exi', 'Existencia', '#3A76B0'], ['b2b', 'B2B', '#DE7A2C'], ['rot', 'Rotación', '#4B9A5A'], ['otr', 'Otros', '#9A927F']];
+  /** Pedidos por día y motivo, barras una junto a otra (igual que «Pedidos asignados por día y motivo» del Radar). */
+  function grafPedMot(P) {
+    var ks = MOT_PED.filter(function (m) { return P.porMot7[m[0]].some(function (v) { return v; }); });
+    var D = P.d7, W = 430, H = 132, l = 30, r = 6, t = 12, b = 22, iw = W - l - r, ih = H - t - b, N = D.length || 1;
+    var top = 1; ks.forEach(function (m) { P.porMot7[m[0]].forEach(function (v) { top = Math.max(top, v); }); });
+    var paso = top > 1500 ? 500 : top > 600 ? 200 : top > 250 ? 100 : 50, mx = niceMax(top * 1.08, paso);
+    var slot = iw / N, gw = slot * 0.78, bw = gw / Math.max(1, ks.length), Y = function (v) { return t + ih - v / mx * ih; }, g = '';
+    for (var v = 0; v <= mx; v += paso) { var y = Y(v); g += '<line x1="' + l + '" x2="' + (W - r) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + C.LINE + '" stroke-width=".5"/><text x="' + (l - 4) + '" y="' + (y + 2.5).toFixed(1) + '" class="ax" text-anchor="end">' + n(v) + '</text>'; }
+    D.forEach(function (d, i) {
+      var x0 = l + slot * i + (slot - gw) / 2, last = i === N - 1;
+      ks.forEach(function (m, j) { var v = P.porMot7[m[0]][i]; g += '<rect x="' + (x0 + j * bw).toFixed(1) + '" y="' + Y(v).toFixed(1) + '" width="' + (bw - 1).toFixed(1) + '" height="' + (v / mx * ih).toFixed(1) + '" fill="' + m[2] + '"/>' + (v ? '<text x="' + (x0 + j * bw + bw / 2 - .5).toFixed(1) + '" y="' + (Y(v) - 2).toFixed(1) + '" class="lab" text-anchor="middle" style="font-size:5px">' + n(v) + '</text>' : ''); });
+      g += '<text x="' + (l + slot * i + slot / 2).toFixed(1) + '" y="' + (H - 7) + '" class="ax' + (last ? ' pk' : '') + '" text-anchor="middle">' + lblCorto(d) + '</text>';
+    });
+    return { svg: '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%">' + g + '</svg>', ks: ks };
+  }
+  /** Mapa de calor de negados por motivo, últimos 7 días (igual que el Resumen del Radar): % del día y líneas. */
+  function mapaMotivos(dHoy) {
+    var Hs = src().H || {}, ds = Object.keys(Hs).filter(function (x) { return x <= dHoy && Hs[x] && Hs[x].meta && Hs[x].meta.totalFinal; }).sort().slice(-7);
+    var mot = function (d) { return Hs[d].mot && Hs[d].mot.n ? Hs[d].mot : null; };
+    if (!ds.some(mot)) return '';
+    var ks = {}; ds.forEach(function (d) { var m = mot(d); if (m) Object.keys(m.m).forEach(function (k) { ks[k] = 1; }); });
+    var tot = ds.map(function (d) { return Hs[d].meta.totalNegados || 0; });
+    var filas = Object.keys(ks).map(function (k) { return { n: k === '' ? 'Sin motivo' : k, v: ds.map(function (d) { var m = mot(d); return m ? (m.m[k] || 0) : 0; }) }; });
+    var sd = ds.map(function (d, i) { var m = mot(d); return Math.max(0, tot[i] - (m ? m.n : 0)); });
+    var pf = function (f) { return f.v.reduce(function (a, v, i) { return a + (tot[i] ? v / tot[i] : 0); }, 0); };
+    filas.sort(function (a, b) { return pf(b) - pf(a); });
+    if (sd.some(function (v) { return v; })) filas.push({ n: 'Sin dato', v: sd });
+    var cel = function (v, i) { var p = tot[i] ? v / tot[i] : 0, a = v ? Math.round(6 + Math.min(1, p / 0.5) * 74) : 0;
+      return '<td class="r"' + (v ? ' style="background:color-mix(in srgb,#E0262B ' + a + '%,#fff)' + (a > 48 ? ';color:#fff' : '') + '"' : '') + '>' + (v ? '<b>' + Math.round(p * 100) + '%</b> <span>(' + n(v) + ')</span>' : '·') + '</td>'; };
+    return '<table class="hm"><thead><tr><th>MOTIVO</th>' + ds.map(function (d) { return '<th class="r' + (d === dHoy ? ' hoy' : '') + '">' + lblCorto(d).toUpperCase() + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      filas.map(function (f) { return '<tr><td>' + esc(f.n) + '</td>' + f.v.map(cel).join('') + '</tr>'; }).join('') +
+      '<tr class="tot"><td>Líneas negadas</td>' + tot.map(function (v) { return '<td class="r">' + n(v) + '</td>'; }).join('') + '</tr></tbody></table>';
   }
   function grafNegados(s, prom) {
     var W = 430, H = 118, l = 30, r = 8, t = 12, b = 16, iw = W - l - r, ih = H - t - b, N = s.length;
@@ -298,7 +338,7 @@
     /* ----- tarjetas: valor y una línea corta ----- */
     if (N) {
       h.kpis.push({ l: 'Fill rate', v: frV != null ? dec(frV) + '%' : '–', s: frPrev != null ? 'ayer ' + dec(frPrev) + '%' : (frV != null ? n(N.fr.prep) + ' de ' + n(N.fr.base) + ' líneas' : '') });
-      h.kpis.push({ l: 'Negados', v: dec(N.pHoy) + '%', s: n(N.hoy.neg) + ' líneas' + (N.prom != null ? ' · prom. ' + dec(N.prom) + '%' : '') });
+      h.kpis.push({ l: 'Negados', v: dec(N.pHoy) + '%', s: N.prom != null ? 'promedio de 10 días ' + dec(N.prom) + '%' : '' });
     }
     if (P) h.kpis.push({ l: 'Por asignar', v: n(P.sinAsig), s: P.viejos ? n(P.viejos) + ' con +72 h' : 'nada con +72 h', o: !!P.viejos });
 
@@ -362,6 +402,8 @@
     "table.mot{width:100%;border-collapse:collapse;font-size:6.6pt}table.mot th{font-weight:600;font-size:6pt;color:#6B7280;text-align:left;border-bottom:1px solid #C9CED5;padding:2px 4px}" +
     "table.mot th.r,table.mot td.r{text-align:right}table.mot td{white-space:nowrap;padding:2.6px 4px;border-bottom:1px solid #EEF0F2}table.mot tr.sub td{color:#6B7280}table.mot tr.tot td{font-weight:600;border-bottom:0;border-top:1px solid #C9CED5}" +
     "table.mot td.desc{white-space:normal}" +
+    "table.hm{width:100%;border-collapse:collapse;font-size:6.6pt}table.hm th{font-weight:600;font-size:6pt;color:#1F4E8C;text-align:left;border-bottom:1px solid #C9CED5;padding:3px 4px}table.hm th.r,table.hm td.r{text-align:right}table.hm th.hoy{color:#1F2328}" +
+    "table.hm td{padding:3px 4px;border-bottom:1px solid #fff;white-space:nowrap}table.hm td span{opacity:.75;font-size:5.8pt}table.hm tr.tot td{color:#1F4E8C;font-weight:600;border-top:1px solid #C9CED5}" +
     ".notas{margin-top:12px;border:1px solid #E3E6EA;border-radius:6px;padding:7px 12px;display:grid;grid-template-columns:1fr 1fr;gap:16px}.notas .t{font-weight:600;font-size:7pt;margin-bottom:2px}.notas .t i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}.notas ul{padding-left:12px}.notas li{font-size:6.8pt;line-height:1.45;color:#3D434B}" +
     ".foot{margin-top:8px;font-size:5.8pt;color:#9AA1AB;line-height:1.5}" +
     "@media screen{body{padding:56px 0 24px;background:#E9ECEF}.page{box-shadow:0 4px 18px rgba(0,0,0,.12)}" +
@@ -383,9 +425,10 @@
     if (P) {
       var dR = Object.keys(P.porDiaR).sort().reverse(), filasR = [], ant = 0;
       dR.forEach(function (d) { if (filasR.length < 4) filasR.push([d === P.hoy ? 'Hoy' : cap(DOW[dowOf(d)]) + ' ' + (+d.slice(8)), P.porDiaR[d].c, P.porDiaR[d].sk]); else ant += P.porDiaR[d].c; });
-      out.push('<div class="sec"><h2>Pedidos CD<span>al corte de ' + esc(M.corteTxt) + ' · ' + n(P.enPrep) + ' en preparación · ' + n(P.nDia) + ' entraron hoy</span></h2><div class="two"><div>');
-      out.push('<div class="lg"><span><i style="background:' + C.BLUE + '"></i>Entraron por día</span><span><i class="ln" style="background:' + C.ORANGE + '"></i>Sin terminar al cierre</span></div>');
-      out.push(grafPedidos(P.serie) + '</div><div>');
+      out.push('<div class="sec"><h2>Pedidos CD<span>por día y motivo · al corte de ' + esc(M.corteTxt) + ' · ' + n(P.enPrep) + ' en preparación</span></h2><div class="two"><div>');
+      var GP = grafPedMot(P);
+      out.push('<div class="lg">' + GP.ks.map(function (m) { return '<span><i style="background:' + m[2] + '"></i>' + m[1] + '</span>'; }).join('') + '</div>');
+      out.push(GP.svg + '</div><div>');
       out.push('<table class="mot"><thead><tr><th>POR ASIGNAR · DÍA DE LLEGADA</th><th class="r">PEDIDOS</th><th class="r">SKUS</th></tr></thead><tbody>' +
         filasR.map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td class="r">' + n(r[1]) + '</td><td class="r">' + n(r[2]) + '</td></tr>'; }).join('') +
         (ant ? '<tr class="sub"><td>Anteriores</td><td class="r">' + n(ant) + '</td><td class="r"></td></tr>' : '') +
@@ -394,25 +437,13 @@
     }
     if (N) {
       var H = N.hoy, pW = N.prevW;
-      out.push('<div class="sec"><h2>Negados<span>' + esc(cap(DOW_L[dowOf(H.d)]) + ' ' + (+H.d.slice(8)) + (N.parcial ? ' · parcial' : '')) + '</span></h2><div class="two"><div>');
-      out.push('<div class="lg"><span><i style="background:' + C.RED + '"></i>% de líneas negadas</span>' + (N.prom != null ? '<span><i class="ln" style="background:' + C.INK + '"></i>Promedio ' + dec(N.prom) + '%</span>' : '') + '</div>');
-      out.push(grafNegados(N.serie, N.prom) + '</div><div>');
-      var colT = function (r) { return r ? '<b>' + n(r.neg) + '</b> · ' + dec(pct(r.neg, r.lin)) + '%' : '–'; };
-      var hd2 = function (r) { return (DOW[dowOf(r.d)] + ' ' + (+r.d.slice(8))).toUpperCase(); };
-      var MH = HISTORY_MOT(H.d), MW = pW ? HISTORY_MOT(pW.d) : null;
-      if (MH) {
-        var ks = Object.keys(MH.m).concat(MW ? Object.keys(MW.m) : []).filter(function (k, i, a) { return a.indexOf(k) === i; });
-        ks.sort(function (x, y) { return (MH.m[y] || 0) - (MH.m[x] || 0); });
-        var cm = function (M, r, k) { if (!M) return '–'; var v = k === '\u0000' ? Math.max(0, r.neg - M.n) : (M.m[k] || 0); return n(v) + ' · ' + pctInt(v, Math.max(r.neg, M.n)); };
-        if ((H.neg > MH.n) || (MW && pW && pW.neg > MW.n)) ks.push('\u0000');
-        out.push('<table class="mot"><thead><tr><th>MOTIVO</th><th class="r">' + hd2(H) + '</th>' + (pW ? '<th class="r">' + hd2(pW) + '</th>' : '') + '</tr></thead><tbody>');
-        ks.forEach(function (k) { out.push('<tr' + (k === '\u0000' ? ' class="sub"' : '') + '><td>' + (k === '' ? 'Sin motivo' : k === '\u0000' ? 'Sin dato' : esc(k)) + '</td><td class="r">' + cm(MH, H, k) + '</td>' + (pW ? '<td class="r">' + cm(MW, pW, k) + '</td>' : '') + '</tr>'); });
-        out.push('<tr class="tot"><td>Total</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
-      } else {
-        out.push('<table class="mot"><thead><tr><th>MOTIVO</th><th class="r">' + hd2(H) + '</th>' + (pW ? '<th class="r">' + hd2(pW) + '</th>' : '') + '</tr></thead><tbody>');
-        out.push('<tr class="tot"><td>Total</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
+      var MAPA = mapaMotivos(H.d);
+      out.push('<div class="sec"><h2>Negados por motivo<span>últimos 7 días · % de las negadas de cada día (líneas)</span></h2>');
+      if (MAPA) out.push(MAPA);
+      else {
+        out.push('<div class="lg"><span><i style="background:' + C.RED + '"></i>% de líneas negadas</span>' + (N.prom != null ? '<span><i class="ln" style="background:' + C.INK + '"></i>Promedio ' + dec(N.prom) + '%</span>' : '') + '</div>');
+        out.push(grafNegados(N.serie, N.prom));
       }
-      out.push('</div></div>');
       if (N.top.length) {
         var conMp = N.top.some(function (x) { return x.mp; });
         out.push('<table class="mot" style="margin-top:8px"><thead><tr><th>CÓDIGOS MÁS NEGADOS</th><th>DESCRIPCIÓN</th><th class="r">VECES</th>' + (conMp ? '<th>MOTIVO PRINCIPAL</th>' : '') + '</tr></thead><tbody>' +
