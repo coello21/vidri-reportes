@@ -40,6 +40,18 @@ describe('Motivo de negado registrado', () => {
 
 import { fillRateCD, exclusionPorPreparador } from '../src/core/negados/motivos';
 
+describe('Días guardados sin líneas (antes del 6 nov)', () => {
+  it('un archivo que trae parte del día suma lo que falta sin duplicar', () => {
+    const R = new RadarNegados();
+    R.integrar([r(1, 'a', 0, 'Físico no se encuentra'), r(2, 'b', 0, 'Existencia a cero')]);
+    const h = R.history['2026-11-03'] as DiaResumen;
+    delete h.mot!.l; delete h.mot!.p; delete h.mot!.bp;            // como quedó guardado antes del cambio
+    R.integrar([r(2, 'b', 0, 'Existencia a cero'), r(3, 'c', 0, 'Pasillo bloqueado')]);
+    expect(h.mot!.n).toBe(3);
+    expect(h.mot!.m).toEqual({ 'Físico no se encuentra': 1, 'Existencia a cero': 1, 'Pasillo bloqueado': 1 });
+  });
+});
+
 describe('Fill rate sin «Existencia a cero»', () => {
   const base = (ped: number, sku: string, prep: number, mot: string, razon = 'EXISTENCIA', disp = 0): Registro => ({
     Pedido: String(ped), SKU: sku, Estado: 'A', Fecha: new Date('2026-11-03T08:00:00'), FechaAct: new Date('2026-11-03T10:00:00'), FechaRevision: null,

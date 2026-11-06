@@ -102,11 +102,34 @@ export function motivosDeRegistros(records: Registro[]): Record<string, MotivosD
 }
 
 /**
+ * Junta un día guardado sin líneas (antes del 6 nov 2026) con lo de un archivo nuevo: por preparador + código + motivo
+ * se queda con el número mayor. Lo que el archivo nuevo trae y el día no tenía se suma; lo repetido no se duplica.
+ */
+function juntarSinLineas(viejo: MotivosDia, nuevo: MotivosDia): MotivosDia {
+  const cel = new Map<string, number>(), prepSku = (pr: string, sku: string, k: string) => pr + '\u0001' + sku + '\u0001' + k;
+  const poner = (mo: MotivosDia) => {
+    for (const pr in mo.q) for (const sku in mo.q[pr]) mo.q[pr][sku].forEach((v, i) => {
+      if (!v) return; const key = prepSku(pr, sku, mo.k[i]); cel.set(key, Math.max(cel.get(key) || 0, v));
+    });
+  };
+  poner(viejo); poner(nuevo);
+  const m: Record<string, number> = {}, tmp: Record<string, Record<string, Record<string, number>>> = {};
+  cel.forEach((v, key) => { const [pr, sku, k] = key.split('\u0001'); m[k] = (m[k] || 0) + v; ((tmp[pr] || (tmp[pr] = {}))[sku] || (tmp[pr][sku] = {}))[k] = v; });
+  const k = Object.keys(m).sort(motSort), q: MotivosDia['q'] = {};
+  for (const pr in tmp) { q[pr] = {}; for (const sku in tmp[pr]) { const a = k.map((x) => tmp[pr][sku][x] || 0); while (a.length && !a[a.length - 1]) a.pop(); q[pr][sku] = a; } }
+  const out: MotivosDia = { n: Object.values(m).reduce((a, b) => a + b, 0), m, k, q };
+  const b = (viejo.b?.[0] || 0) >= (nuevo.b?.[0] || 0) ? viejo.b : nuevo.b;
+  if (b) out.b = b;
+  return out;
+}
+
+/**
  * Pone los motivos en los días del histórico. Devuelve los días que cambiaron.
  * Si el día ya tiene líneas guardadas, junta las de este archivo con las que había (la misma línea no se cuenta
  * dos veces; si viene en los dos, vale la del archivo nuevo). Así un archivo de la mañana suma lo que se cerró en la
  * tarde del día anterior sin borrar lo que ya estaba.
- * Días guardados antes de este cambio (sin líneas): un archivo los reemplaza solo si trae igual o más negadas.
+ * Días guardados antes de este cambio (sin líneas): se juntan por preparador, código y motivo quedándose con lo
+ * mayor de los dos (una línea que viene en los dos archivos no se cuenta dos veces).
  */
 export function aplicarMotivos(history: Historial, porDia: Record<string, MotivosDia>): string[] {
   const cambiados: string[] = [];
@@ -118,7 +141,7 @@ export function aplicarMotivos(history: Historial, porDia: Record<string, Motivo
     if (h.mot && viejas) {
       lineasDe(nuevo)!.forEach((x, key) => viejas.set(key, x));
       nuevo = armarDia(viejas, { ...(h.mot.bp || {}), ...(nuevo.bp || {}) });
-    } else if (h.mot && (h.mot.n > nuevo.n || (h.mot.n === nuevo.n && (h.mot.b?.[0] || 0) > (nuevo.b?.[0] || 0)))) continue;
+    } else if (h.mot) nuevo = juntarSinLineas(h.mot, nuevo);
     if (h.mot && JSON.stringify(h.mot) === JSON.stringify(nuevo)) continue;
     h.mot = nuevo;
     cambiados.push(d);
