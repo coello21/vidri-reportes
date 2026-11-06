@@ -432,7 +432,7 @@
       out.push('<div class="notas"><div><div class="t"><i style="background:' + C.GREEN + '"></i>Lo bueno</div><ul>' + (h.bueno.length ? h.bueno.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') : '<li>–</li>') + '</ul></div>' +
         '<div><div class="t"><i style="background:' + C.ORANGE + '"></i>Por mejorar</div><ul>' + (h.mejorar.length ? h.mejorar.map(function (x) { return '<li>' + esc(x.q) + '</li>'; }).join('') : '<li>Mantener el ritmo.</li>') + '</ul></div></div>');
     }
-    var foot = ['Fill rate = preparadas ÷ (preparadas + negadas que se podían preparar; no cuenta «Existencia a cero»)'];
+    var foot = ['Fill rate = líneas preparadas ÷ (preparadas + negadas)'];
     if (P && N) foot.push(M.amanecer ? 'Negados: día completo de ayer' : 'Negados a la última carga' + (M.negHora ? ' (' + M.negHora + ')' : ''));
     foot.push('Generado por el Radar');
     out.push('<div class="foot">' + esc(foot.join(' · ')) + '</div></section>');

@@ -8,14 +8,13 @@ import type { RadarNegados, VistaAgregada, PreparadorVista } from '../core/negad
 import { parsePreparadorName, EXACTITUD_META } from '../core/negados/radar';
 import { addDays } from '../core/comun/fechas';
 import { lineasPreparadas } from '../core/negados/extras';
-import { motColor, motLabel, motSort, motivosDePreparador, fillRateCD, exclusionPorPreparador, negadosPorMotivo, EXIST_CERO } from '../core/negados/motivos';
+import { motColor, motLabel, motSort, motivosDePreparador, fillRateCD, negadosPorMotivo, EXIST_CERO } from '../core/negados/motivos';
 import type { DiaResumen } from '../core/negados/tipos';
 import { $, esc, fmtInt, fmtPct, fmtDateShort, fechaLarga } from './ui/formato';
 import { barrasApiladas, tendenciaSobrePuntos, globoEnPuntos } from './ui/graficos';
 
-type ClaveOrden = 'name' | 'solicitado' | 'preparados' | 'negados' | 'exist' | 'fillRate';
-/** Fila de la tabla de preparadores: exist = negadas por "Existencia a cero" (no cuentan en su fill rate). */
-type FilaPrep = PreparadorVista & { exist: number };
+type ClaveOrden = 'name' | 'solicitado' | 'preparados' | 'negados' | 'fillRate';
+type FilaPrep = PreparadorVista;
 
 export class Resumen {
   vm: VistaAgregada | null = null;
@@ -204,8 +203,7 @@ export class Resumen {
   }
 
   /**
-   * Fill rate del CD: líneas preparadas ÷ (preparadas + negadas que sí se podían preparar). Las negadas por
-   * "Existencia a cero" no cuentan (sin motivo registrado: las de disponible 0 o negativo). Abajo, el B2B por pedidos.
+   * Fill rate del CD: líneas preparadas ÷ (preparadas + negadas); todas las negadas cuentan. Abajo, el B2B por pedidos.
    */
   private renderB2B(vm: VistaAgregada) {
     const val = $('kpiB2B'), foot = $('kpiB2BFoot');
@@ -395,15 +393,11 @@ export class Resumen {
   }
 
   /* ---------------- preparadores ---------------- */
-  /** Preparadores con su fill rate sin contar lo negado por "Existencia a cero" (solo días con motivo registrado). */
+  /** Preparadores con su fill rate: preparado ÷ solicitado (todas las negadas cuentan). */
   private filasPrep(): FilaPrep[] {
     const vm = this.vm;
     if (!vm) return [];
-    const ex = exclusionPorPreparador(this.radar.history, this.radar.diasEnRango(vm.rangeFrom, vm.rangeTo));
-    return (vm.fillRateByPreparador || []).map((r) => {
-      const exist = Math.min(ex[r.raw] || 0, r.negados), base = r.solicitado - exist;
-      return { ...r, exist, fillRate: base > 0 ? (r.preparados / base) * 100 : 100 };
-    });
+    return (vm.fillRateByPreparador || []).map((r) => ({ ...r, fillRate: r.solicitado > 0 ? (r.preparados / r.solicitado) * 100 : 100 }));
   }
 
   private filasFill(): FilaPrep[] {
@@ -429,9 +423,9 @@ export class Resumen {
       const c = clase(r.fillRate);
       return '<tr data-raw="' + esc(r.raw) + '" title="Ver qué códigos negó"' + (r.raw === this.prepSel ? ' class="sel"' : '') + '>' +
         '<td class="desc">' + esc(r.name) + '</td><td class="count tabular">' + fmtInt(r.solicitado) + '</td><td class="count tabular">' + fmtInt(r.preparados) +
-        '</td><td class="count tabular">' + fmtInt(r.negados) + '</td><td class="count tabular">' + (r.exist ? fmtInt(r.exist) : '—') + '</td><td><span class="fillrate-val ' + c + '">' + fmtPct(r.fillRate) + '</span>' +
+        '</td><td class="count tabular">' + fmtInt(r.negados) + '</td><td><span class="fillrate-val ' + c + '">' + fmtPct(r.fillRate) + '</span>' +
         '<div class="fillrate-bar"><span class="fill ' + c + '" style="width:' + Math.min(100, Math.max(0, r.fillRate)) + '%"></span></div></td></tr>';
-    }).join('') : '<tr class="empty-row"><td colspan="6">No hay datos para este día.</td></tr>';
+    }).join('') : '<tr class="empty-row"><td colspan="5">No hay datos para este día.</td></tr>';
     body.querySelectorAll<HTMLTableRowElement>('tr[data-raw]').forEach((tr) => tr.addEventListener('click', () => {
       this.prepSel = tr.dataset.raw!; this.renderFillRateTable();
     }));
@@ -515,9 +509,9 @@ export class Resumen {
       const wb = XLSX.utils.book_new();
       // fill rate
       const fr = this.filasPrep().sort((a, b) => b.solicitado - a.solicitado)
-        .map((r) => ({ 'Preparador': r.name, 'Solicitado': r.solicitado, 'Preparado': r.preparados, 'Negado': r.negados, 'Existencia a cero': r.exist, 'Fill rate (%)': Math.round(r.fillRate * 10) / 10 }));
+        .map((r) => ({ 'Preparador': r.name, 'Solicitado': r.solicitado, 'Preparado': r.preparados, 'Negado': r.negados, 'Fill rate (%)': Math.round(r.fillRate * 10) / 10 }));
       const fTxt = vm.date ? 'Día: ' + vm.date : 'Rango: ' + vm.rangeFrom + ' a ' + vm.rangeTo + ' (' + vm.rangeDays + ' días)';
-      XLSX.utils.book_append_sheet(wb, titulo(XLSX.utils.json_to_sheet(fr.length ? fr : [{ 'Preparador': '', 'Solicitado': '', 'Preparado': '', 'Negado': '', 'Existencia a cero': '', 'Fill rate (%)': '' }], A2), fTxt, [32, 14, 14, 14, 18, 16]), 'Fill rate por preparador');
+      XLSX.utils.book_append_sheet(wb, titulo(XLSX.utils.json_to_sheet(fr.length ? fr : [{ 'Preparador': '', 'Solicitado': '', 'Preparado': '', 'Negado': '', 'Fill rate (%)': '' }], A2), fTxt, [32, 14, 14, 14, 18, 16]), 'Fill rate por preparador');
       // resumen y detalle por preparador
       const raws = new Set<string>(), prepSkus = new Map<string, Set<string>>();
       for (const d of dates) {

@@ -38,7 +38,7 @@ describe('Motivo de negado registrado', () => {
   });
 });
 
-import { fillRateCD, exclusionPorPreparador } from '../src/core/negados/motivos';
+import { fillRateCD } from '../src/core/negados/motivos';
 
 describe('Días guardados sin líneas (antes del 6 nov)', () => {
   it('un archivo que trae parte del día suma lo que falta sin duplicar', () => {
@@ -52,31 +52,24 @@ describe('Días guardados sin líneas (antes del 6 nov)', () => {
   });
 });
 
-describe('Fill rate sin «Existencia a cero»', () => {
+describe('Fill rate: todas las negadas cuentan', () => {
   const base = (ped: number, sku: string, prep: number, mot: string, razon = 'EXISTENCIA', disp = 0): Registro => ({
     Pedido: String(ped), SKU: sku, Estado: 'A', Fecha: new Date('2026-11-03T08:00:00'), FechaAct: new Date('2026-11-03T10:00:00'), FechaRevision: null,
     Sucursal: 'S', Orden: 'O' + ped, Preparador: 'P1 - Ana', Cantidad: 2, CantPrep: prep, Disponible: disp, Desc: 'd', Categoria: 'c', Motivo: mot, Razon: razon,
   });
-  it('quita del fill rate las negadas por existencia a cero (tarjeta, preparador y B2B)', () => {
+  it('incluye las negadas por existencia a cero (tarjeta y B2B)', () => {
     const R = new RadarNegados();
     R.integrar([
-      base(1, 'a', 2, ''), base(1, 'b', 0, 'Existencia a cero'),                       // B2B: cumple (la negada no cuenta)
+      base(1, 'a', 2, ''), base(1, 'b', 0, 'Existencia a cero'),                       // B2B: no cumple (la negada cuenta)
       base(2, 'a', 2, ''), base(2, 'c', 0, 'Físico no se encuentra'),                  // B2B: no cumple
-      base(3, 'd', 0, 'Existencia a cero'),                                           // B2B entero sin existencia: no cuenta
+      base(3, 'd', 0, 'Existencia a cero'),                                           // B2B: no cumple
+      base(6, 'g', 2, ''),                                                            // B2B: cumple
       base(4, 'e', 2, '', 'EXISTENCIA'), base(5, 'f', 0, 'Sin existencia ubicación picking', 'EXISTENCIA'),
-    ].map((r, i) => (i < 5 ? { ...r, Razon: 'VENTA CORPORATIVA' } : r)));
+    ].map((r, i) => (i < 6 ? { ...r, Razon: 'VENTA CORPORATIVA' } : r)));
     const f = fillRateCD(R.history, ['2026-11-03']);
-    expect(f).toMatchObject({ prep: 3, neg: 4, excl: 2, base: 5 });
-    expect(f.pct).toBeCloseTo(60);
-    expect(exclusionPorPreparador(R.history, ['2026-11-03'])).toEqual({ 'P1 - Ana': 2 });
+    expect(f).toMatchObject({ prep: 4, neg: 4, base: 8 });
+    expect(f.pct).toBeCloseTo(50);
     const b = R.fillRateB2B('2026-11-03', '2026-11-03');
-    expect([b.tot, b.ok]).toEqual([2, 1]);
-  });
-  it('días sin motivo registrado: quita las de disponible 0 o negativo', () => {
-    const R = new RadarNegados();
-    const sin = (r: Registro) => { const x = { ...r }; delete x.Motivo; return x; };
-    R.integrar([sin(base(1, 'a', 2, '')), sin(base(2, 'b', 0, '', 'X', 0)), sin(base(3, 'c', 0, '', 'X', 5))]);
-    const f = fillRateCD(R.history, ['2026-11-03']);
-    expect(f).toMatchObject({ prep: 1, neg: 2, excl: 1, base: 2 });
+    expect([b.tot, b.ok]).toEqual([4, 1]);
   });
 });

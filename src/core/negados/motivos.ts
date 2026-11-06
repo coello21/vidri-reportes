@@ -175,7 +175,7 @@ export function exclusionDia(h: DiaResumen | undefined): number {
   return Math.min((h.bucket?.cero || 0) + (h.bucket?.negativo || 0), neg);
 }
 
-/** Fill rate del CD en unos días: preparadas ÷ (preparadas + negadas que sí se podían preparar). */
+/** Fill rate del CD en unos días: preparadas ÷ (preparadas + negadas). Todas las negadas cuentan, también «Existencia a cero» (6 nov 2026). */
 export function fillRateCD(history: Historial, dias: string[]): { prep: number; neg: number; excl: number; base: number; pct: number | null } {
   let prep = 0, neg = 0, excl = 0;
   for (const d of dias) {
@@ -184,9 +184,8 @@ export function fillRateCD(history: Historial, dias: string[]): { prep: number; 
     const t = h.meta.totalFinal || 0, n = h.meta.totalNegados || 0;
     prep += h.meta.totalPreparados != null ? h.meta.totalPreparados : Math.max(t - n, 0);
     neg += n;
-    excl += exclusionDia(h);
   }
-  const base = prep + neg - excl;
+  const base = prep + neg;
   return { prep, neg, excl, base, pct: base ? (prep / base) * 100 : null };
 }
 
