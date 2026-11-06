@@ -66,10 +66,6 @@ node scripts/fixture-desde-html.mjs "ruta/Radar_de_Negados_2026-10-19.html"
 
 Abre `.../app/`, entra con tu correo, carga los Excel y usa **Descargar HTML** para el correo. **Reporte ejecutivo** arma el PDF del día con los datos cargados (en la ventana de impresión elige «Guardar como PDF»).
 
-## Productividad (`/productividad/`)
+## Productividad
 
-- Lee el **rpt_ListaPreparacionAuditoria** (una orden por fila) y guarda **todas las columnas** en `prod_ordenes`; las personas agregadas al listado van en `prod_personal`.
-- Antes de usarla, correr una vez `supabase/03_productividad.sql` en el SQL Editor.
-- Mismos cálculos que la página original (SKUs/h por bloques de tiempo, jornada, % de capacidad, balanceo de carga, zonas). Comparada pantalla por pantalla contra el original: 32 combinaciones de pestañas, filtros y fechas, idénticas.
-- «Importar historial» sube los `.json` o los HTML descargados de la página anterior (solo agrega las órdenes que falten).
-- «Descargar HTML»: copia de 45 días en un solo archivo (`dist/productividad/plantilla.html`).
+Se movió a su propio repositorio: [vidri-productividad](https://github.com/coello21/vidri-productividad) (`https://coello21.github.io/vidri-productividad/`). Usa la misma base de Supabase. `/productividad/` redirige a la página nueva.

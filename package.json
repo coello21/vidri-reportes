@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "limpieza": "PAGINA=limpieza vite build --config vite.copia.config.ts --mode copia && PAGINA=limpieza SALIDA=limpieza-html/Limpieza_Rpt_OrdenesPreparacion.html node scripts/plantilla.mjs",
-    "plantillas": "PAGINA=app vite build --config vite.copia.config.ts --mode copia && PAGINA=app node scripts/plantilla.mjs && PAGINA=productividad vite build --config vite.copia.config.ts --mode copia && PAGINA=productividad node scripts/plantilla.mjs"
+    "plantillas": "PAGINA=app vite build --config vite.copia.config.ts --mode copia && PAGINA=app node scripts/plantilla.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

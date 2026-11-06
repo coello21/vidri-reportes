@@ -60,7 +60,7 @@ html[data-theme="dark"] .tag.a{background:#21392A;color:#8FD69C}
 html.copia .vx-pg{display:none}
 @media (max-width:820px){.vxh .vx-der{align-items:flex-start;margin-left:0}}
 
-/* ---------- Respaldo y sesión: al final de la página (Radar y Productividad) ---------- */
+/* ---------- Respaldo y sesión: al final de la página (Radar) ---------- */
 .vx-respaldo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:36px 0 8px;padding:14px 0 0;border-top:1px solid var(--line);font:11px var(--font-mono);color:var(--ink-muted)}
 .vx-respaldo .nb-t{text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin-right:6px}
 .vx-respaldo .nb-dot{width:8px;height:8px;border-radius:50%;background:#4E9A55;flex:none}

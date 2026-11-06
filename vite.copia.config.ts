@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 /**
  * Plantilla del HTML que se comparte: la misma página en modo "copia" (sin inicio de sesión ni base de datos).
- * PAGINA = app (Radar) o productividad. scripts/plantilla.mjs la junta en un solo archivo: dist/<PAGINA>/plantilla.html
+ * PAGINA = app (Radar) o limpieza. scripts/plantilla.mjs la junta en un solo archivo: dist/<PAGINA>/plantilla.html
  */
 const pagina = process.env.PAGINA || 'app';
 export default defineConfig({

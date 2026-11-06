@@ -9,7 +9,6 @@ export default defineConfig({
       input: {
         inicio: resolve(import.meta.dirname, 'index.html'),
         app: resolve(import.meta.dirname, 'app/index.html'),
-        productividad: resolve(import.meta.dirname, 'productividad/index.html'),
       },
     },
   },
