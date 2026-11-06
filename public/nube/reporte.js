@@ -4,6 +4,8 @@
    frases fijas (plantillas), sin depender de IA. Se descarga como PDF
    con el diálogo de impresión del navegador ("Guardar como PDF").
    ===================================================================== */
+/* REGLA (6 nov 2026): el reporte solo usa los gráficos y tablas que ya están en el Radar, cada uno con un texto corto
+   de qué muestra; nada de gráficos nuevos ni texto explicativo largo. Fondo blanco y ningún dato repetido. */
 (function () {
   'use strict';
 
@@ -446,7 +448,7 @@
       }
       if (N.top.length) {
         var conMp = N.top.some(function (x) { return x.mp; });
-        out.push('<table class="mot" style="margin-top:8px"><thead><tr><th>CÓDIGOS MÁS NEGADOS</th><th>DESCRIPCIÓN</th><th class="r">VECES</th>' + (conMp ? '<th>MOTIVO PRINCIPAL</th>' : '') + '</tr></thead><tbody>' +
+        out.push('<h2 style="margin-top:10px">Códigos más negados<span>' + esc(cap(DOW_L[dowOf(H.d)]) + ' ' + (+H.d.slice(8))) + ' · veces negado y su motivo principal</span></h2><table class="mot"><thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th class="r">VECES</th>' + (conMp ? '<th>MOTIVO PRINCIPAL</th>' : '') + '</tr></thead><tbody>' +
           N.top.slice(0, 5).map(function (x) { return '<tr><td>' + esc(x.sku) + '</td><td class="desc">' + esc(x.desc) + '</td><td class="r"><b>' + n(x.t) + '</b></td>' + (conMp ? '<td>' + esc(String(x.mp || '–').replace(/\s*\(.*$/, '')) + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table>');
       }
       out.push('</div>');
