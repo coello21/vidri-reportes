@@ -33,7 +33,9 @@ type LineaMot = { mot: string; prep: string; sku: string };
  * Arma el resumen del día desde sus líneas negadas y sus pedidos B2B. Guarda también las líneas (l, p) y los
  * pedidos B2B (bp) para poder juntar archivos después sin contar dos veces.
  */
-function armarDia(lineas: Map<string, LineaMot>, bp: Record<string, number>): MotivosDia {
+const pedidoDe = (key: string) => key.slice(0, key.lastIndexOf('|'));
+
+function armarDia(lineas: Map<string, LineaMot>, bp: Record<string, number>, zp: Record<string, 1> = {}, bp2: Record<string, number> = {}): MotivosDia {
   const m: Record<string, number> = {};
   lineas.forEach((x) => { m[x.mot] = (m[x.mot] || 0) + 1; });
   const k = Object.keys(m).sort(motSort), ix: Record<string, number> = {};
@@ -52,6 +54,13 @@ function armarDia(lineas: Map<string, LineaMot>, bp: Record<string, number>): Mo
   const out: MotivosDia = { n: lineas.size, m, k, q, l, p };
   const peds = Object.keys(bp);
   if (peds.length) { out.b = [peds.length, peds.reduce((a, x) => a + (bp[x] ? 1 : 0), 0)]; out.bp = bp; }
+  if (Object.keys(zp).length) {
+    out.zp = zp;
+    let z = 0; lineas.forEach((_, key) => { if (zp[pedidoDe(key)]) z++; });
+    out.z = z;
+  }
+  const p2 = Object.keys(bp2);
+  if (p2.length) { out.b2 = [p2.length, p2.reduce((a, x) => a + (bp2[x] ? 1 : 0), 0)]; out.bp2 = bp2; }
   return out;
 }
 
@@ -88,6 +97,26 @@ export function motivosDeRegistros(records: Registro[]): Record<string, MotivosD
     if (p.abierto || !p.lineas) return;
     (BP[p.dia] || (BP[p.dia] = {}))[id] = p.ok ? 1 : 0;
   });
+  // Pedidos "en cero": todas sus líneas cerradas (A) y ninguna preparada. Es lo que el sistema pone en cero
+  // automático; no cuentan en el fill rate (como el corporativo). Un pedido con líneas abiertas todavía no se sabe.
+  const tp = new Map<string, { abierto: boolean; prep: boolean; lineas: number; dia: string; ok: boolean }>();
+  for (const r of rows) {
+    const t = tp.get(r.Pedido) || { abierto: false, prep: false, lineas: 0, dia: '', ok: true };
+    tp.set(r.Pedido, t);
+    const fin = r.FechaAct || r.FechaRevision;
+    if (r.Estado !== 'A' || r.CantPrep == null || r.Cantidad == null || !fin) { t.abierto = true; continue; }
+    t.lineas++;
+    if (r.CantPrep > 0) t.prep = true;
+    if (!(r.CantPrep >= r.Cantidad)) t.ok = false;
+    const d = ymd(fin);
+    if (d > t.dia) t.dia = d;
+  }
+  const enCero = new Set<string>(), nz: string[] = [], BP2: Record<string, Record<string, number>> = {};
+  tp.forEach((t, id) => {
+    if (!t.abierto && t.lineas && !t.prep) enCero.add(id); else nz.push(id);
+    // B2B (regla 6 nov): pedido corporativo cerrado que no está en cero; cumple si todas sus líneas fueron completas
+    if (b2bPed.has(id) && !t.abierto && t.lineas && t.prep) (BP2[t.dia] || (BP2[t.dia] = {}))[id] = t.ok ? 1 : 0;
+  });
   for (const r of rows) {
     if (r.Estado !== 'A' || r.CantPrep == null || r.Cantidad == null || r.Disponible == null) continue;
     if (!(r.CantPrep <= 0)) continue;
@@ -96,8 +125,13 @@ export function motivosDeRegistros(records: Registro[]): Record<string, MotivosD
     const d = ymd(fin);
     (L[d] || (L[d] = new Map())).set(r.Pedido + '|' + r.SKU, { mot: motClean(r.Motivo), prep: r.Preparador, sku: r.SKU });
   }
+  const ZP: Record<string, Record<string, 1>> = {};
+  for (const d in L) L[d].forEach((_, key) => { const pd = pedidoDe(key); if (enCero.has(pd)) (ZP[d] || (ZP[d] = {}))[pd] = 1; });
   const out: Record<string, MotivosDia> = {};
-  for (const d of new Set([...Object.keys(L), ...Object.keys(BP)])) out[d] = armarDia(L[d] || new Map(), BP[d] || {});
+  for (const d of new Set([...Object.keys(L), ...Object.keys(BP), ...Object.keys(BP2)])) {
+    out[d] = armarDia(L[d] || new Map(), BP[d] || {}, ZP[d] || {}, BP2[d] || {});
+    out[d].nz = nz;
+  }
   return out;
 }
 
@@ -120,6 +154,10 @@ function juntarSinLineas(viejo: MotivosDia, nuevo: MotivosDia): MotivosDia {
   const out: MotivosDia = { n: Object.values(m).reduce((a, b) => a + b, 0), m, k, q };
   const b = (viejo.b?.[0] || 0) >= (nuevo.b?.[0] || 0) ? viejo.b : nuevo.b;
   if (b) out.b = b;
+  const z = Math.max(viejo.z || 0, nuevo.z || 0);
+  if (z) out.z = z;
+  const b2 = (viejo.b2?.[0] || 0) >= (nuevo.b2?.[0] || 0) ? viejo.b2 : nuevo.b2;
+  if (b2) out.b2 = b2;
   return out;
 }
 
@@ -137,10 +175,16 @@ export function aplicarMotivos(history: Historial, porDia: Record<string, Motivo
     const h = history[d] as DiaResumen | undefined;
     if (!h || h.v !== 2) continue;
     let nuevo = porDia[d];
+    const nz = nuevo.nz || [];
+    delete nuevo.nz;
     const viejas = h.mot ? lineasDe(h.mot) : null;
     if (h.mot && viejas) {
       lineasDe(nuevo)!.forEach((x, key) => viejas.set(key, x));
-      nuevo = armarDia(viejas, { ...(h.mot.bp || {}), ...(nuevo.bp || {}) });
+      // pedidos en cero: los de antes y los nuevos, menos los que este archivo muestra con algo preparado o abierto
+      const zp: Record<string, 1> = { ...(h.mot.zp || {}), ...(nuevo.zp || {}) }, bp2 = { ...(h.mot.bp2 || {}), ...(nuevo.bp2 || {}) };
+      nz.forEach((x) => { if (!nuevo.zp?.[x]) delete zp[x]; });
+      for (const x in zp) delete bp2[x];
+      nuevo = armarDia(viejas, { ...(h.mot.bp || {}), ...(nuevo.bp || {}) }, zp, bp2);
     } else if (h.mot) nuevo = juntarSinLineas(h.mot, nuevo);
     if (h.mot && JSON.stringify(h.mot) === JSON.stringify(nuevo)) continue;
     h.mot = nuevo;
@@ -175,7 +219,8 @@ export function exclusionDia(h: DiaResumen | undefined): number {
   return Math.min((h.bucket?.cero || 0) + (h.bucket?.negativo || 0), neg);
 }
 
-/** Fill rate del CD en unos días: preparadas ÷ (preparadas + negadas). Todas las negadas cuentan, también «Existencia a cero» (6 nov 2026). */
+/** Fill rate del CD en unos días: preparadas ÷ (preparadas + negadas). No cuentan las negadas de pedidos en cero
+ *  (todas sus líneas negadas, como el «actualizado a cero automático» del corporativo); el resto sí, también «Existencia a cero». */
 export function fillRateCD(history: Historial, dias: string[]): { prep: number; neg: number; excl: number; base: number; pct: number | null } {
   let prep = 0, neg = 0, excl = 0;
   for (const d of dias) {
@@ -184,20 +229,19 @@ export function fillRateCD(history: Historial, dias: string[]): { prep: number; 
     const t = h.meta.totalFinal || 0, n = h.meta.totalNegados || 0;
     prep += h.meta.totalPreparados != null ? h.meta.totalPreparados : Math.max(t - n, 0);
     neg += n;
+    excl += Math.min(h.mot?.z || 0, n);
   }
-  const base = prep + neg;
+  const base = prep + neg - excl;
   return { prep, neg, excl, base, pct: base ? (prep / base) * 100 : null };
 }
 
-/** Negadas por "Existencia a cero" de cada preparador en unos días (solo días con motivo registrado). */
+/** Negadas de pedidos en cero de cada preparador en unos días (no cuentan en su fill rate). */
 export function exclusionPorPreparador(history: Historial, dias: string[]): Record<string, number> {
   const out: Record<string, number> = {};
   for (const d of dias) {
     const mo = (history[d] as DiaResumen | undefined)?.mot;
-    if (!mo || !mo.q || !mo.k) continue;
-    const i = mo.k.indexOf(EXIST_CERO);
-    if (i < 0) continue;
-    for (const pr in mo.q) for (const sku in mo.q[pr]) { const v = mo.q[pr][sku][i] || 0; if (v) out[pr] = (out[pr] || 0) + v; }
+    if (!mo || !mo.zp || !mo.l || !mo.p) continue;
+    for (const key in mo.l) if (mo.zp[pedidoDe(key)]) { const pr = mo.p[mo.l[key][1]]; out[pr] = (out[pr] || 0) + 1; }
   }
   return out;
 }

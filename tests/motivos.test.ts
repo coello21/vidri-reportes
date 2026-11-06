@@ -38,7 +38,7 @@ describe('Motivo de negado registrado', () => {
   });
 });
 
-import { fillRateCD } from '../src/core/negados/motivos';
+import { fillRateCD, exclusionPorPreparador } from '../src/core/negados/motivos';
 
 describe('Días guardados sin líneas (antes del 6 nov)', () => {
   it('un archivo que trae parte del día suma lo que falta sin duplicar', () => {
@@ -62,14 +62,43 @@ describe('Fill rate: todas las negadas cuentan', () => {
     R.integrar([
       base(1, 'a', 2, ''), base(1, 'b', 0, 'Existencia a cero'),                       // B2B: no cumple (la negada cuenta)
       base(2, 'a', 2, ''), base(2, 'c', 0, 'Físico no se encuentra'),                  // B2B: no cumple
-      base(3, 'd', 0, 'Existencia a cero'),                                           // B2B: no cumple
+      base(3, 'd', 0, 'Existencia a cero'),                                           // B2B en cero: no cuenta
       base(6, 'g', 2, ''),                                                            // B2B: cumple
       base(4, 'e', 2, '', 'EXISTENCIA'), base(5, 'f', 0, 'Sin existencia ubicación picking', 'EXISTENCIA'),
     ].map((r, i) => (i < 6 ? { ...r, Razon: 'VENTA CORPORATIVA' } : r)));
     const f = fillRateCD(R.history, ['2026-11-03']);
-    expect(f).toMatchObject({ prep: 4, neg: 4, base: 8 });
-    expect(f.pct).toBeCloseTo(50);
+    // los pedidos 3 y 5 tienen todas sus líneas negadas: son pedidos en cero y no cuentan
+    expect(f).toMatchObject({ prep: 4, neg: 4, excl: 2, base: 6 });
+    expect(f.pct).toBeCloseTo(66.67);
     const b = R.fillRateB2B('2026-11-03', '2026-11-03');
-    expect([b.tot, b.ok]).toEqual([4, 1]);
+    expect([b.tot, b.ok]).toEqual([3, 1]);
+  });
+});
+
+describe('Pedidos en cero', () => {
+  const L = (ped: number, sku: string, prep: number, est = 'A', mot = 'Existencia a cero', prepr = 'P1 - Ana', razon = 'EXISTENCIA'): Registro => ({
+    Pedido: String(ped), SKU: sku, Estado: est, Fecha: new Date('2026-11-03T08:00:00'), FechaAct: est === 'A' ? new Date('2026-11-03T10:00:00') : null, FechaRevision: null,
+    Sucursal: 'S', Orden: 'O' + ped, Preparador: prepr, Cantidad: 2, CantPrep: est === 'A' ? prep : null, Disponible: 0, Desc: 'd', Categoria: 'c', Motivo: prep > 0 ? '' : mot, Razon: razon,
+  });
+  it('no cuentan en el fill rate, el preparador ni el B2B', () => {
+    const R = new RadarNegados();
+    R.integrar([
+      L(1, 'a', 0), L(1, 'b', 0, 'A', 'Físico no se encuentra'),       // pedido en cero (2 líneas)
+      L(2, 'a', 2), L(2, 'b', 0),                                      // cuenta: 1 preparada, 1 negada
+      L(3, 'a', 0), L(3, 'b', 0, 'P'),                                  // tiene una línea abierta: todavía cuenta
+      L(4, 'a', 0, 'A', 'Existencia a cero', 'P2 - Luis', 'VENTA CORPORATIVA'), // B2B en cero: no cuenta
+      L(5, 'a', 2, 'A', '', 'P2 - Luis', 'VENTA CORPORATIVA'),         // B2B completo
+    ]);
+    const f = fillRateCD(R.history, ['2026-11-03']);
+    expect(f).toMatchObject({ prep: 2, neg: 5, excl: 3, base: 4 });
+    expect(exclusionPorPreparador(R.history, ['2026-11-03'])).toEqual({ 'P1 - Ana': 2, 'P2 - Luis': 1 });
+    const b = R.fillRateB2B('2026-11-03', '2026-11-03');
+    expect([b.tot, b.ok]).toEqual([1, 1]);
+  });
+  it('un archivo posterior que muestra algo preparado lo saca de pedidos en cero', () => {
+    const R = new RadarNegados();
+    R.integrar([L(1, 'a', 0), L(1, 'b', 0, 'P')]);
+    R.integrar([L(1, 'a', 0), L(1, 'b', 0)]);
+    expect(fillRateCD(R.history, ['2026-11-03']).excl).toBe(2);
   });
 });

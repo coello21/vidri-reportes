@@ -106,7 +106,7 @@
       </div>
     </div>
   </div>
-  <div class="chart full tablecard" id="prepResCard"><div class="cardhead"><div><h3>Negados por preparador</h3><p class="cardsub">Del día o rango elegido. Solicitado = preparado + negado; fill rate = preparado ÷ solicitado. Haz clic en un preparador para ver qué códigos negó.</p></div><button class="btn" id="downloadFillRateBtn" type="button" title="Descarga esta tabla en Excel">Descargar Excel</button></div><div class="prres"><div class="prres-l"><div class="tablescroll">
+  <div class="chart full tablecard" id="prepResCard"><div class="cardhead"><div><h3>Negados por preparador</h3><p class="cardsub">Del día o rango elegido. Solicitado = preparado + negado; fill rate = preparado ÷ solicitado, sin los pedidos en cero. Haz clic en un preparador para ver qué códigos negó.</p></div><button class="btn" id="downloadFillRateBtn" type="button" title="Descarga esta tabla en Excel">Descargar Excel</button></div><div class="prres"><div class="prres-l"><div class="tablescroll">
       <table id="fillRateTable">
         <thead>
           <tr>
@@ -291,9 +291,9 @@
     <li><b>Día:</b> la Fecha Actualizado, cuando se cerró la línea. Si viene vacía, la Fecha Enviado Revisión.</li>
     <li><b>Negada:</b> cantidad preparada en 0. <b>Preparada:</b> cantidad preparada mayor que 0. <b>Completa:</b> se mandó todo lo pedido.</li>
     <li><b>Motivo de negado:</b> el que anota el preparador en el ERP, desde el 27 oct 2026. Antes no había registro y se separaba por el disponible en sistema: «error en el proceso» si había disponible, «sin stock» si era 0 o negativo.</li>
-    <li><b>Fill rate</b> = líneas preparadas ÷ (líneas preparadas + líneas negadas). Cuentan todas las negadas, también las de «Existencia a cero». Es un indicador de preparación por líneas; no es el fill rate corporativo, que mide unidades despachadas de las transferencias.</li>
-    <li><b>Fill rate B2B</b> = pedidos con razón «Venta corporativa» cerrados con todas sus líneas completas ÷ pedidos corporativos cerrados.</li>
-    <li><b>Fill rate por preparador:</b> lo mismo con sus líneas: preparado ÷ solicitado.</li>
+    <li><b>Fill rate</b> = líneas preparadas ÷ (líneas preparadas + líneas negadas). No cuentan los <b>pedidos en cero</b>: pedidos con todas sus líneas cerradas y ninguna preparada (lo que el sistema pone en «actualizado a cero automático»; el corporativo tampoco los cuenta). Las demás negadas sí cuentan, también «Existencia a cero». Se mide por líneas; el corporativo mide unidades.</li>
+    <li><b>Fill rate B2B</b> = pedidos con razón «Venta corporativa» cerrados con todas sus líneas completas ÷ pedidos corporativos cerrados, sin los pedidos en cero.</li>
+    <li><b>Fill rate por preparador:</b> lo mismo con sus líneas: preparado ÷ (solicitado − negadas de pedidos en cero).</li>
     <li><b>Exactitud de picking</b> = líneas completas ÷ líneas preparadas. Meta: 99,5 % o más.</li>
   </ul>
 </footer>

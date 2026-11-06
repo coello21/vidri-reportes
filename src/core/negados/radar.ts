@@ -492,14 +492,17 @@ export class RadarNegados {
     const set = new Set(dates);
     const pendPed = new Set(Object.keys(this.store.pending || {}).map((k) => k.split('|')[0]));
     let tot = 0, ok = 0, enProceso = 0;
-    // todas las líneas negadas cuentan, también «Existencia a cero» (6 nov 2026)
+    // días con la regla del 6 nov (mot.b2): sin contar pedidos en cero; los demás, como se guardaron
+    const conMot = new Set<string>();
     dates.forEach((d) => {
       const r = this.history[d];
-      if (esResumen(r)) { tot += r.meta.b2bTot || 0; ok += r.meta.b2bOk || 0; }
+      if (!esResumen(r)) return;
+      if (r.mot?.b2) { tot += r.mot.b2[0]; ok += r.mot.b2[1]; conMot.add(d); return; }
+      tot += r.meta.b2bTot || 0; ok += r.meta.b2bOk || 0;
     });
     for (const p in this.store.b2b || {}) {
       const b = this.store.b2b[p];
-      if (!set.has(b[0])) continue;
+      if (!set.has(b[0]) || conMot.has(b[0])) continue;
       if (pendPed.has(p)) { enProceso++; continue; }
       tot++; ok += b[2];
     }

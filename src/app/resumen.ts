@@ -8,7 +8,7 @@ import type { RadarNegados, VistaAgregada, PreparadorVista } from '../core/negad
 import { parsePreparadorName, EXACTITUD_META } from '../core/negados/radar';
 import { addDays } from '../core/comun/fechas';
 import { lineasPreparadas } from '../core/negados/extras';
-import { motColor, motLabel, motSort, motivosDePreparador, fillRateCD, negadosPorMotivo, EXIST_CERO } from '../core/negados/motivos';
+import { motColor, motLabel, motSort, motivosDePreparador, fillRateCD, exclusionPorPreparador, negadosPorMotivo, EXIST_CERO } from '../core/negados/motivos';
 import type { DiaResumen } from '../core/negados/tipos';
 import { $, esc, fmtInt, fmtPct, fmtDateShort, fechaLarga } from './ui/formato';
 import { barrasApiladas, tendenciaSobrePuntos, globoEnPuntos } from './ui/graficos';
@@ -394,11 +394,15 @@ export class Resumen {
   }
 
   /* ---------------- preparadores ---------------- */
-  /** Preparadores con su fill rate: preparado ÷ solicitado (todas las negadas cuentan). */
+  /** Preparadores con su fill rate: preparado ÷ (solicitado − negadas de pedidos en cero). */
   private filasPrep(): FilaPrep[] {
     const vm = this.vm;
     if (!vm) return [];
-    return (vm.fillRateByPreparador || []).map((r) => ({ ...r, fillRate: r.solicitado > 0 ? (r.preparados / r.solicitado) * 100 : 100 }));
+    const ex = exclusionPorPreparador(this.radar.history, this.radar.diasEnRango(vm.rangeFrom, vm.rangeTo));
+    return (vm.fillRateByPreparador || []).map((r) => {
+      const base = r.solicitado - Math.min(ex[r.raw] || 0, r.negados);
+      return { ...r, fillRate: base > 0 ? (r.preparados / base) * 100 : 100 };
+    });
   }
 
   private filasFill(): FilaPrep[] {

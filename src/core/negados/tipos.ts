@@ -70,6 +70,16 @@ export interface MotivosDia {
   p?: string[];
   /** pedidos B2B del día: pedido -> 1 si cumplió, 0 si no */
   bp?: Record<string, number>;
+  /** pedidos "en cero" (todas sus líneas cerradas y negadas): no cuentan en el fill rate (6 nov 2026) */
+  zp?: Record<string, 1>;
+  /** líneas negadas del día que son de pedidos en cero */
+  z?: number;
+  /** B2B con la regla del 6 nov 2026: [pedidos cerrados sin contar los pedidos en cero, completos] */
+  b2?: [number, number];
+  /** pedidos B2B del día con esa regla: pedido -> 1 si cumplió, 0 si no */
+  bp2?: Record<string, number>;
+  /** solo al leer un archivo (no se guarda): pedidos del archivo que no están en cero */
+  nz?: string[];
 }
 
 /** Día guardado con la versión anterior del tablero (se muestra tal cual). */
