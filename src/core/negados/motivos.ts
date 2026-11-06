@@ -12,8 +12,8 @@ import { dedupRecords } from './dedup';
 import type { Historial, MotivosDia, Registro, DiaResumen } from './tipos';
 
 export const MOT_COL: Record<string, string> = {
-  'Existencia a cero': '#3A76B0', 'Sin existencia ubicación picking': '#86AED6', 'Físico no se encuentra': '#DE7A2C',
-  'Producto incompleto o averiado': '#8E6BB5', 'Pasillo bloqueado': '#4E9A55', '': '#A39C90',
+  'Existencia a cero': '#1E3A6E', 'Sin existencia ubicación picking': '#8A9BB8', 'Físico no se encuentra': '#E0262B',
+  'Producto incompleto o averiado': '#1A1A1A', 'Pasillo bloqueado': '#6D6E70', '': '#C4C6C9',
 };
 const MOT_ORD = ['Físico no se encuentra', 'Existencia a cero', 'Sin existencia ubicación picking', 'Producto incompleto o averiado', 'Pasillo bloqueado'];
 

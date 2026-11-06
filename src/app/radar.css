@@ -588,7 +588,7 @@ body.nodata #tab-pedidos .kpis{display:grid!important}.brand .mark-logo{height:5
 #pdCut{display:none!important}
 #pnegTbl td,#pnegTbl th{padding:5px 8px;font-size:12.5px}#pnegTbl td.n{text-align:right;font-family:var(--font-mono)}#pnegTbl td.c{font-family:var(--font-mono);white-space:nowrap}
 #pnegTbl td.ds{max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#pnegTbl td.pr{white-space:nowrap}#pnegTbl td{white-space:nowrap}
-#pnegTbl .tg{font:10.5px var(--font-mono);padding:1px 6px;border-radius:3px;white-space:nowrap}#pnegTbl .tg.s{background:#F6E2CC;color:#9A4E12}#pnegTbl .tg.z{background:#DCE6F0;color:#24557F}
+#pnegTbl .tg{font:10.5px var(--font-mono);padding:1px 6px;border-radius:3px;white-space:nowrap}#pnegTbl .tg.s{background:#F6E2CC;color:#9A4E12}#pnegTbl .tg.z{background:#DCE6F0;color:#1E3A6E}
 #tab-top .chart .cardhead .q,#tab-top .r2>.q,#tab-top .chart>p.q{display:none!important}
 #tab-top .rk-tbl th:last-child,#tab-top .rk-tbl td.trc{display:none}
 #tab-pedidos .chart>p.q,#tab-pedidos .pd-coh>.vgrid,.pd-sec,#pdCohQ{display:none!important}
@@ -697,6 +697,6 @@ table.hm td{white-space:nowrap}
 #tab-resumen .kpi.kpi-fuera{display:none!important}
 #tab-resumen .kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 /* mapa de calor en colores Vidri: encabezados y total en azul */
-table.hm thead th{color:#1F4E8C}
-table.hm tr.hmt td{color:#1F4E8C}
+table.hm thead th{color:#1E3A6E}
+table.hm tr.hmt td{color:#1E3A6E}
 html[data-theme="dark"] table.hm thead th,html[data-theme="dark"] table.hm tr.hmt td{color:#8DB5E8}

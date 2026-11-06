@@ -181,7 +181,7 @@ function miniTendencia(vals: number[], col?: string) {
   const W = 96, H = 24, max = Math.max(1, ...vals), n = vals.length;
   if (n < 2) return '';
   const x = (i: number) => i * (W - 2) / (n - 1) + 1, y = (v: number) => H - 2 - (v / max) * (H - 4), tp = tendenciaPuntos(vals, x, y);
-  return '<svg class="spk" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '"><polyline fill="none" stroke="' + (col || '#3A76B0') + '" stroke-width="1" opacity=".55" points="' + vals.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ') + '"/>' + (tp ? '<polyline fill="none" points="' + tp + '" stroke="#26241F" stroke-width="1.5"/>' : '') + '</svg>';
+  return '<svg class="spk" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '"><polyline fill="none" stroke="' + (col || '#1E3A6E') + '" stroke-width="1" opacity=".55" points="' + vals.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ') + '"/>' + (tp ? '<polyline fill="none" points="' + tp + '" stroke="#26241F" stroke-width="1.5"/>' : '') + '</svg>';
 }
 export interface ItemRanking extends ItemBarra { series: number[]; tr: number | null }
 /** Ranking con minigráfico diario y tendencia. */

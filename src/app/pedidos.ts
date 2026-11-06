@@ -11,8 +11,8 @@ import { $, esc, fmtInt, etiquetaDia } from './ui/formato';
 import { barrasApiladas, lineas, barras, ranking, nice, corto, tendenciaPct } from './ui/graficos';
 import { descargar } from './ui/avisos';
 
-const CAT_C: Record<MotivoVista, string> = { exi: '#3A76B0', b2b: '#DE7A2C', rot: '#4B9A5A', otr: '#9A927F' };
-const ST_C = { R: '#DE7A2C', P: '#3A76B0', A: '#4B9A5A' };
+const CAT_C: Record<MotivoVista, string> = { exi: '#1E3A6E', b2b: '#E0262B', rot: '#1A1A1A', otr: '#A3A5A8' };
+const ST_C = { R: '#E0262B', P: '#A3A5A8', A: '#1E3A6E' };
 
 /** "19 oct, 4:39 p. m." */
 function corteTxt(min: number) {
@@ -143,7 +143,7 @@ export class PedidosVista {
     // entran vs atendidos
     const ing = z(), ate = z();
     P.all.forEach((x) => { const d = diaDeMin(x[2]); if (d in di) ing[di[d]] += x[4]; if (x[6]) { const a = diaDeMin(x[6]); if (a in di) ate[di[a]] += x[4]; } });
-    lineas($('pdFlow'), D7, [{ name: 'Entran', color: '#3A76B0', vals: ing.slice(k7), off: -6 }, { name: 'Atendidos', color: '#DE7A2C', vals: ate.slice(k7), off: 8 }], { partial: p7 });
+    lineas($('pdFlow'), D7, [{ name: 'Entran', color: '#1E3A6E', vals: ing.slice(k7), off: -6 }, { name: 'Atendidos', color: '#E0262B', vals: ate.slice(k7), off: 8 }], { partial: p7 });
     const avg = (a: number[]) => { const xs = fi.map((i) => a[i]).filter((v) => v > 0); return xs.length ? sum(xs) / xs.length : 0; };
     $('pdFlowT').textContent = avg(ate) >= avg(ing) ? 'El CD atiende al ritmo de lo que entra' : 'Entra más de lo que el CD atiende';
 
@@ -266,9 +266,9 @@ export class PedidosVista {
       const li = vals.length - 1;
       return o + '<text class="lb" x="' + (x(hh[li]) + 6).toFixed(1) + '" y="' + (y(vals[li]) + 4).toFixed(1) + '" fill="' + col + '">' + fmtInt(vals[li]) + '</text>';
     };
-    g += line(v0, hp, '#9A927F', true, dowL(prev) + ' ' + etiquetaDia(prev)) + line(v1, hs, '#DE7A2C', false, dowL(ref) + ' ' + etiquetaDia(ref));
+    g += line(v0, hp, '#A3A5A8', true, dowL(prev) + ' ' + etiquetaDia(prev)) + line(v1, hs, '#E0262B', false, dowL(ref) + ' ' + etiquetaDia(ref));
     el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + Ht + '" height="' + Ht + '" role="img">' + g + '</svg>';
-    $('pdBurnLeg').innerHTML = '<span><i style="background:#DE7A2C"></i>' + dowL(ref) + ' ' + etiquetaDia(ref) + ' (' + fmtInt(n) + ' pedidos)</span>' +
+    $('pdBurnLeg').innerHTML = '<span><i style="background:#E0262B"></i>' + dowL(ref) + ' ' + etiquetaDia(ref) + ' (' + fmtInt(n) + ' pedidos)</span>' +
       (A.nSemanaPasada ? '<span><i class="dash"></i>' + dowL(prev) + ' ' + etiquetaDia(prev) + ' (' + fmtInt(A.nSemanaPasada) + ' pedidos), misma hora</span>' : '');
     const dur = (h: number) => (h < 48 ? Math.round(h) + ' horas' : (h / 24).toFixed(1).replace('.', ',') + ' días');
     if (A.horasParaTerminar != null) {

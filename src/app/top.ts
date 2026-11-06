@@ -174,7 +174,7 @@ export class TopNegados {
         ' <b>' + Math.round(m[k] / veces * 100) + '%</b>' + (otros > 0 ? '<span> +' + otros + '</span>' : '') + '</td>';
     };
     list.forEach((d, i) => {
-      const um = this.um(d.sku), g = umGrupo(um), q = Q.has ? (Q.qty[d.sku] || 0) * umFactor(um) : null, sp = sparkProm(this.vecesPorDia(d.sku, days), part, '#DE7A2C');
+      const um = this.um(d.sku), g = umGrupo(um), q = Q.has ? (Q.qty[d.sku] || 0) * umFactor(um) : null, sp = sparkProm(this.vecesPorDia(d.sku, days), part, '#E0262B');
       h += '<tr class="clk' + (d.sku === this.codigoSel ? ' sel' : '') + '" data-sku="' + esc(d.sku) + '"><td class="n0">' + (i + 1) + '</td><td class="sku">' + esc(d.sku) + '</td><td>' + esc(d.desc) +
         '</td><td class="n"><b>' + fmtInt(d.count) + '</b></td><td class="n">' + (q == null ? '—' : qtyFmt(q, g === 'otr' ? '' : g) + (g === 'otr' ? ' ' + esc(um) : '')) +
         '</td>' + (MC ? motCelda(d.sku, d.count) : '<td class="n">' + Math.round((pos[d.sku] || 0) / d.count * 100) + '%</td>') + '<td class="trc">' + (sp ? sp.svg + '<span>' + promTxt(sp.avg) + '</span>' : '') + '</td></tr>';
@@ -208,7 +208,7 @@ export class TopNegados {
       h += '<div class="tw"><table class="rk-tbl"><thead><tr><th>Código</th><th>Descripción</th><th class="n">' + (otr ? 'Veces' : 'Cantidad') + '</th><th class="n">' + (otr ? 'Cantidad' : 'Veces') + '</th><th>' +
         (otr ? 'Tendencia · ' + days.length + ' días' : 'Tendencia · ' + daysQ.length + ' días con unidades') + '</th></tr></thead><tbody>';
       L.forEach((i) => {
-        const sp = otr ? sparkProm(this.vecesPorDia(i.sku, days), part, '#3A76B0') : sparkProm(this.cantidadPorDia(i.sku, daysQ), partQ, '#3A76B0');
+        const sp = otr ? sparkProm(this.vecesPorDia(i.sku, days), part, '#1E3A6E') : sparkProm(this.cantidadPorDia(i.sku, daysQ), partQ, '#1E3A6E');
         const qtxt = otr ? fmtInt(i.q) + ' ' + esc(i.um) : qtyFmt(i.q, gr.g);
         h += '<tr class="clk" data-sku="' + esc(i.sku) + '"><td class="sku">' + esc(i.sku) + '</td><td>' + esc(i.desc) + '</td><td class="n"><b>' + (otr ? fmtInt(i.v) : qtxt) + '</b></td><td class="n">' +
           (otr ? qtxt : fmtInt(i.v)) + '</td><td class="trc">' + (sp ? sp.svg + '<span>' + promTxt(sp.avg, otr ? 'veces' : gr.g === 'm' ? 'm' : gr.g === 'pqt' ? 'PQT' : 'uni') + '</span>' : '') + '</td></tr>';

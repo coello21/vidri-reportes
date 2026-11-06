@@ -104,3 +104,11 @@ html:not([data-theme="dark"]) .kpi{background:#FFFFFF!important;border-color:#E3
 html:not([data-theme="dark"]) svg [stroke="#CFC6B1"]{stroke:#E3E6EA}
 html:not([data-theme="dark"]) .cta{background:#1F2328;border-color:#1F2328;color:#FFFFFF}
 html:not([data-theme="dark"]) .daychip.active,html:not([data-theme="dark"]) .pd-period .chip.on,html:not([data-theme="dark"]) .barrow.clickable.selected{background:#F1F3F5!important}
+
+/* ---------- Colores Vidri (6 nov 2026): rojo, negro, azul oscuro de las camisas, gris y blanco.
+   El semáforo (verde / amarillo / rojo contra la meta) se queda igual. ---------- */
+html:root:not([data-theme="dark"]){
+  --ink:#1A1A1A!important;--ink-2:#3A3B3D!important;--ink-muted:#6D6E70!important;--mut:#6D6E70!important;
+  --steel:#1E3A6E!important;--blue:#1E3A6E!important;--steel-soft:#DDE3EE!important;--orange:#E0262B!important}
+html:not([data-theme="dark"]) .cta{background:#1A1A1A;border-color:#1A1A1A}
+html:not([data-theme="dark"]) .barrow .fill{background:#1E3A6E!important}
