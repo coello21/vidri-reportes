@@ -26,12 +26,48 @@ export const motColor = (k: string): string => MOT_COL[k] || '#6F685C';
 const rango = (k: string) => (k === '' ? 99 : MOT_ORD.indexOf(k) + 1 || 50);
 export const motSort = (a: string, b: string): number => rango(a) - rango(b) || (a < b ? -1 : a > b ? 1 : 0);
 
+/** Línea negada de un día: motivo, preparador y código (la clave es pedido|código). */
+type LineaMot = { mot: string; prep: string; sku: string };
+
+/**
+ * Arma el resumen del día desde sus líneas negadas y sus pedidos B2B. Guarda también las líneas (l, p) y los
+ * pedidos B2B (bp) para poder juntar archivos después sin contar dos veces.
+ */
+function armarDia(lineas: Map<string, LineaMot>, bp: Record<string, number>): MotivosDia {
+  const m: Record<string, number> = {};
+  lineas.forEach((x) => { m[x.mot] = (m[x.mot] || 0) + 1; });
+  const k = Object.keys(m).sort(motSort), ix: Record<string, number> = {};
+  k.forEach((x, i) => { ix[x] = i; });
+  const p: string[] = [], px: Record<string, number> = {};
+  const q: MotivosDia['q'] = {}, l: Record<string, [number, number]> = {};
+  lineas.forEach((x, key) => {
+    if (!(x.prep in px)) { px[x.prep] = p.length; p.push(x.prep); }
+    l[key] = [ix[x.mot], px[x.prep]];
+    const pq = q[x.prep] || (q[x.prep] = {}), a = pq[x.sku] || (pq[x.sku] = []);
+    for (let i = a.length; i < k.length; i++) a[i] = 0;
+    a[ix[x.mot]]++;
+  });
+  // recorta ceros al final, como antes
+  for (const pr in q) for (const sku in q[pr]) { const a = q[pr][sku]; while (a.length && !a[a.length - 1]) a.pop(); }
+  const out: MotivosDia = { n: lineas.size, m, k, q, l, p };
+  const peds = Object.keys(bp);
+  if (peds.length) { out.b = [peds.length, peds.reduce((a, x) => a + (bp[x] ? 1 : 0), 0)]; out.bp = bp; }
+  return out;
+}
+
+/** Líneas guardadas de un día (para juntarlas con las de otro archivo). null si el día se guardó sin líneas. */
+function lineasDe(mo: MotivosDia): Map<string, LineaMot> | null {
+  if (!mo.l || !mo.p) return null;
+  const L = new Map<string, LineaMot>();
+  for (const key in mo.l) { const [mi, pi] = mo.l[key]; L.set(key, { mot: mo.k[mi], prep: mo.p[pi], sku: key.slice(key.lastIndexOf('|') + 1) }); }
+  return L;
+}
+
 /** Motivos por día del archivo completo. Vacío si el archivo no trae la columna. */
 export function motivosDeRegistros(records: Registro[]): Record<string, MotivosDia> {
   if (!records.some((r) => 'Motivo' in r)) return {};
   const { rows } = dedupRecords(records);
-  const tmp: Record<string, { n: number; m: Record<string, number>; q: Record<string, Record<string, Record<string, number>>> }> = {};
-  const dia = (d: string) => tmp[d] || (tmp[d] = { n: 0, m: {}, q: {} });
+  const L: Record<string, Map<string, LineaMot>> = {}, BP: Record<string, Record<string, number>> = {};
   // B2B: pedido corporativo cerrado (todas sus líneas en A) en el día de su última línea; cumple si todo se mandó
   // completo, sin contar lo negado por "Existencia a cero". Un pedido negado entero por existencia a cero no cuenta.
   const b2bPed = new Set(records.filter((r) => /CORPORATIVA/i.test(String(r.Razon || ''))).map((r) => r.Pedido));
@@ -48,55 +84,43 @@ export function motivosDeRegistros(records: Registro[]): Record<string, MotivosD
     p.lineas++;
     if (!(r.CantPrep >= r.Cantidad)) p.ok = false;
   }
-  const b2b: Record<string, [number, number]> = {};
-  ped.forEach((p) => {
+  ped.forEach((p, id) => {
     if (p.abierto || !p.lineas) return;
-    const b = b2b[p.dia] || (b2b[p.dia] = [0, 0]);
-    b[0]++; if (p.ok) b[1]++;
+    (BP[p.dia] || (BP[p.dia] = {}))[id] = p.ok ? 1 : 0;
   });
   for (const r of rows) {
     if (r.Estado !== 'A' || r.CantPrep == null || r.Cantidad == null || r.Disponible == null) continue;
     if (!(r.CantPrep <= 0)) continue;
     const fin = r.FechaAct || r.FechaRevision;
     if (!fin) continue;
-    const day = ymd(fin), o = dia(day), mot = motClean(r.Motivo);
-    o.n++;
-    o.m[mot] = (o.m[mot] || 0) + 1;
-    const pq = o.q[r.Preparador] || (o.q[r.Preparador] = {}), c = pq[r.SKU] || (pq[r.SKU] = {});
-    c[mot] = (c[mot] || 0) + 1;
+    const d = ymd(fin);
+    (L[d] || (L[d] = new Map())).set(r.Pedido + '|' + r.SKU, { mot: motClean(r.Motivo), prep: r.Preparador, sku: r.SKU });
   }
-  for (const d in b2b) dia(d);
-  // compacto: los motivos van en una lista y por código solo los conteos en ese orden
   const out: Record<string, MotivosDia> = {};
-  for (const d in tmp) {
-    const o = tmp[d], k = Object.keys(o.m).sort(motSort), ix: Record<string, number> = {};
-    k.forEach((x, i) => { ix[x] = i; });
-    const q: MotivosDia['q'] = {};
-    for (const pr in o.q) {
-      q[pr] = {};
-      for (const sku in o.q[pr]) {
-        const a: number[] = [];
-        for (const x in o.q[pr][sku]) a[ix[x]] = o.q[pr][sku][x];
-        for (let i = 0; i < a.length; i++) if (a[i] == null) a[i] = 0;
-        q[pr][sku] = a;
-      }
-    }
-    out[d] = { n: o.n, m: o.m, k, q };
-    if (b2b[d]) out[d].b = b2b[d];
-  }
+  for (const d of new Set([...Object.keys(L), ...Object.keys(BP)])) out[d] = armarDia(L[d] || new Map(), BP[d] || {});
   return out;
 }
 
-/** Pone los motivos en los días del histórico. Devuelve los días que cambiaron. */
+/**
+ * Pone los motivos en los días del histórico. Devuelve los días que cambiaron.
+ * Si el día ya tiene líneas guardadas, junta las de este archivo con las que había (la misma línea no se cuenta
+ * dos veces; si viene en los dos, vale la del archivo nuevo). Así un archivo de la mañana suma lo que se cerró en la
+ * tarde del día anterior sin borrar lo que ya estaba.
+ * Días guardados antes de este cambio (sin líneas): un archivo los reemplaza solo si trae igual o más negadas.
+ */
 export function aplicarMotivos(history: Historial, porDia: Record<string, MotivosDia>): string[] {
   const cambiados: string[] = [];
   for (const d in porDia) {
     const h = history[d] as DiaResumen | undefined;
     if (!h || h.v !== 2) continue;
-    // un archivo más viejo o parcial no baja el día: menos negadas, o las mismas con menos pedidos B2B
-    if (h.mot && (h.mot.n > porDia[d].n || (h.mot.n === porDia[d].n && (h.mot.b?.[0] || 0) > (porDia[d].b?.[0] || 0)))) continue;
-    if (h.mot && JSON.stringify(h.mot) === JSON.stringify(porDia[d])) continue;
-    h.mot = porDia[d];
+    let nuevo = porDia[d];
+    const viejas = h.mot ? lineasDe(h.mot) : null;
+    if (h.mot && viejas) {
+      lineasDe(nuevo)!.forEach((x, key) => viejas.set(key, x));
+      nuevo = armarDia(viejas, { ...(h.mot.bp || {}), ...(nuevo.bp || {}) });
+    } else if (h.mot && (h.mot.n > nuevo.n || (h.mot.n === nuevo.n && (h.mot.b?.[0] || 0) > (nuevo.b?.[0] || 0)))) continue;
+    if (h.mot && JSON.stringify(h.mot) === JSON.stringify(nuevo)) continue;
+    h.mot = nuevo;
     cambiados.push(d);
   }
   return cambiados;

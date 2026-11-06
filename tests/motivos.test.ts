@@ -21,9 +21,15 @@ describe('Motivo de negado registrado', () => {
     expect(mot.n).toBe(3);
     expect(mot.m).toEqual({ 'Físico no se encuentra': 1, 'Existencia a cero': 1, '': 1 });
     expect(R.integrar(file()).motDias).toBeUndefined();
-    R.integrar([r(1, 'a', 0, 'Pasillo bloqueado')]);
-    expect((R.history['2026-11-03'] as DiaResumen).mot!.n).toBe(3);
     expect(motivosDePreparador(R.history, ['2026-11-03'], 'P1 - Ana')).toEqual({ a: { 'Físico no se encuentra': 1, 'Existencia a cero': 1 }, b: { '': 1 } });
+    // un archivo parcial (el de la mañana siguiente) suma la línea que faltaba y no borra las demás
+    R.integrar([r(9, 'z', 0, 'Pasillo bloqueado')]);
+    const m2 = (R.history['2026-11-03'] as DiaResumen).mot!;
+    expect(m2.n).toBe(4);
+    expect(m2.m).toEqual({ 'Físico no se encuentra': 1, 'Existencia a cero': 1, '': 1, 'Pasillo bloqueado': 1 });
+    // la misma línea en otro archivo no se cuenta dos veces
+    R.integrar([r(9, 'z', 0, 'Pasillo bloqueado'), r(2, 'a', 0, 'Existencia a cero')]);
+    expect((R.history['2026-11-03'] as DiaResumen).mot!.n).toBe(4);
   });
   it('sin la columna no agrega nada', () => {
     const R = new RadarNegados();

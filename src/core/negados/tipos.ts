@@ -64,6 +64,12 @@ export interface MotivosDia {
   q: Record<string, Record<string, number[]>>;
   /** B2B del día (pedidos corporativos cerrados ese día): [pedidos, completos sin contar lo negado por "Existencia a cero"] */
   b?: [number, number];
+  /** líneas negadas del día: "pedido|código" -> [motivo (índice en k), preparador (índice en p)]; para juntar archivos */
+  l?: Record<string, [number, number]>;
+  /** preparadores de las líneas (l) */
+  p?: string[];
+  /** pedidos B2B del día: pedido -> 1 si cumplió, 0 si no */
+  bp?: Record<string, number>;
 }
 
 /** Día guardado con la versión anterior del tablero (se muestra tal cual). */
