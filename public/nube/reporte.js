@@ -263,19 +263,19 @@
     var bueno = [], mejorar = [], dS = function (d) { return DOW[dowOf(d)] + ' ' + (+d.slice(8)); };
     if (lp != null && lpAnt != null && lp > lpAnt) bueno.push(n(lp) + ' líneas preparadas, ' + n(lp - lpAnt) + ' más que el ' + dS(dN) + ' pasado.');
     if (frV != null && N.prevW && F2(N.prevW.d) != null && frV > F2(N.prevW.d) + 0.5) bueno.push('Fill rate arriba del ' + dS(N.prevW.d) + ' (' + dec(F2(N.prevW.d)) + '%).');
-    if (N && N.prom != null && N.pHoy <= N.prom) bueno.push('Negados bajo el promedio de ' + N.ventana.length + ' días (' + dec(N.prom) + '%).');
+    if (N && N.prom != null && N.pHoy <= N.prom) bueno.push('Negados bajo el promedio de ' + N.ventana.length + ' días.');
     if (P) {
       if (cierre && P.fin < P.ini) bueno.push('El pendiente bajó ' + n(P.ini - P.fin) + ' pedidos.');
       if (P.asg && P.cobertura >= 0.5) bueno.push(n(P.asg) + ' pedidos asignados en el día.');
       if (!P.viejos) bueno.push('Nada con más de 72 h sin preparador.');
     }
-    if (P && P.viejos) mejorar.push({ q: 'Asignar los ' + n(P.viejos) + ' pedidos con más de 72 h.', a: true });
+    if (P && P.viejos) mejorar.push({ q: 'Asignar primero los pedidos con más de 72 h.', a: true });
     if (P && P.fin > P.ini) mejorar.push({ q: 'El pendiente subió ' + n(P.fin - P.ini) + ' pedidos: reforzar la asignación.', a: true });
     if (MO) {
       var tn = N.hoy.neg, fis = MO.m['Físico no se encuentra'] || 0, ec = MO.m['Existencia a cero'] || 0, sep = MO.m['Sin existencia ubicación picking'] || 0, sm = MO.m[''] || 0;
       var cods = function (k) { return topDe(MD.cod, k).map(function (x) { return x.id; }).join(', '); };
-      if (fis && fis / tn >= 0.15) mejorar.push({ q: 'Físico no se encuentra (' + pctInt(fis, tn) + '): revisar ubicación de ' + cods('Físico no se encuentra') + '.', a: false });
-      if (ec && ec / tn >= 0.15) mejorar.push({ q: 'Existencia a cero (' + pctInt(ec, tn) + '): pasar a compras ' + cods('Existencia a cero') + '.', a: false });
+      if (fis && fis / tn >= 0.15) mejorar.push({ q: 'Físico no se encuentra: revisar ubicación de ' + cods('Físico no se encuentra') + '.', a: false });
+      if (ec && ec / tn >= 0.15) mejorar.push({ q: 'Existencia a cero: pasar a compras ' + cods('Existencia a cero') + '.', a: false });
       if (sep >= 20) mejorar.push({ q: 'Reabastecer picking: ' + cods('Sin existencia ubicación picking') + '.', a: false });
       if (sm >= 10) mejorar.push({ q: n(sm) + ' negadas sin motivo: recordar anotarlo.', a: false });
     } else if (N && N.hoy.err && (N.prom == null || N.pHoy > N.prom)) mejorar.push({ q: 'Error en el proceso: ' + n(N.hoy.err) + ' líneas negadas con producto.', a: false });
