@@ -10,7 +10,7 @@
   'use strict';
 
   /* ---------------- formato ---------------- */
-  var C = { BLUE: '#1E3A6E', GREEN: '#3E8E4F', ORANGE: '#E0262B', RED: '#E0262B', INK: '#1A1A1A', LINE: '#E3E6EA' };
+  var C = { BLUE: '#1E3A6E', GREEN: '#1E3A6E', ORANGE: '#E0262B', RED: '#E0262B', INK: '#1A1A1A', LINE: '#E3E6EA' };
   var DOW = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
   var DOW_L = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   var MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];

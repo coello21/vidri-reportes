@@ -8,7 +8,7 @@ a.lnk{text-decoration:none;display:inline-block}
 #acceso input{width:100%;font:inherit;padding:10px 12px;border:1px solid #CFC5B2;border-radius:6px;margin:6px 0 10px;background:#fff}
 #acceso button{font:inherit;font-weight:600;padding:10px 14px;border:0;border-radius:6px;background:#D7262B;color:#fff;cursor:pointer;width:100%}
 #acceso .msg{min-height:20px;font-size:13px}
-#acceso .msg.ok{color:#2F6B3F}#acceso .msg.err{color:#B02A2A}
+#acceso .msg.ok{color:#1E3A6E}#acceso .msg.err{color:#B02A2A}
 #acceso .barra{height:4px;background:#E2D9C8;border-radius:2px;overflow:hidden}
 #acceso .barra i{display:block;height:100%;width:40%;background:#D7262B;animation:mov 1.1s ease-in-out infinite}
 @keyframes mov{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}

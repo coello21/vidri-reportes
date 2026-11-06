@@ -380,14 +380,14 @@
   .histsub{margin:2px 0 2px;color:var(--ink);font-size:13px;}
 
 /* Estilo Vidri (tema claro único) */
-:root,:root:not([data-theme]),:root[data-theme]{--bg:#EEE8DA;--surface:#F7F2E6;--surface-2:#E6DFCD;--ink:#26241F;--ink-2:#4A463D;--ink-muted:#6F6A5D;--border:#CFC6B1;--border-strong:#BFB59D;--accent:#E0262B;--accent-ink:#FFFFFF;--accent-soft:#F6D9D3;--steel:#3A76B0;--steel-soft:#DCE6F0;--good:#4B9A5A;--good-soft:#DDEBDA;--warning:#DE7A2C;--warning-soft:#F6E2CC;--critical:#C7453A;--critical-soft:#F3D8D2;--shadow:0 1px 2px rgba(38,36,31,.05);--font-display:'Newsreader',Georgia,'Times New Roman',serif;--font-body:'IBM Plex Sans','Segoe UI',Arial,sans-serif;--font-mono:'IBM Plex Mono',Consolas,monospace;color-scheme:light}
+:root,:root:not([data-theme]),:root[data-theme]{--bg:#EEE8DA;--surface:#F7F2E6;--surface-2:#E6DFCD;--ink:#26241F;--ink-2:#4A463D;--ink-muted:#6F6A5D;--border:#CFC6B1;--border-strong:#BFB59D;--accent:#E0262B;--accent-ink:#FFFFFF;--accent-soft:#F6D9D3;--steel:#3A76B0;--steel-soft:#DCE6F0;--good:#1E3A6E;--good-soft:#DDE3EE;--warning:#DE7A2C;--warning-soft:#F6E2CC;--critical:#C7453A;--critical-soft:#F3D8D2;--shadow:0 1px 2px rgba(38,36,31,.05);--font-display:'Newsreader',Georgia,'Times New Roman',serif;--font-body:'IBM Plex Sans','Segoe UI',Arial,sans-serif;--font-mono:'IBM Plex Mono',Consolas,monospace;color-scheme:light}
 body{background:var(--bg)}
 .brand .mark-logo-dark{display:none!important}.brand .mark-logo-light{display:block!important;mix-blend-mode:multiply}
 header.top{border-bottom:4px solid #E0262B!important;padding-bottom:14px}
 h1,h2,.card h2,.kpi .v,.kpi-value,.kpi b{font-family:var(--font-display)}
 h1{font-weight:600}
 /* ===== Estética de reporte ejecutivo Vidri ===== */
-:root,:root:not([data-theme]),:root[data-theme]{--bg:#EEE8DA;--surface:#F7F2E6;--surface-2:#E6DFCD;--ink:#26241F;--ink-2:#4A463D;--ink-muted:#6F6A5D;--border:#CFC6B1;--border-strong:#BFB59D;--accent:#E0262B;--accent-ink:#FFFFFF;--accent-soft:#F6E2CC;--steel:#3A76B0;--steel-soft:#DCE6F0;--good:#4B9A5A;--good-soft:#DDEBDA;--warning:#DE7A2C;--warning-soft:#F6E2CC;--critical:#C7453A;--critical-soft:#F3D8D2;--shadow:0 1px 2px rgba(38,36,31,.05);--font-display:'Newsreader',Georgia,'Times New Roman',serif;--font-body:'IBM Plex Sans','Segoe UI',Arial,sans-serif;--font-mono:'IBM Plex Mono',Consolas,monospace;--line:#CFC6B1;--mut:#6F6A5D;--blue:#3A76B0;--orange:#DE7A2C;color-scheme:light}
+:root,:root:not([data-theme]),:root[data-theme]{--bg:#EEE8DA;--surface:#F7F2E6;--surface-2:#E6DFCD;--ink:#26241F;--ink-2:#4A463D;--ink-muted:#6F6A5D;--border:#CFC6B1;--border-strong:#BFB59D;--accent:#E0262B;--accent-ink:#FFFFFF;--accent-soft:#F6E2CC;--steel:#3A76B0;--steel-soft:#DCE6F0;--good:#1E3A6E;--good-soft:#DDE3EE;--warning:#DE7A2C;--warning-soft:#F6E2CC;--critical:#C7453A;--critical-soft:#F3D8D2;--shadow:0 1px 2px rgba(38,36,31,.05);--font-display:'Newsreader',Georgia,'Times New Roman',serif;--font-body:'IBM Plex Sans','Segoe UI',Arial,sans-serif;--font-mono:'IBM Plex Mono',Consolas,monospace;--line:#CFC6B1;--mut:#6F6A5D;--blue:#3A76B0;--orange:#DE7A2C;color-scheme:light}
 html,body{background:var(--bg)!important;color:var(--ink)}
 body{font:14px/1.55 var(--font-body);font-variant-numeric:tabular-nums}
 .wrap.vx{max-width:1200px;margin:0 auto;padding:0 28px 40px}
