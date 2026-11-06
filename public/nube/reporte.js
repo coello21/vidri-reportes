@@ -298,7 +298,6 @@
     /* ----- tarjetas: valor y una línea corta ----- */
     if (N) {
       h.kpis.push({ l: 'Fill rate', v: frV != null ? dec(frV) + '%' : '–', s: frPrev != null ? 'ayer ' + dec(frPrev) + '%' : (frV != null ? n(N.fr.prep) + ' de ' + n(N.fr.base) + ' líneas' : '') });
-      h.kpis.push({ l: 'Fill rate B2B', v: N.b2b.tot ? dec(pct(N.b2b.ok, N.b2b.tot)) + '%' : '–', s: N.b2b.tot ? n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos' : 'sin pedidos cerrados' });
       h.kpis.push({ l: 'Negados', v: dec(N.pHoy) + '%', s: n(N.hoy.neg) + ' líneas' + (N.prom != null ? ' · prom. ' + dec(N.prom) + '%' : '') });
     }
     if (P) h.kpis.push({ l: 'Por asignar', v: n(P.sinAsig), s: P.viejos ? n(P.viejos) + ' con +72 h' : 'nada con +72 h', o: !!P.viejos });
@@ -353,13 +352,13 @@
     ".page{width:8.5in;min-height:11in;padding:.36in .5in .3in;margin:0 auto;position:relative;background:#fff}" +
     ".hd{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:8px;border-bottom:3px solid #D7262B}.hd img{height:36px}" +
     ".hd .r{text-align:right;font-size:6.6pt;color:#6B7280;line-height:1.6}.hd .r b{display:block;font-weight:600;color:#1F2328;font-size:10pt}" +
-    ".kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 4px}.k{border:1px solid #E3E6EA;border-radius:6px;padding:8px 10px}" +
+    ".kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 4px}.k{border:1px solid #E3E6EA;border-radius:6px;padding:8px 10px}" +
     ".k .l{font-size:6.4pt;color:#6B7280}.k .v{font-weight:600;font-size:17pt;line-height:1.15;margin:2px 0 1px}.k .v.o{color:#C7453A}.k .s{font-size:6.4pt;color:#6B7280}" +
     ".sec{margin-top:12px}h2{font-weight:600;font-size:9.5pt;margin:0 0 6px;padding-bottom:3px;border-bottom:1px solid #E3E6EA}h2 span{font-weight:400;color:#6B7280;font-size:7pt;margin-left:6px}" +
     ".two{display:grid;grid-template-columns:1.15fr 1fr;gap:18px}" +
     ".lg{font-size:6pt;color:#6B7280;display:flex;gap:12px;margin-bottom:2px}.lg i{display:inline-block;width:7px;height:7px;margin-right:4px;vertical-align:-1px;border-radius:1px}.lg i.ln{height:2px;vertical-align:2px;width:10px}" +
     "svg .ax{font-family:'IBM Plex Sans',Arial,sans-serif;font-size:6px;fill:#6B7280}svg .ax.pk{fill:#1F2328;font-weight:600}svg .lab{font-family:'IBM Plex Sans',Arial,sans-serif;font-size:6.2px;font-weight:600;fill:#3D434B}svg .lab.hl{fill:#1F2328}" +
-    ".nums{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}.nums>div{background:#F5F6F8;border-radius:5px;padding:5px 8px}.nums .t{font-size:6pt;color:#6B7280}.nums .v{font-weight:600;font-size:12pt;line-height:1.15}.nums .now .v{color:#C7453A}" +
+    ".nums{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}.nums>div{background:#F5F6F8;border-radius:5px;padding:5px 8px}.nums .t{font-size:6pt;color:#6B7280}.nums .v{font-weight:600;font-size:12pt;line-height:1.15}.nums .now .v{color:#C7453A}" +
     "table.mot{width:100%;border-collapse:collapse;font-size:6.6pt}table.mot th{font-weight:600;font-size:6pt;color:#6B7280;text-align:left;border-bottom:1px solid #C9CED5;padding:2px 4px}" +
     "table.mot th.r,table.mot td.r{text-align:right}table.mot td{white-space:nowrap;padding:2.6px 4px;border-bottom:1px solid #EEF0F2}table.mot tr.sub td{color:#6B7280}table.mot tr.tot td{font-weight:600;border-bottom:0;border-top:1px solid #C9CED5}" +
     "table.mot td.desc{white-space:normal}" +
