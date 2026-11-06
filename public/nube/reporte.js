@@ -248,7 +248,8 @@
     var MOT_SIG = { 'Físico no se encuentra': 'había en sistema y no se encontró', 'Existencia a cero': 'no había producto', 'Sin existencia ubicación picking': 'estaba en tarimas, no en picking', 'Producto incompleto o averiado': 'llegó incompleto o dañado', 'Pasillo bloqueado': 'no se pudo llegar a la ubicación', '': 'el preparador no anotó el motivo' };
     var motLbl = function (k) { return k === '' ? 'Sin motivo' : k; };
     var motKs = MO ? Object.keys(MO.m).sort(function (a, b) { return MO.m[b] - MO.m[a]; }) : [];
-    var motPct = function (M, k, tot) { return M && tot ? (M.m[k] || 0) / tot * 100 : 0; };
+    // % sobre lo mayor entre las negadas del día y las que traen motivo (al juntar archivos pueden pasar por pocas)
+    var motPct = function (M, k, tot) { var b = M ? Math.max(tot || 0, M.n || 0) : 0; return b ? (M.m[k] || 0) / b * 100 : 0; };
     // códigos y preparadores por motivo (del detalle guardado por día)
     var motDet = function (M) {
       var cod = {}, prep = {};
@@ -436,7 +437,7 @@
         var rk = function (k) { return k === '' ? 99 : (ORD.indexOf(k) + 1 || 50); };
         ks.sort(function (x, y) { return rk(x) - rk(y); });
         // % sobre todas las negadas del día; lo que el archivo no trae con motivo va como "Sin dato"
-        var cm = function (M, r, k) { if (!M) return '–'; var v = k === '\u0000' ? Math.max(0, r.neg - M.n) : (M.m[k] || 0); return '<b>' + n(v) + '</b> · ' + pctInt(v, r.neg); };
+        var cm = function (M, r, k) { if (!M) return '–'; var v = k === '\u0000' ? Math.max(0, r.neg - M.n) : (M.m[k] || 0); return '<b>' + n(v) + '</b> · ' + pctInt(v, Math.max(r.neg, M.n)); };
         if ((MH && H.neg > MH.n) || (MW && pW && pW.neg > MW.n)) ks.push('\u0000');
         out.push('<table class="mot"><thead><tr><th>MOTIVO REGISTRADO</th><th class="r">' + hd2(H) + (N.parcial ? ' (PARCIAL)' : ' (DÍA)') + '</th>' + (pW ? '<th class="r">' + hd2(pW) + ' (DÍA)</th>' : '') + '</tr></thead><tbody>');
         ks.forEach(function (k) { out.push('<tr' + (k === '\u0000' ? ' class="sub"' : '') + '><td>' + (k === '' ? '<b>Sin motivo</b>' : k === '\u0000' ? 'Sin dato (sin motivo en el archivo)' : esc(k)) + '</td><td class="r">' + cm(MH, H, k) + '</td>' + (pW ? '<td class="r">' + cm(MW, pW, k) + '</td>' : '') + '</tr>'); });
