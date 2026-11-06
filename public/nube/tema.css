@@ -92,3 +92,15 @@ html[data-theme="dark"] .kpi.sem-v{--semc:#4FB062}html[data-theme="dark"] .kpi.s
 html[data-theme="dark"] #semStrip .r b{color:#FF6B60}html[data-theme="dark"] #semStrip .v b{color:#63C174}
 @media (max-width:760px){#semStrip{grid-template-columns:repeat(2,minmax(0,1fr))}#semStrip>div:nth-child(2){border-right:0}#semStrip>div:nth-child(-n+2){border-bottom:1px solid var(--line)}#semStrip b{font-size:24px}}
 @media print{.tema-btn{display:none!important}}
+
+/* ---------- Fondo blanco (6 nov 2026): se quita el tono crema en el modo claro ---------- */
+html:root:not([data-theme="dark"]){
+  --bg:#FFFFFF!important;--surface:#FFFFFF!important;--surface-2:#F1F3F5!important;
+  --ink:#1F2328!important;--ink-2:#3D434B!important;--ink-muted:#6B7280!important;--mut:#6B7280!important;
+  --border:#E3E6EA!important;--border-strong:#C9CED5!important;--line:#E3E6EA!important;
+  --shadow:0 1px 2px rgba(16,24,40,.06)!important}
+html:not([data-theme="dark"]) body{background:#FFFFFF!important;color:var(--ink)}
+html:not([data-theme="dark"]) .kpi{background:#FFFFFF!important;border-color:#E3E6EA!important;box-shadow:0 1px 2px rgba(16,24,40,.06)!important}
+html:not([data-theme="dark"]) svg [stroke="#CFC6B1"]{stroke:#E3E6EA}
+html:not([data-theme="dark"]) .cta{background:#1F2328;border-color:#1F2328;color:#FFFFFF}
+html:not([data-theme="dark"]) .daychip.active,html:not([data-theme="dark"]) .pd-period .chip.on,html:not([data-theme="dark"]) .barrow.clickable.selected{background:#F1F3F5!important}

@@ -8,7 +8,7 @@
   'use strict';
 
   /* ---------------- formato ---------------- */
-  var C = { BLUE: '#3E6FB0', GREEN: '#4E9A55', ORANGE: '#E07B2E', INK: '#26241F', LINE: '#D8CFBE' };
+  var C = { BLUE: '#3E6FB0', GREEN: '#4E9A55', ORANGE: '#E07B2E', INK: '#1F2328', LINE: '#E3E6EA' };
   var DOW = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
   var DOW_L = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   var MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
@@ -260,40 +260,29 @@
     var topDe = function (o, k) { var x = o[k] || {}; return Object.keys(x).sort(function (a, b) { return x[b] - x[a]; }).slice(0, k === '' ? 1 : 2).map(function (y) { return { id: y, v: x[y] }; }); };
     var F2 = function (d) { var F = src(); if (!F.FR) return null; var r = F.FR([d]); return r && r.base ? pct(r.prep, r.base) : null; };
 
-    /* ----- lo bueno y lo que hay que mejorar (reglas fijas, en positivo) ----- */
-    var bueno = [], mejorar = [];
-    if (lp != null) bueno.push((amanecer ? 'Ayer: ' : '') + n(lp) + ' líneas preparadas (entregadas al revisador)' + (lpAnt != null && lp > lpAnt ? ', ' + n(lp - lpAnt) + ' más que ' + sem(dN) : '') + (lAct != null ? '; ' + n(lAct) + ' líneas actualizadas' : '') + '.');
-    if (frV != null && N.prevW && F2(N.prevW.d) != null && frV > F2(N.prevW.d) + 0.5) bueno.push('Fill rate ' + dec(frV) + '%, arriba de ' + sem(N.prevW.d) + ' (' + dec(F2(N.prevW.d)) + '%).');
+    /* ----- notas al final: lo bueno y por mejorar (frases cortas, sin repetir las tarjetas) ----- */
+    var bueno = [], mejorar = [], dS = function (d) { return DOW[dowOf(d)] + ' ' + (+d.slice(8)); };
+    if (lp != null && lpAnt != null && lp > lpAnt) bueno.push(n(lp) + ' líneas preparadas, ' + n(lp - lpAnt) + ' más que el ' + dS(dN) + ' pasado.');
+    if (frV != null && N.prevW && F2(N.prevW.d) != null && frV > F2(N.prevW.d) + 0.5) bueno.push('Fill rate arriba del ' + dS(N.prevW.d) + ' (' + dec(F2(N.prevW.d)) + '%).');
+    if (N && N.prom != null && N.pHoy <= N.prom) bueno.push('Negados bajo el promedio de ' + N.ventana.length + ' días (' + dec(N.prom) + '%).');
+    if (ex != null && ex >= 99.5) bueno.push('Exactitud de picking en meta.');
     if (P) {
-      if (cierre && P.fin < P.ini) bueno.push('El pendiente bajó en ' + n(P.ini - P.fin) + ' pedidos durante el día.');
-      if (P.asg && P.cobertura >= 0.5) { var viejosAsg = P.asg - (P.asgPorDia[P.hoy] || 0); bueno.push('Se asignaron ' + n(P.asg) + ' pedidos' + (viejosAsg ? ', ' + n(viejosAsg) + ' de días anteriores' : '') + '.'); }
-      if (!P.viejos) bueno.push('Todo lo que llevaba más de 72 h ya tiene preparador.');
+      if (cierre && P.fin < P.ini) bueno.push('El pendiente bajó ' + n(P.ini - P.fin) + ' pedidos.');
+      if (P.asg && P.cobertura >= 0.5) bueno.push(n(P.asg) + ' pedidos asignados en el día.');
+      if (!P.viejos) bueno.push('Nada con más de 72 h sin preparador.');
     }
-    if (N) {
-      if (N.prom != null && N.pHoy <= N.prom) bueno.push('Negados en ' + dec(N.pHoy) + '%, por debajo del promedio de los ' + N.ventana.length + ' días anteriores (' + dec(N.prom) + '%).');
-      if (ex != null && ex >= 99.5) bueno.push('Exactitud de picking en meta: ' + dec(ex) + '%.');
-      else if (ex != null && exAnt != null && ex > exAnt + 0.5) bueno.push('La exactitud de picking subió a ' + dec(ex) + '% (' + dec(exAnt) + '% ' + sem(N.prevW.d) + ').');
-      if (N.prevW && N.hoy.sst < N.prevW.sst && N.hoy.neg) bueno.push('Menos negadas sin stock que ' + sem(N.prevW.d) + ' (' + n(N.hoy.sst) + ' contra ' + n(N.prevW.sst) + ').');
-    }
-    if (P && P.viejos) {
-      var vdM = Object.keys(P.porDiaV).sort(function (x, y) { return P.porDiaV[y].c - P.porDiaV[x].c; });
-      mejorar.push({ q: 'Asignar primero los ' + n(P.viejos) + ' pedidos con más de 72 h sin preparador (' + n(P.porDiaV[vdM[0]].c) + ' del ' + DOW_L[dowOf(vdM[0])] + '; ' + n(P.skV) + ' SKUs).', a: true });
-    }
-    if (P && P.fin > P.ini) mejorar.push({ q: 'Recuperar el ritmo de asignación: plan con maestros de olas para los ' + n(P.sinAsig) + ' pedidos por asignar (' + n(P.skR) + ' SKUs).', a: true });
+    if (P && P.viejos) mejorar.push({ q: 'Asignar los ' + n(P.viejos) + ' pedidos con más de 72 h.', a: true });
+    if (P && P.fin > P.ini) mejorar.push({ q: 'El pendiente subió ' + n(P.fin - P.ini) + ' pedidos: reforzar la asignación.', a: true });
     if (MO) {
       var tn = N.hoy.neg, fis = MO.m['Físico no se encuentra'] || 0, ec = MO.m['Existencia a cero'] || 0, sep = MO.m['Sin existencia ubicación picking'] || 0, sm = MO.m[''] || 0;
-      var cods = function (k) { return topDe(MD.cod, k).map(function (x) { return x.id + ' (' + x.v + ')'; }).join(', '); };
-      if (fis && fis / tn >= 0.15) mejorar.push({ q: 'Físico no se encuentra: ' + n(fis) + ' líneas (' + pctInt(fis, tn) + '). Revisar ubicación y conteo de los códigos que más se repiten: ' + cods('Físico no se encuentra') + '.', a: false });
-      if (ec && ec / tn >= 0.15) mejorar.push({ q: 'Existencia a cero: ' + n(ec) + ' líneas (' + pctInt(ec, tn) + '). Pasar a inventario y compras: ' + cods('Existencia a cero') + '.', a: false });
-      if (sep >= 20) mejorar.push({ q: 'Sin existencia ubicación picking: ' + n(sep) + ' líneas con producto en tarimas. Reabastecer picking: ' + cods('Sin existencia ubicación picking') + '.', a: false });
-      if (sm >= 10) { var tp = topDe(MD.prep, '')[0]; mejorar.push({ q: n(sm) + ' negadas sin motivo registrado' + (tp ? ', ' + n(tp.v) + ' de ' + nombre(String(tp.id).replace(/^\s*\S+\s*-\s*/, '')) : '') + '. Recordar anotar el motivo al negar.', a: false }); }
-    } else if (N && N.hoy.err && (N.prom == null || N.pHoy > N.prom)) mejorar.push({ q: 'Bajar el error en el proceso: ' + n(N.hoy.err) + ' líneas se negaron ' + (N.hoy.mot ? 'habiendo producto en el CD' : 'con stock en sistema') + '. Revisar por zona y preparador' + (N.prom != null ? ' para volver al promedio de ' + dec(N.prom) + '%' : '') + '.', a: false });
-    if (!MO && N && N.prevW && N.hoy.sst > N.prevW.sst * 1.25 && N.hoy.sst >= 50) mejorar.push({ q: 'Coordinar con inventario las ' + n(N.hoy.sst) + ' líneas negadas sin stock.', a: false });
-    if (ex != null && ex < 99.5 && !MO) mejorar.push({ q: 'Llevar la exactitud de picking de ' + dec(ex) + '% hacia la meta de 99,5%: ' + n(N.hoy.prep - N.hoy.exactas) + ' líneas se mandaron incompletas.', a: false });
-    if (N && N.tiendas.length && N.hoy.neg && N.tiendas[0].neg / N.hoy.neg >= 0.12) mejorar.push({ q: 'Revisar con ' + nombre(N.tiendas[0].s) + ' sus ' + n(N.tiendas[0].neg) + ' líneas negadas (' + pctInt(N.tiendas[0].neg, N.hoy.neg) + ' del día).', a: false });
-    if (!bueno.length) bueno.push('Se cargaron los datos del día.');
-    // una sola hoja: con la lectura de motivos, un poco menos de lo bueno
-    h.bueno = MO ? bueno.slice(0, 3) : bueno; h.mejorar = mejorar.slice(0, MO ? 4 : 5);
+      var cods = function (k) { return topDe(MD.cod, k).map(function (x) { return x.id; }).join(', '); };
+      if (fis && fis / tn >= 0.15) mejorar.push({ q: 'Físico no se encuentra (' + pctInt(fis, tn) + '): revisar ubicación de ' + cods('Físico no se encuentra') + '.', a: false });
+      if (ec && ec / tn >= 0.15) mejorar.push({ q: 'Existencia a cero (' + pctInt(ec, tn) + '): pasar a compras ' + cods('Existencia a cero') + '.', a: false });
+      if (sep >= 20) mejorar.push({ q: 'Reabastecer picking: ' + cods('Sin existencia ubicación picking') + '.', a: false });
+      if (sm >= 10) mejorar.push({ q: n(sm) + ' negadas sin motivo: recordar anotarlo.', a: false });
+    } else if (N && N.hoy.err && (N.prom == null || N.pHoy > N.prom)) mejorar.push({ q: 'Error en el proceso: ' + n(N.hoy.err) + ' líneas negadas con producto.', a: false });
+    if (ex != null && ex < 99.5 && !MO) mejorar.push({ q: 'Exactitud de picking bajo la meta de 99,5%.', a: false });
+    h.bueno = bueno.slice(0, 3); h.mejorar = mejorar.slice(0, 3);
 
     /* ----- titular y párrafo ----- */
     var t = [], cerroLlev = (amanecer || cierre) ? ' cerró con ' : ' lleva ';
@@ -309,15 +298,14 @@
     if (P) lead.push((amanecer ? 'Hoy, al corte de ' + horaMin(P.lc) + ', amanecemos con ' : (cierre ? 'Al cierre quedan ' : 'Al corte de ' + horaMin(P.lc) + ' hay ')) + n(P.sinAsig) + ' pedidos por asignar' + (P.viejos ? ' (' + n(P.viejos) + ' con más de 72 h)' : '') + ', ' + n(P.enPrep) + ' en preparación' + (P.nDia ? ' y han entrado ' + n(P.nDia) + ' pedidos nuevos' : '') + '.');
     h.lead = lead.join(' ');
 
-    /* ----- tarjetas ----- */
-    var deDia = amanecer ? ' · cierre de ayer' : cierre ? ' · cierre' : '';
+    /* ----- tarjetas: valor y una línea corta ----- */
     if (N) {
-      h.kpis.push({ l: 'Fill rate' + deDia, v: frV != null ? dec(frV) + '%' : '–', o: false, s: (frV != null ? n(N.fr.prep) + ' de ' + n(N.fr.base) + ' líneas' : 'sin líneas cerradas') + (frPrev != null ? ' · ayer cerró en ' + dec(frPrev) + '%' : '') + ' · ' + (N.b2b.tot ? 'B2B ' + dec(pct(N.b2b.ok, N.b2b.tot)) + '% · ' + n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos' : 'B2B: sin pedidos cerrados') });
-      h.kpis.push({ l: 'Negados' + deDia, v: dec(N.pHoy) + '%', o: false, s: n(N.hoy.neg) + ' de ' + n(N.hoy.lin) + ' líneas · ' + pctInt(N.hoy.err, N.hoy.neg) + ' por error en el proceso · ' + pctInt(N.hoy.sst, N.hoy.neg) + ' sin stock' });
-      h.kpis.push({ l: 'Exactitud de picking' + deDia, v: ex != null ? dec(ex) + '%' : '–', o: false, s: n(N.hoy.exactas) + ' de ' + n(N.hoy.prep) + ' líneas completas · meta 99,5%' });
+      h.kpis.push({ l: 'Fill rate', v: frV != null ? dec(frV) + '%' : '–', s: frPrev != null ? 'ayer ' + dec(frPrev) + '%' : (frV != null ? n(N.fr.prep) + ' de ' + n(N.fr.base) + ' líneas' : '') });
+      h.kpis.push({ l: 'Fill rate B2B', v: N.b2b.tot ? dec(pct(N.b2b.ok, N.b2b.tot)) + '%' : '–', s: N.b2b.tot ? n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos' : 'sin pedidos cerrados' });
+      h.kpis.push({ l: 'Negados', v: dec(N.pHoy) + '%', s: n(N.hoy.neg) + ' líneas' + (N.prom != null ? ' · prom. ' + dec(N.prom) + '%' : '') });
+      h.kpis.push({ l: 'Exactitud de picking', v: ex != null ? dec(ex) + '%' : '–', s: 'meta 99,5%', o: ex != null && ex < 99.5 });
     }
-    if (P) h.kpis.push({ l: amanecer ? 'Por asignar al amanecer' : 'Pedidos por asignar', v: n(P.sinAsig), o: false, s: (P.viejos ? n(P.viejos) + ' con más de 72 h' : 'nada con más de 72 h') + ' · ' + n(P.enPrep) + ' en preparación · ' + n(P.skR) + ' SKUs' });
-    if (h.kpis.length < 4 && lp != null) h.kpis.push({ l: 'Líneas preparadas', v: n(lp), o: false, s: (lAct != null ? n(lAct) + ' líneas actualizadas' : 'entregadas al revisador') + (lpAnt != null ? ' · ' + sem(dN) + ': ' + n(lpAnt) : '') });
+    if (P) h.kpis.push({ l: 'Por asignar', v: n(P.sinAsig), s: P.viejos ? n(P.viejos) + ' con +72 h' : 'nada con +72 h', o: !!P.viejos });
 
     /* ----- sección 1: pedidos ----- */
     if (P) {
@@ -365,113 +353,88 @@
 
   /* ---------------- HTML del reporte ---------------- */
   var CSS = "@page{size:8.5in 11in;margin:0}*{box-sizing:border-box;margin:0;padding:0}" +
-    "body{background:#EEE7D9;color:#26241F;font-family:'IBM Plex Sans',sans-serif;font-size:7.6pt;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
-    ".page{width:8.5in;min-height:11in;padding:.32in .5in .3in;margin:0 auto;position:relative;background:#EEE7D9}" +
-    ".hd{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:7px;border-bottom:3px solid #D7262B}.hd img{height:36px}" +
-    ".hd .r{text-align:right;font-family:'IBM Plex Mono';font-size:6.1pt;letter-spacing:.8px;color:#5c564b;line-height:1.7;text-transform:uppercase}.hd .r b{font-weight:500;color:#26241F;font-size:6.6pt}" +
-    ".eb{font-family:'IBM Plex Mono';font-size:5.6pt;letter-spacing:1.3px;color:#6F685C;text-transform:uppercase;margin-top:9px}" +
-    "h1{font-family:'Newsreader',serif;font-weight:600;font-size:15pt;line-height:1.18;margin:3px 0 6px;max-width:6.6in}" +
-    ".lead{font-size:7.2pt;color:#3a362f;max-width:7.2in}" +
-    ".kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:8px 0 9px}.k{border:1px solid #D8CFBE;background:#F5EFE3;border-radius:5px;padding:7px 10px 8px}" +
-    ".k .l{font-family:'IBM Plex Mono';font-size:5.4pt;letter-spacing:1.1px;color:#6F685C;text-transform:uppercase}.k .v{font-family:'Newsreader',serif;font-size:17pt;line-height:1.15;margin:1px 0 2px}.k .v.o{color:#E07B2E}.k .s{font-size:6.3pt;color:#4d483f;line-height:1.35}" +
-    ".sec{border-top:1.6px solid #26241F;padding-top:5px;margin-top:6px}.sec .eb{margin-top:0;color:#E07B2E}" +
-    "h2{font-family:'Newsreader',serif;font-weight:600;font-size:10.6pt;line-height:1.2;margin:1px 0 6px}" +
-    ".two{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:6px}.cap{font-size:6.4pt;color:#5c564b;margin-bottom:3px}" +
-    ".lg{font-family:'IBM Plex Mono';font-size:5.5pt;color:#5c564b;display:flex;gap:10px;margin-bottom:2px}.lg i{display:inline-block;width:7px;height:7px;margin-right:3px;vertical-align:-1px}.lg i.ln{height:2px;vertical-align:2px;width:10px}" +
-    "svg .ax{font-family:'IBM Plex Mono';font-size:6px;fill:#6F685C}svg .ax.pk{fill:#E07B2E}svg .lab{font-family:'IBM Plex Mono';font-size:6.2px;font-weight:500;fill:#4d483f}svg .lab.hl{fill:#E07B2E}" +
-    ".flow{display:flex;align-items:center;gap:5px;margin-bottom:7px}.flow .b{border:1px solid #bdb3a1;background:#F5EFE3;padding:4px 7px;flex:1}.flow .b.now{border-color:#E07B2E}" +
-    ".flow .b .t{font-family:'IBM Plex Mono';font-size:5.2pt;color:#6F685C;letter-spacing:.8px}.flow .b .v{font-family:'Newsreader',serif;font-size:13pt;line-height:1.1}.flow .b.now .v,.flow .b.now .t{color:#E07B2E}.flow .op{font-family:'IBM Plex Mono';font-size:8pt;color:#6F685C}" +
-    ".det p{font-size:6.4pt;margin-bottom:2px;line-height:1.38}.det b,.mt2 b{font-weight:600}.mt2{font-size:6.4pt;margin-top:4px}" +
-    "table.mot{width:100%;border-collapse:collapse;font-size:6.5pt}table.mot th{font-family:'IBM Plex Mono';font-weight:400;font-size:5.3pt;letter-spacing:.8px;color:#6F685C;text-align:left;border-bottom:1px solid #26241F;padding:2px 3px}" +
-    "table.mot th.r,table.mot td.r{text-align:right}table.mot td{white-space:nowrap;padding:2.4px 3px;border-bottom:1px solid #D8CFBE}table.mot tr.sub td{font-style:italic;color:#6F685C;font-size:6pt}table.mot tr.tot td{font-weight:600;border-bottom:1.4px solid #26241F}" +
+    "body{background:#fff;color:#1F2328;font-family:'IBM Plex Sans',sans-serif;font-size:7.6pt;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-variant-numeric:tabular-nums}" +
+    ".page{width:8.5in;min-height:11in;padding:.36in .5in .3in;margin:0 auto;position:relative;background:#fff}" +
+    ".hd{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:8px;border-bottom:3px solid #D7262B}.hd img{height:36px}" +
+    ".hd .r{text-align:right;font-size:6.6pt;color:#6B7280;line-height:1.6}.hd .r b{display:block;font-weight:600;color:#1F2328;font-size:10pt}" +
+    ".kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:12px 0 4px}.k{border:1px solid #E3E6EA;border-radius:6px;padding:8px 10px}" +
+    ".k .l{font-size:6.4pt;color:#6B7280}.k .v{font-weight:600;font-size:17pt;line-height:1.15;margin:2px 0 1px}.k .v.o{color:#C7453A}.k .s{font-size:6.4pt;color:#6B7280}" +
+    ".sec{margin-top:12px}h2{font-weight:600;font-size:9.5pt;margin:0 0 6px;padding-bottom:3px;border-bottom:1px solid #E3E6EA}h2 span{font-weight:400;color:#6B7280;font-size:7pt;margin-left:6px}" +
+    ".two{display:grid;grid-template-columns:1.15fr 1fr;gap:18px}" +
+    ".lg{font-size:6pt;color:#6B7280;display:flex;gap:12px;margin-bottom:2px}.lg i{display:inline-block;width:7px;height:7px;margin-right:4px;vertical-align:-1px;border-radius:1px}.lg i.ln{height:2px;vertical-align:2px;width:10px}" +
+    "svg .ax{font-family:'IBM Plex Sans',Arial,sans-serif;font-size:6px;fill:#6B7280}svg .ax.pk{fill:#1F2328;font-weight:600}svg .lab{font-family:'IBM Plex Sans',Arial,sans-serif;font-size:6.2px;font-weight:600;fill:#3D434B}svg .lab.hl{fill:#1F2328}" +
+    ".nums{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}.nums>div{background:#F5F6F8;border-radius:5px;padding:5px 8px}.nums .t{font-size:6pt;color:#6B7280}.nums .v{font-weight:600;font-size:12pt;line-height:1.15}.nums .now .v{color:#C7453A}" +
+    "table.mot{width:100%;border-collapse:collapse;font-size:6.6pt}table.mot th{font-weight:600;font-size:6pt;color:#6B7280;text-align:left;border-bottom:1px solid #C9CED5;padding:2px 4px}" +
+    "table.mot th.r,table.mot td.r{text-align:right}table.mot td{white-space:nowrap;padding:2.6px 4px;border-bottom:1px solid #EEF0F2}table.mot tr.sub td{color:#6B7280}table.mot tr.tot td{font-weight:600;border-bottom:0;border-top:1px solid #C9CED5}" +
     "table.mot td.desc{white-space:normal}" +
-    ".mini{display:grid;grid-template-columns:repeat(3,1fr);margin-top:6px}.mini>div{border-left:3px solid #CFC5B2;padding:0 8px}.mini .v{font-family:'Newsreader',serif;font-size:11pt;line-height:1.1}.mini .s{font-size:6.1pt;color:#4d483f;line-height:1.35}" +
-    "table.ac{width:100%;border-collapse:collapse;font-size:6.5pt;margin-top:2px}table.ac th{font-family:'IBM Plex Mono';font-weight:400;font-size:5.3pt;letter-spacing:.8px;color:#6F685C;text-align:left;border-bottom:1px solid #26241F;padding:2px 4px}" +
-    "table.ac td{padding:2.6px 4px;border-bottom:1px solid #D8CFBE;vertical-align:top}table.ac td.w{font-family:'IBM Plex Mono';font-size:5.9pt;white-space:nowrap}" +
-    ".bm{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 8px}.bm>div{border:1px solid #D8CFBE;border-radius:5px;padding:6px 10px 7px;background:#F5EFE3}.bm .b{border-left:4px solid #4E9A55}.bm .m{border-left:4px solid #E07B2E}.bm .t{font-family:'IBM Plex Mono';font-size:5.6pt;letter-spacing:1.1px;text-transform:uppercase;color:#6F685C;margin-bottom:3px}.bm ul{margin:0;padding-left:12px}.bm li{font-size:6.6pt;line-height:1.4;margin-bottom:1.5px}.tag{font-family:'IBM Plex Mono';font-size:5.4pt;letter-spacing:.8px;padding:1px 5px;border-radius:2px}.tag.a{background:#DCE9D6;color:#2F6B3F}.tag.m{background:#F6DFC6;color:#B5591B}" +
-    ".foot{margin-top:6px;font-family:'IBM Plex Mono';font-size:5.2pt;color:#6F685C;line-height:1.55;border-top:1px solid #CFC5B2;padding-top:4px}" +
-    "@media screen{body{padding:56px 0 24px;background:#d9d1c1}.page{box-shadow:0 4px 18px rgba(0,0,0,.15)}" +
-    ".tb{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;gap:8px;align-items:center;justify-content:center;padding:10px;background:#26241F;color:#fff;font:13px 'IBM Plex Sans',sans-serif}" +
-    ".tb button{font:inherit;font-weight:600;padding:7px 14px;border-radius:5px;border:0;cursor:pointer;background:#D7262B;color:#fff}.tb button.s{background:#fff;color:#26241F}.tb span{opacity:.75;font-size:12px}}" +
-    "@media print{.tb{display:none!important}body{padding:0;background:#EEE7D9}.page{box-shadow:none;height:11in;overflow:hidden}}";
+    ".notas{margin-top:12px;border:1px solid #E3E6EA;border-radius:6px;padding:7px 12px;display:grid;grid-template-columns:1fr 1fr;gap:16px}.notas .t{font-weight:600;font-size:7pt;margin-bottom:2px}.notas .t i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}.notas ul{padding-left:12px}.notas li{font-size:6.8pt;line-height:1.45;color:#3D434B}" +
+    ".foot{margin-top:8px;font-size:5.8pt;color:#9AA1AB;line-height:1.5}" +
+    "@media screen{body{padding:56px 0 24px;background:#E9ECEF}.page{box-shadow:0 4px 18px rgba(0,0,0,.12)}" +
+    ".tb{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;gap:8px;align-items:center;justify-content:center;padding:10px;background:#1F2328;color:#fff;font:13px 'IBM Plex Sans',sans-serif}" +
+    ".tb button{font:inherit;font-weight:600;padding:7px 14px;border-radius:5px;border:0;cursor:pointer;background:#D7262B;color:#fff}.tb button.s{background:#fff;color:#1F2328}.tb span{opacity:.75;font-size:12px}}" +
+    "@media print{.tb{display:none!important}body{padding:0;background:#fff}.page{box-shadow:none;height:11in;overflow:hidden}}";
 
   function html(h, logo) {
     var M = h.meta, P = M.P, N = M.N, out = [];
     var titulo = 'Reporte ejecutivo · CD Nejapa · ' + lblFecha(M.dia) + ' ' + M.dia.slice(0, 4) + ' · ' + (M.cierre ? 'Cierre' : M.corteTxt);
     out.push('<!doctype html><html lang="es"><head><meta charset="utf-8"><title>' + esc('Reporte_ejecutivo_' + M.dia + (M.cierre ? '_cierre' : '_' + M.corteTxt.replace(/[^0-9apm]/g, ''))) + '</title>');
     out.push('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>');
-    out.push('<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap" rel="stylesheet">');
+    out.push('<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">');
     out.push('<style>' + CSS + '</style></head><body>');
     out.push('<div class="tb"><button type="button" id="pdf">Descargar PDF</button><button type="button" class="s" id="cerrar">Cerrar</button><span>En la ventana de impresión elige «Guardar como PDF».</span></div>');
     out.push('<section class="page">');
-    out.push('<div class="hd">' + (logo ? '<img src="' + logo + '" alt="Vidri">' : '<b>VIDRI</b>') + '<div class="r">Reporte ejecutivo · CD Nejapa<br><b>' + esc(lblLargo(M.dia)) + ' · ' + esc(M.momento) + '</b><br>' + (M.amanecer ? 'Cierre de ayer y pedidos al corte de ' + esc(M.corteTxt) : 'Negados y pedidos' + (P ? ' al corte de ' + esc(M.corteTxt) : '')) + '</div></div>');
-    out.push('<div class="eb">' + (M.amanecer ? 'Cómo cerramos ayer y cómo amanecimos hoy' : [P ? 'Pedidos CD' : '', N ? 'Negados' : ''].filter(Boolean).join(' · ')) + '</div>');
-    out.push('<h1>' + esc(h.titulo) + '</h1><p class="lead">' + esc(h.lead) + '</p>');
+    out.push('<div class="hd">' + (logo ? '<img src="' + logo + '" alt="Vidri">' : '<b>VIDRI</b>') + '<div class="r"><b>Reporte ejecutivo · CD Nejapa</b>' + esc(lblLargo(M.dia)) + ' · ' + esc(M.momento) + '</div></div>');
     out.push('<div class="kpis">' + h.kpis.map(function (k) { return '<div class="k"><div class="l">' + esc(k.l) + '</div><div class="v' + (k.o ? ' o' : '') + '">' + esc(k.v) + '</div><div class="s">' + esc(k.s) + '</div></div>'; }).join('') + '</div>');
-    out.push('<div class="bm"><div class="b"><div class="t">' + (M.amanecer ? 'Lo bueno' : 'Lo bueno del día') + '</div><ul>' + h.bueno.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
-      '<div class="m"><div class="t">Qué mejorar</div><ul>' + (h.mejorar.length ? h.mejorar.map(function (x) { return '<li>' + (x.a ? '<b>Prioridad:</b> ' : '') + esc(x.q) + '</li>'; }).join('') : '<li>Mantener el ritmo del día.</li>') + '</ul></div></div>');
-    var sec = 1;
     if (P) {
-      out.push('<div class="sec"><div class="eb">' + (sec++) + ' · Pedidos CD</div><h2>' + esc(h.s1t) + '</h2><div class="two"><div>');
-      out.push('<p class="cap">Entraron por día (barras) y pedidos sin terminar al cierre de cada día (naranja). El ' + lblFecha(P.hoy) + ' va al corte de ' + esc(M.corteTxt) + '.</p>');
-      out.push('<div class="lg"><span><i style="background:' + C.BLUE + '"></i>Entraron</span><span><i class="ln" style="background:' + C.ORANGE + '"></i>Sin terminar al cierre</span></div>');
+      var dR = Object.keys(P.porDiaR).sort().reverse(), filasR = [], ant = 0;
+      dR.forEach(function (d) { if (filasR.length < 4) filasR.push([d === P.hoy ? 'Hoy' : cap(DOW[dowOf(d)]) + ' ' + (+d.slice(8)), P.porDiaR[d].c, P.porDiaR[d].sk]); else ant += P.porDiaR[d].c; });
+      out.push('<div class="sec"><h2>Pedidos CD<span>al corte de ' + esc(M.corteTxt) + ' · ' + n(P.enPrep) + ' en preparación · ' + n(P.nDia) + ' entraron hoy</span></h2><div class="two"><div>');
+      out.push('<div class="lg"><span><i style="background:' + C.BLUE + '"></i>Entraron por día</span><span><i class="ln" style="background:' + C.ORANGE + '"></i>Sin terminar al cierre</span></div>');
       out.push(grafPedidos(P.serie) + '</div><div>');
-      out.push('<div class="flow"><div class="b now"><div class="t">POR ASIGNAR</div><div class="v">' + n(P.sinAsig) + '</div><div class="t">' + n(P.skR) + ' SKUS</div></div><div class="b"><div class="t">MÁS DE 72 H</div><div class="v">' + n(P.viejos) + '</div><div class="t">SIN PREPARADOR</div></div><div class="b"><div class="t">EN PREPARACIÓN</div><div class="v">' + n(P.enPrep) + '</div><div class="t">AL CORTE</div></div><div class="b"><div class="t">ENTRARON HOY</div><div class="v">' + n(P.nDia) + '</div><div class="t">AL CORTE</div></div></div>');
-      out.push('<div class="det">' + h.s1det.map(function (p) { return '<p>' + p + '</p>'; }).join('') + '</div></div></div></div>');
+      out.push('<table class="mot"><thead><tr><th>POR ASIGNAR · DÍA DE LLEGADA</th><th class="r">PEDIDOS</th><th class="r">SKUS</th></tr></thead><tbody>' +
+        filasR.map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td class="r">' + n(r[1]) + '</td><td class="r">' + n(r[2]) + '</td></tr>'; }).join('') +
+        (ant ? '<tr class="sub"><td>Anteriores</td><td class="r">' + n(ant) + '</td><td class="r"></td></tr>' : '') +
+        '<tr class="tot"><td>Total</td><td class="r">' + n(P.sinAsig) + '</td><td class="r">' + n(P.skR) + '</td></tr></tbody></table>');
+      out.push('</div></div></div>');
     }
     if (N) {
       var H = N.hoy, pW = N.prevW;
-      out.push('<div class="sec"><div class="eb">' + (sec++) + ' · ' + (M.amanecer ? 'Cierre de ayer · fill rate y negados (' + DOW_L[dowOf(H.d)] + ' ' + (+H.d.slice(8)) + ')' : 'Negados (día' + (N.parcial ? ', parcial' : '') + ')') + '</div><h2>' + esc(h.s2t) + '</h2><div class="two"><div>');
-      out.push('<p class="cap">% de líneas negadas por día y motivo.' + (N.prom != null ? ' Línea discontinua: promedio de los ' + N.ventana.length + ' días anteriores (' + dec(N.prom) + '%).' : '') + '</p>');
-      out.push('<div class="lg"><span><i style="background:' + C.ORANGE + '"></i>Negadas por error en el proceso (había producto)</span><span><i style="background:' + C.BLUE + '"></i>Negadas sin stock (existencia a cero)</span></div>');
+      out.push('<div class="sec"><h2>Negados<span>' + esc(cap(DOW_L[dowOf(H.d)]) + ' ' + (+H.d.slice(8)) + (N.parcial ? ' · parcial' : '')) + '</span></h2><div class="two"><div>');
+      out.push('<div class="lg"><span><i style="background:' + C.ORANGE + '"></i>Error en el proceso</span><span><i style="background:' + C.BLUE + '"></i>Sin stock</span>' + (N.prom != null ? '<span><i class="ln" style="background:' + C.INK + '"></i>Promedio ' + dec(N.prom) + '%</span>' : '') + '</div>');
       out.push(grafNegados(N.serie, N.prom) + '</div><div>');
-      var col = function (r) { return r ? '<b>' + n(r.err) + '</b> · ' + pctInt(r.err, r.neg) : '–'; };
-      var col2 = function (r) { return r ? '<b>' + n(r.sst) + '</b> · ' + pctInt(r.sst, r.neg) : '–'; };
-      var colT = function (r) { return r ? n(r.neg) + ' · ' + dec(pct(r.neg, r.lin)) + '%' : '–'; };
+      var colT = function (r) { return r ? '<b>' + n(r.neg) + '</b> · ' + dec(pct(r.neg, r.lin)) + '%' : '–'; };
       var hd2 = function (r) { return (DOW[dowOf(r.d)] + ' ' + (+r.d.slice(8))).toUpperCase(); };
-      // con motivo registrado por el preparador (desde el 27 oct 2026) la tabla va por ese motivo; si no, por el disponible
       var MH = HISTORY_MOT(H.d), MW = pW ? HISTORY_MOT(pW.d) : null;
       if (MH) {
         var ks = Object.keys(MH.m).concat(MW ? Object.keys(MW.m) : []).filter(function (k, i, a) { return a.indexOf(k) === i; });
-        var ORD = ['Físico no se encuentra', 'Existencia a cero', 'Sin existencia ubicación picking', 'Producto incompleto o averiado', 'Pasillo bloqueado'];
-        var rk = function (k) { return k === '' ? 99 : (ORD.indexOf(k) + 1 || 50); };
-        ks.sort(function (x, y) { return rk(x) - rk(y); });
-        // % sobre todas las negadas del día; lo que el archivo no trae con motivo va como "Sin dato"
-        var cm = function (M, r, k) { if (!M) return '–'; var v = k === '\u0000' ? Math.max(0, r.neg - M.n) : (M.m[k] || 0); return '<b>' + n(v) + '</b> · ' + pctInt(v, Math.max(r.neg, M.n)); };
-        if ((MH && H.neg > MH.n) || (MW && pW && pW.neg > MW.n)) ks.push('\u0000');
-        out.push('<table class="mot"><thead><tr><th>MOTIVO REGISTRADO</th><th class="r">' + hd2(H) + (N.parcial ? ' (PARCIAL)' : ' (DÍA)') + '</th>' + (pW ? '<th class="r">' + hd2(pW) + ' (DÍA)</th>' : '') + '</tr></thead><tbody>');
-        ks.forEach(function (k) { out.push('<tr' + (k === '\u0000' ? ' class="sub"' : '') + '><td>' + (k === '' ? '<b>Sin motivo</b>' : k === '\u0000' ? 'Sin dato (sin motivo en el archivo)' : esc(k)) + '</td><td class="r">' + cm(MH, H, k) + '</td>' + (pW ? '<td class="r">' + cm(MW, pW, k) + '</td>' : '') + '</tr>'); });
-        out.push('<tr class="tot"><td>Total negados</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
+        ks.sort(function (x, y) { return (MH.m[y] || 0) - (MH.m[x] || 0); });
+        var cm = function (M, r, k) { if (!M) return '–'; var v = k === '\u0000' ? Math.max(0, r.neg - M.n) : (M.m[k] || 0); return n(v) + ' · ' + pctInt(v, Math.max(r.neg, M.n)); };
+        if ((H.neg > MH.n) || (MW && pW && pW.neg > MW.n)) ks.push('\u0000');
+        out.push('<table class="mot"><thead><tr><th>MOTIVO</th><th class="r">' + hd2(H) + '</th>' + (pW ? '<th class="r">' + hd2(pW) + '</th>' : '') + '</tr></thead><tbody>');
+        ks.forEach(function (k) { out.push('<tr' + (k === '\u0000' ? ' class="sub"' : '') + '><td>' + (k === '' ? 'Sin motivo' : k === '\u0000' ? 'Sin dato' : esc(k)) + '</td><td class="r">' + cm(MH, H, k) + '</td>' + (pW ? '<td class="r">' + cm(MW, pW, k) + '</td>' : '') + '</tr>'); });
+        out.push('<tr class="tot"><td>Total</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
       } else {
-        out.push('<table class="mot"><thead><tr><th>MOTIVO</th><th class="r">' + hd2(H) + (N.parcial ? ' (PARCIAL)' : ' (DÍA)') + '</th>' + (pW ? '<th class="r">' + hd2(pW) + ' (DÍA)</th>' : '') + '</tr></thead><tbody>');
-        out.push('<tr><td><b>Negadas por error en el proceso</b> (había stock)</td><td class="r">' + col(H) + '</td>' + (pW ? '<td class="r">' + col(pW) + '</td>' : '') + '</tr>');
-        out.push('<tr><td><b>Negadas sin stock</b> (0 o negativo)</td><td class="r">' + col2(H) + '</td>' + (pW ? '<td class="r">' + col2(pW) + '</td>' : '') + '</tr>');
-        out.push('<tr class="sub"><td>↳ existencia 0 · existencia negativa</td><td class="r">' + n(H.cero) + ' · ' + n(H.negat) + '</td>' + (pW ? '<td class="r">' + n(pW.cero) + ' · ' + n(pW.negat) + '</td>' : '') + '</tr>');
-        out.push('<tr class="tot"><td>Total negados</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
+        var col = function (r, k) { return r ? n(r[k]) + ' · ' + pctInt(r[k], r.neg) : '–'; };
+        out.push('<table class="mot"><thead><tr><th>MOTIVO</th><th class="r">' + hd2(H) + '</th>' + (pW ? '<th class="r">' + hd2(pW) + '</th>' : '') + '</tr></thead><tbody>');
+        out.push('<tr><td>Error en el proceso</td><td class="r">' + col(H, 'err') + '</td>' + (pW ? '<td class="r">' + col(pW, 'err') + '</td>' : '') + '</tr>');
+        out.push('<tr><td>Sin stock</td><td class="r">' + col(H, 'sst') + '</td>' + (pW ? '<td class="r">' + col(pW, 'sst') + '</td>' : '') + '</tr>');
+        out.push('<tr class="tot"><td>Total</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
       }
-      if (h.motLect && h.motLect.length) out.push('<p class="mt2">' + h.motLect.join(' · ') + '.</p>');
-      if (!(h.motLect && h.motLect.length)) out.push('<p class="mt2"><b>Negados en la mañana:</b> ' + n(N.negMan) + ' · <b>en la tarde:</b> ' + n(N.negTar) + ' (por hora en que se cerró la línea)</p>');
-      var t1 = N.tiendas[0], t2 = N.tiendas[1];
-      // el fill rate y la exactitud ya van en las tarjetas de arriba: aquí B2B y negados sin motivo registrado
-      var sinM = MH ? (MH.m[''] || 0) : null;
-      out.push('<div class="mini"><div><div class="v">' + (N.b2b.tot ? dec(pct(N.b2b.ok, N.b2b.tot)) + '%' : '–') + '</div><div class="s">fill rate B2B · ' + (N.b2b.tot ? n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos completos' : 'sin pedidos cerrados') + '</div></div>');
-      out.push('<div><div class="v">' + (sinM != null ? n(sinM) : '–') + '</div><div class="s">' + (sinM != null ? 'negadas sin motivo registrado (' + pctInt(sinM, H.neg) + ')' : 'sin motivo registrado ese día') + '</div></div>');
-      out.push('<div><div class="v">' + (t1 ? n(t1.neg) : '–') + '</div><div class="s">' + (t1 ? 'negados en ' + esc(nombre(t1.s)) + (t2 ? ' · ' + esc(nombre(t2.s)) + ' ' + n(t2.neg) : '') : 'sin negados por sucursal') + '</div></div></div>');
       out.push('</div></div>');
       if (N.top.length) {
         var conMp = N.top.some(function (x) { return x.mp; });
-        out.push('<table class="mot" style="margin-top:2px"><thead><tr><th>CÓDIGOS CON MÁS NEGADOS</th><th>DESCRIPCIÓN</th><th class="r">VECES</th><th class="r">' + (conMp ? 'MOTIVO PRINCIPAL' : 'ERROR EN EL PROCESO') + '</th></tr></thead><tbody>' +
-          N.top.slice(0, h.motLect && h.motLect.length ? 3 : 5).map(function (x) { return '<tr><td>' + esc(x.sku) + '</td><td class="desc">' + esc(x.desc) + '</td><td class="r"><b>' + n(x.t) + '</b></td><td class="r">' + (conMp ? esc(x.mp || '–') : n(x.err)) + '</td></tr>'; }).join('') + '</tbody></table>');
+        out.push('<table class="mot" style="margin-top:8px"><thead><tr><th>CÓDIGOS MÁS NEGADOS</th><th>DESCRIPCIÓN</th><th class="r">VECES</th>' + (conMp ? '<th>MOTIVO PRINCIPAL</th>' : '') + '</tr></thead><tbody>' +
+          N.top.slice(0, 5).map(function (x) { return '<tr><td>' + esc(x.sku) + '</td><td class="desc">' + esc(x.desc) + '</td><td class="r"><b>' + n(x.t) + '</b></td>' + (conMp ? '<td>' + esc(String(x.mp || '–').replace(/\s*\(.*$/, '')) + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table>');
       }
       out.push('</div>');
     }
-    var foot = [];
-    if (P) foot.push('Pedidos al corte de ' + M.corteTxt + (N ? (M.amanecer ? '; fill rate y negados: día completo de ayer (' + lblFecha(N.hoy.d) + ')' : '; negados al de la última carga' + (M.negHora ? ' (' + M.negHora + ')' : '')) : ''));
-    foot.push('Fill rate = líneas preparadas ÷ (preparadas + negadas que sí se podían preparar); no cuentan las negadas por «Existencia a cero»');
-    if (N && N.parcial) foot.push('El Radar marca el ' + lblFecha(N.hoy.d) + ' como parcial: las líneas que aún no están en estado A no entran');
-    foot.push('Sin asignar = estado Recibido · 72 h = de la fecha del pedido al corte, contando sábado y domingo · Espera hasta asignación = de Recibido a la creación de la orden de preparación');
-    if (N && N.prevW) foot.push('Negados: comparación contra el ' + DOW_L[dowOf(N.prevW.d)] + ' ' + (+N.prevW.d.slice(8)) + ' (día completo)');
-    foot.push('Reporte generado automáticamente por el Radar con reglas fijas');
+    if (h.bueno.length || h.mejorar.length) {
+      out.push('<div class="notas"><div><div class="t"><i style="background:' + C.GREEN + '"></i>Lo bueno</div><ul>' + (h.bueno.length ? h.bueno.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') : '<li>–</li>') + '</ul></div>' +
+        '<div><div class="t"><i style="background:' + C.ORANGE + '"></i>Por mejorar</div><ul>' + (h.mejorar.length ? h.mejorar.map(function (x) { return '<li>' + esc(x.q) + '</li>'; }).join('') : '<li>Mantener el ritmo.</li>') + '</ul></div></div>');
+    }
+    var foot = ['Fill rate = preparadas ÷ (preparadas + negadas que se podían preparar; no cuenta «Existencia a cero»)'];
+    if (P && N) foot.push(M.amanecer ? 'Negados: día completo de ayer' : 'Negados a la última carga' + (M.negHora ? ' (' + M.negHora + ')' : ''));
+    foot.push('Generado por el Radar');
     out.push('<div class="foot">' + esc(foot.join(' · ')) + '</div></section>');
     out.push('<script>document.getElementById("pdf").onclick=function(){window.print()};document.getElementById("cerrar").onclick=function(){try{parent.__cerrarReporte()}catch(e){window.close()}};<\/script>');
     // si el contenido no cabe en la hoja carta, se achica un poco todo para que nada quede cortado
@@ -484,9 +447,9 @@
   function mostrar(doc) {
     var prev = document.getElementById('rep-ov'); if (prev) prev.remove();
     var ov = document.createElement('div'); ov.id = 'rep-ov';
-    ov.style.cssText = 'position:fixed;inset:0;z-index:9500;background:rgba(38,36,31,.55);display:flex';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9500;background:rgba(31,35,40,.55);display:flex';
     var fr = document.createElement('iframe'); fr.title = doc.titulo;
-    fr.style.cssText = 'flex:1;border:0;background:#d9d1c1';
+    fr.style.cssText = 'flex:1;border:0;background:#E9ECEF';
     ov.appendChild(fr); document.body.appendChild(ov);
     window.__cerrarReporte = function () { ov.remove(); document.body.style.overflow = ''; };
     document.body.style.overflow = 'hidden';
