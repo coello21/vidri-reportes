@@ -692,3 +692,11 @@ table.hm td{white-space:nowrap}
 #topMot th:nth-child(3),#topMot td:nth-child(3){width:52px}
 #topMot td:nth-child(2){max-width:none}
 #tab-top #topMot .rk-tbl th:last-child{display:table-cell}
+
+/* 6 nov 2026: fuera las tarjetas de exactitud y de negadas por error / sin stock (los motivos ya están en el mapa) */
+#tab-resumen .kpi.kpi-fuera{display:none!important}
+#tab-resumen .kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+/* mapa de calor en colores Vidri: encabezados y total en azul */
+table.hm thead th{color:#1F4E8C}
+table.hm tr.hmt td{color:#1F4E8C}
+html[data-theme="dark"] table.hm thead th,html[data-theme="dark"] table.hm tr.hmt td{color:#8DB5E8}

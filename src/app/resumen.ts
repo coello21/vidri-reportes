@@ -299,35 +299,36 @@ export class Resumen {
       // Mapa de calor: un renglón por motivo registrado y una columna por día; más oscuro = más negadas de ese motivo
       const ks = new Set<string>();
       d7.forEach((d) => { const mo = dia(d)?.mot; if (mo) Object.keys(mo.m).forEach((x) => ks.add(x)); });
-      const filas = [...ks].sort(motSort).map((x) => ({ name: motLabel(x), color: motColor(x), vals: d7.map((d) => dia(d)?.mot?.m[x] || 0) }));
+      const filas = [...ks].map((x) => ({ name: motLabel(x), vals: d7.map((d) => dia(d)?.mot?.m[x] || 0) }));
       const sd = d7.map((d) => Math.max(0, (dia(d)?.meta?.totalNegados || 0) - (dia(d)?.mot?.n || 0)));
-      if (sd.some((v) => v)) filas.push({ name: 'Sin dato (antes del registro)', color: '#A39C90', vals: sd });
-      const totDia = d7.map((_, i) => filas.reduce((a, f) => a + f.vals[i], 0));
+      const totDia = d7.map((_, i) => filas.reduce((a, f) => a + f.vals[i], 0) + sd[i]);
+      // de mayor a menor % en los 7 días; "Sin dato" siempre al final
+      const pctFila = (f: { vals: number[] }) => f.vals.reduce((a, v, i) => a + (totDia[i] ? v / totDia[i] : 0), 0);
+      filas.sort((a, b) => pctFila(b) - pctFila(a));
+      if (sd.some((v) => v)) filas.push({ name: 'Sin dato (antes del registro)', vals: sd });
       const DOW = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'], sel = vm.meta.fecha;
       const th = d7.map((d, i) => '<th class="r' + (d === sel ? ' sel' : '') + '" data-i="' + i + '" title="Ver este día">' + DOW[new Date(d + 'T12:00:00').getDay()] +
         '<br><span>' + esc(fmtDateShort(d)) + '</span></th>').join('');
       // cada celda: % de las negadas de ese día (la columna suma 100 %) y entre paréntesis las líneas
-      const celda = (v: number, mx: number, color: string, i: number) => {
-        const a = mx ? Math.round(8 + (v / mx) * 62) : 0, d = d7[i], t = totDia[i];
-        return '<td class="r' + (d === sel ? ' sel' : '') + '"' + (v ? ' style="background:color-mix(in srgb,' + color + ' ' + a + '%,transparent)' + (a > 48 ? ';color:#fff' : '') + '"' : '') + '>' +
+      // colores Vidri: de blanco a rojo según el % del día
+      const celda = (v: number, i: number) => {
+        const d = d7[i], t = totDia[i], p = t ? v / t : 0, a = v ? Math.round(6 + Math.min(1, p / 0.5) * 74) : 0;
+        return '<td class="r' + (d === sel ? ' sel' : '') + '"' + (v ? ' style="background:color-mix(in srgb,#E0262B ' + a + '%,var(--surface))' + (a > 48 ? ';color:#fff' : '') + '"' : '') + '>' +
           (v ? '<b>' + (t ? fmtPct(v / t * 100) : '—') + '</b> <span>(' + fmtInt(v) + ')</span>' : '·') + '</td>';
       };
       el.innerHTML = '<div class="tablescroll"><table class="hm"><thead><tr><th>Motivo</th>' + th + '</tr></thead><tbody>' +
-        filas.map((f) => {
-          const mx = Math.max(...f.vals);
-          return '<tr><td class="mo"><i style="background:' + f.color + '"></i>' + esc(f.name) + '</td>' + f.vals.map((v, i) => celda(v, mx, f.color, i)).join('') + '</tr>';
-        }).join('') +
+        filas.map((f) => '<tr><td class="mo">' + esc(f.name) + '</td>' + f.vals.map((v, i) => celda(v, i)).join('') + '</tr>').join('') +
         '<tr class="hmt"><td>Total negadas</td>' + totDia.map((v, i) => '<td class="r' + (d7[i] === sel ? ' sel' : '') + '"><b>' + (v ? '100%' : '—') + '</b> <span>(' + fmtInt(v) + ')</span></td>').join('') + '</tr></tbody></table></div>';
       el.querySelectorAll<HTMLElement>('th[data-i]').forEach((h) => h.addEventListener('click', () => { const d = d7[+h.dataset.i!]; this.elegir(d, d); }));
-      $('vxMotQ').textContent = 'Por día: % de las negadas de ese día según el motivo que registró el preparador (cada columna suma 100 %) y, entre paréntesis, las líneas. Más oscuro = el día con más negadas de ese motivo.';
+      $('vxMotQ').textContent = '% de las negadas de cada día por motivo (cada columna suma 100 %) y, entre paréntesis, las líneas. Más rojo = mayor %.';
       if (leg) leg.style.display = 'none';
       return;
     }
     if (leg) { if (leg.dataset.orig) leg.innerHTML = leg.dataset.orig; leg.style.display = ''; }
-    $('vxMotQ').textContent = 'Líneas negadas por día y motivo.';
+    $('vxMotQ').textContent = 'Líneas negadas por día (días sin motivo registrado).';
+    const tot = pos.map((v, i) => v + sin[i]);
     barrasApiladas(el, d7, [
-      { name: 'Error en el proceso', color: '#DE7A2C', tcolor: '#B5591A', vals: pos.slice(k) },
-      { name: 'Sin stock', color: '#3A76B0', tcolor: '#24557F', vals: sin.slice(k) },
+      { name: 'Líneas negadas', color: '#E0262B', tcolor: '#A51C20', vals: tot.slice(k) },
     ], { partial: p7, noTrend: true, unit: 'líneas negadas', sel: vm.meta.fecha, onClick: (i) => this.elegir(d7[i], d7[i]) });
     document.querySelectorAll<HTMLElement>('#vxMotCard .leg i.dash').forEach((i) => { i.parentElement!.style.display = 'none'; });
   }

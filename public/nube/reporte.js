@@ -8,7 +8,7 @@
   'use strict';
 
   /* ---------------- formato ---------------- */
-  var C = { BLUE: '#3E6FB0', GREEN: '#4E9A55', ORANGE: '#E07B2E', INK: '#1F2328', LINE: '#E3E6EA' };
+  var C = { BLUE: '#3E6FB0', GREEN: '#4E9A55', ORANGE: '#E07B2E', RED: '#E0262B', INK: '#1F2328', LINE: '#E3E6EA' };
   var DOW = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
   var DOW_L = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   var MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
@@ -197,10 +197,9 @@
     var X = function (i) { return l + slot * i + slot / 2; }, Y = function (v) { return t + ih - v / mx * ih; };
     for (var v = 0; v <= mx; v += 10) { var y = Y(v); g += '<line x1="' + l + '" x2="' + (W - r) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + C.LINE + '" stroke-width=".5"/><text x="' + (l - 4) + '" y="' + (y + 2.5).toFixed(1) + '" class="ax" text-anchor="end">' + v + '%</text>'; }
     s.forEach(function (x, i) {
-      var pe = pct(x.err, x.lin), ps = pct(x.sst, x.lin), last = i === N - 1;
-      g += '<rect x="' + (X(i) - bw / 2).toFixed(1) + '" y="' + Y(pe).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + (pe / mx * ih).toFixed(1) + '" fill="' + C.ORANGE + '"/>';
-      g += '<rect x="' + (X(i) - bw / 2).toFixed(1) + '" y="' + Y(pe + ps).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + (ps / mx * ih).toFixed(1) + '" fill="' + C.BLUE + '"/>';
-      g += '<text x="' + X(i).toFixed(1) + '" y="' + (Y(pct(x.neg, x.lin)) - 3).toFixed(1) + '" class="lab' + (last ? ' hl' : '') + '" text-anchor="middle">' + dec(pct(x.neg, x.lin)) + '%</text>';
+      var pn = pct(x.neg, x.lin), last = i === N - 1;
+      g += '<rect x="' + (X(i) - bw / 2).toFixed(1) + '" y="' + Y(pn).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + (pn / mx * ih).toFixed(1) + '" fill="' + C.RED + '" opacity="' + (last ? 1 : .75) + '"/>';
+      g += '<text x="' + X(i).toFixed(1) + '" y="' + (Y(pn) - 3).toFixed(1) + '" class="lab' + (last ? ' hl' : '') + '" text-anchor="middle">' + dec(pn) + '%</text>';
       g += '<text x="' + X(i).toFixed(1) + '" y="' + (H - 5) + '" class="ax' + (last ? ' pk' : '') + '" text-anchor="middle">' + lblCorto(x.d) + '</text>';
     });
     if (prom != null) { var yp = Y(prom); g += '<line x1="' + l + '" x2="' + (W - r) + '" y1="' + yp.toFixed(1) + '" y2="' + yp.toFixed(1) + '" stroke="' + C.INK + '" stroke-width="1" stroke-dasharray="4 3"/>'; }
@@ -265,7 +264,6 @@
     if (lp != null && lpAnt != null && lp > lpAnt) bueno.push(n(lp) + ' líneas preparadas, ' + n(lp - lpAnt) + ' más que el ' + dS(dN) + ' pasado.');
     if (frV != null && N.prevW && F2(N.prevW.d) != null && frV > F2(N.prevW.d) + 0.5) bueno.push('Fill rate arriba del ' + dS(N.prevW.d) + ' (' + dec(F2(N.prevW.d)) + '%).');
     if (N && N.prom != null && N.pHoy <= N.prom) bueno.push('Negados bajo el promedio de ' + N.ventana.length + ' días (' + dec(N.prom) + '%).');
-    if (ex != null && ex >= 99.5) bueno.push('Exactitud de picking en meta.');
     if (P) {
       if (cierre && P.fin < P.ini) bueno.push('El pendiente bajó ' + n(P.ini - P.fin) + ' pedidos.');
       if (P.asg && P.cobertura >= 0.5) bueno.push(n(P.asg) + ' pedidos asignados en el día.');
@@ -281,7 +279,6 @@
       if (sep >= 20) mejorar.push({ q: 'Reabastecer picking: ' + cods('Sin existencia ubicación picking') + '.', a: false });
       if (sm >= 10) mejorar.push({ q: n(sm) + ' negadas sin motivo: recordar anotarlo.', a: false });
     } else if (N && N.hoy.err && (N.prom == null || N.pHoy > N.prom)) mejorar.push({ q: 'Error en el proceso: ' + n(N.hoy.err) + ' líneas negadas con producto.', a: false });
-    if (ex != null && ex < 99.5 && !MO) mejorar.push({ q: 'Exactitud de picking bajo la meta de 99,5%.', a: false });
     h.bueno = bueno.slice(0, 3); h.mejorar = mejorar.slice(0, 3);
 
     /* ----- titular y párrafo ----- */
@@ -303,7 +300,6 @@
       h.kpis.push({ l: 'Fill rate', v: frV != null ? dec(frV) + '%' : '–', s: frPrev != null ? 'ayer ' + dec(frPrev) + '%' : (frV != null ? n(N.fr.prep) + ' de ' + n(N.fr.base) + ' líneas' : '') });
       h.kpis.push({ l: 'Fill rate B2B', v: N.b2b.tot ? dec(pct(N.b2b.ok, N.b2b.tot)) + '%' : '–', s: N.b2b.tot ? n(N.b2b.ok) + ' de ' + n(N.b2b.tot) + ' pedidos' : 'sin pedidos cerrados' });
       h.kpis.push({ l: 'Negados', v: dec(N.pHoy) + '%', s: n(N.hoy.neg) + ' líneas' + (N.prom != null ? ' · prom. ' + dec(N.prom) + '%' : '') });
-      h.kpis.push({ l: 'Exactitud de picking', v: ex != null ? dec(ex) + '%' : '–', s: 'meta 99,5%', o: ex != null && ex < 99.5 });
     }
     if (P) h.kpis.push({ l: 'Por asignar', v: n(P.sinAsig), s: P.viejos ? n(P.viejos) + ' con +72 h' : 'nada con +72 h', o: !!P.viejos });
 
@@ -357,7 +353,7 @@
     ".page{width:8.5in;min-height:11in;padding:.36in .5in .3in;margin:0 auto;position:relative;background:#fff}" +
     ".hd{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:8px;border-bottom:3px solid #D7262B}.hd img{height:36px}" +
     ".hd .r{text-align:right;font-size:6.6pt;color:#6B7280;line-height:1.6}.hd .r b{display:block;font-weight:600;color:#1F2328;font-size:10pt}" +
-    ".kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:12px 0 4px}.k{border:1px solid #E3E6EA;border-radius:6px;padding:8px 10px}" +
+    ".kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 4px}.k{border:1px solid #E3E6EA;border-radius:6px;padding:8px 10px}" +
     ".k .l{font-size:6.4pt;color:#6B7280}.k .v{font-weight:600;font-size:17pt;line-height:1.15;margin:2px 0 1px}.k .v.o{color:#C7453A}.k .s{font-size:6.4pt;color:#6B7280}" +
     ".sec{margin-top:12px}h2{font-weight:600;font-size:9.5pt;margin:0 0 6px;padding-bottom:3px;border-bottom:1px solid #E3E6EA}h2 span{font-weight:400;color:#6B7280;font-size:7pt;margin-left:6px}" +
     ".two{display:grid;grid-template-columns:1.15fr 1fr;gap:18px}" +
@@ -400,7 +396,7 @@
     if (N) {
       var H = N.hoy, pW = N.prevW;
       out.push('<div class="sec"><h2>Negados<span>' + esc(cap(DOW_L[dowOf(H.d)]) + ' ' + (+H.d.slice(8)) + (N.parcial ? ' · parcial' : '')) + '</span></h2><div class="two"><div>');
-      out.push('<div class="lg"><span><i style="background:' + C.ORANGE + '"></i>Error en el proceso</span><span><i style="background:' + C.BLUE + '"></i>Sin stock</span>' + (N.prom != null ? '<span><i class="ln" style="background:' + C.INK + '"></i>Promedio ' + dec(N.prom) + '%</span>' : '') + '</div>');
+      out.push('<div class="lg"><span><i style="background:' + C.RED + '"></i>% de líneas negadas</span>' + (N.prom != null ? '<span><i class="ln" style="background:' + C.INK + '"></i>Promedio ' + dec(N.prom) + '%</span>' : '') + '</div>');
       out.push(grafNegados(N.serie, N.prom) + '</div><div>');
       var colT = function (r) { return r ? '<b>' + n(r.neg) + '</b> · ' + dec(pct(r.neg, r.lin)) + '%' : '–'; };
       var hd2 = function (r) { return (DOW[dowOf(r.d)] + ' ' + (+r.d.slice(8))).toUpperCase(); };
@@ -414,10 +410,7 @@
         ks.forEach(function (k) { out.push('<tr' + (k === '\u0000' ? ' class="sub"' : '') + '><td>' + (k === '' ? 'Sin motivo' : k === '\u0000' ? 'Sin dato' : esc(k)) + '</td><td class="r">' + cm(MH, H, k) + '</td>' + (pW ? '<td class="r">' + cm(MW, pW, k) + '</td>' : '') + '</tr>'); });
         out.push('<tr class="tot"><td>Total</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
       } else {
-        var col = function (r, k) { return r ? n(r[k]) + ' · ' + pctInt(r[k], r.neg) : '–'; };
         out.push('<table class="mot"><thead><tr><th>MOTIVO</th><th class="r">' + hd2(H) + '</th>' + (pW ? '<th class="r">' + hd2(pW) + '</th>' : '') + '</tr></thead><tbody>');
-        out.push('<tr><td>Error en el proceso</td><td class="r">' + col(H, 'err') + '</td>' + (pW ? '<td class="r">' + col(pW, 'err') + '</td>' : '') + '</tr>');
-        out.push('<tr><td>Sin stock</td><td class="r">' + col(H, 'sst') + '</td>' + (pW ? '<td class="r">' + col(pW, 'sst') + '</td>' : '') + '</tr>');
         out.push('<tr class="tot"><td>Total</td><td class="r">' + colT(H) + '</td>' + (pW ? '<td class="r">' + colT(pW) + '</td>' : '') + '</tr></tbody></table>');
       }
       out.push('</div></div>');
