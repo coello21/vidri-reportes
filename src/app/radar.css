@@ -700,3 +700,15 @@ table.hm td{white-space:nowrap}
 table.hm thead th{color:#1E3A6E}
 table.hm tr.hmt td{color:#1E3A6E}
 html[data-theme="dark"] table.hm thead th,html[data-theme="dark"] table.hm tr.hmt td{color:#8DB5E8}
+
+/* Resumen: tarjetas pequeñas de líneas de Pedidos CD (inició + entraron − terminadas = ahora) */
+.flujo{display:flex;align-items:stretch;margin:12px 0 4px;max-width:820px}
+.flujo[hidden]{display:none!important}
+.flujo>div{flex:1;border:1px solid var(--line);background:var(--surface);padding:6px 10px;margin-right:-1px}
+.flujo>div span{display:block;font:10px var(--font-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.flujo>div b{display:block;font:400 20px/1.15 var(--font-display);margin:1px 0}
+.flujo>div em{display:block;font-style:normal;font-size:11px;color:var(--ink-2)}
+.flujo>div small{display:block;font-size:10.5px;color:var(--mut)}
+.flujo>div.fin b{color:var(--accent,#E0262B)}
+.flujo>i{flex:0 0 20px;display:flex;align-items:center;justify-content:center;font:600 16px var(--font-display);font-style:normal;color:var(--mut)}
+@media (max-width:640px){.flujo{flex-wrap:wrap}.flujo>div{flex:1 1 40%}.flujo>i{display:none}}

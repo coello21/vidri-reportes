@@ -1,3 +1,4 @@
+import type { FilaBalance } from '../core/pedidos/cd';
 /**
  * Pestaña "Resumen" del Radar de Negados, rehecha en TypeScript con la misma
  * apariencia y las mismas reglas que el tablero original.
@@ -16,6 +17,8 @@ import { barrasApiladas, tendenciaSobrePuntos, globoEnPuntos } from './ui/grafic
 type ClaveOrden = 'name' | 'solicitado' | 'preparados' | 'negados' | 'fillRate';
 type FilaPrep = PreparadorVista;
 
+const DIAS_C = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+
 export class Resumen {
   vm: VistaAgregada | null = null;
   desde: string | null = null;
@@ -24,6 +27,8 @@ export class Resumen {
   orden: { key: ClaveOrden; dir: 'asc' | 'desc' } = { key: 'solicitado', dir: 'desc' };
   /** Avisa a las otras pestañas que cambió el día o rango elegido. */
   alCambiar: ((vm: VistaAgregada) => void) | null = null;
+  /** Balance diario de Pedidos CD (lo pone main.ts) para las tarjetas pequeñas de líneas. */
+  flujo: (() => FilaBalance[]) | null = null;
 
   constructor(private radar: RadarNegados) {
     this.conectar();
@@ -113,6 +118,7 @@ export class Resumen {
     $('kpiPct').textContent = fmtPct(m.pct) + ' del total';
     this.renderExactitud(vm);
     this.renderB2B(vm);
+    this.renderFlujo(vm);
     this.renderUpdatedAt();
 
     const top = vm.topCodes[0];
@@ -205,6 +211,19 @@ export class Resumen {
   /**
    * Fill rate del CD: líneas preparadas ÷ (preparadas + negadas); todas las negadas cuentan. Abajo, el B2B por pedidos.
    */
+  /** Inició + Entraron − Terminadas = Ahora, en líneas (SKUs de los pedidos de Pedidos CD), del último día elegido. */
+  renderFlujo(vm: VistaAgregada) {
+    const el = $('rsFlujo'), F = this.flujo?.() || [];
+    const r = F.find((x) => x.d === vm.rangeTo) || (vm.rangeTo > (F[F.length - 1]?.d || '') ? F[F.length - 1] : undefined);
+    if (!r) { el.hidden = true; return; }
+    const dia = DIAS_C[new Date(r.d + 'T12:00:00').getDay()] + ' ' + (+r.d.slice(8));
+    const c = (t: string, l: number, p: number, s: string, cls = '') => '<div class="' + cls + '"><span>' + t + '</span><b>' + fmtInt(l) + '</b><em>líneas · ' + fmtInt(p) + ' pedidos</em><small>' + s + '</small></div>';
+    el.innerHTML = c('Inició', r.lIni, r.ini, 'sin terminar') + '<i>+</i>' + c('Entraron', r.lEnt, r.ent, dia) + '<i>−</i>' +
+      c('Terminadas', r.lTer, r.ter, dia) + '<i>=</i>' + c(r.cur ? 'Ahora' : 'Quedaron', r.lFin, r.fin, 'sin terminar', 'fin');
+    el.title = 'Líneas = SKUs de los pedidos de Pedidos CD. Una línea cuenta como terminada cuando su pedido pasa a actualizado.';
+    el.hidden = false;
+  }
+
   private renderB2B(vm: VistaAgregada) {
     const val = $('kpiB2B'), foot = $('kpiB2BFoot');
     const f = fillRateCD(this.radar.history, this.radar.diasEnRango(vm.rangeFrom, vm.rangeTo));

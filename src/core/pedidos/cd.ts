@@ -19,6 +19,8 @@ const mediana = (a: number[]): number | null => {
 export interface FilaBalance {
   i: number; d: string; cur: boolean;
   /** venían de días anteriores sin terminar */ ini: number;
+  /** lo mismo en líneas (SKUs de esos pedidos): inició, entraron, terminadas y quedaron */
+  lIni: number; lEnt: number; lTer: number; lFin: number;
   /** entraron ese día */ ent: number;
   /** se terminaron ese día */ ter: number;
   /** quedaron para el día siguiente (o sin terminar al corte, si es el día en curso) */ fin: number;
@@ -147,8 +149,9 @@ export class PedidosCD {
     const P = this.periodo(bod);
     if (!P) return [];
     const all = P.all, D = P.days, lc = this.ultimoCorte(), cutDay = diaDeMin(lc);
-    const arr = PedidosCD.arrastre(all, D).pedidos;
+    const AR = PedidosCD.arrastre(all, D), arr = AR.pedidos, arrL = AR.skus;
     const pendAt = (t: number) => { let c = 0; all.forEach((x) => { if (x[2] >= t) return; if (x[6] ? x[6] >= t : x[3] !== 'A') c++; }); return c; };
+    const pendLAt = (t: number) => { let c = 0; all.forEach((x) => { if (x[2] >= t) return; if (x[6] ? x[6] >= t : x[3] !== 'A') c += x[4] || 0; }); return c; };
     const asgOf = (x: Pedido) => x[10] || (x[3] === 'R' || x[3] === 'E' ? Infinity : x[6] || lc);
     const sinAsgAt = (t: number) => {
       let c = 0;
@@ -166,6 +169,8 @@ export class PedidosCD {
       const ent = all.filter((x) => x[2] >= t0 && x[2] < t1).length;
       const fin = cur ? pendAt(lc + 1) : i + 1 < D.length ? arr[i + 1] : pendAt(t1);
       const ter = ini + ent - fin;
+      const lIni = arrL[i], lEnt = all.reduce((a, x) => a + (x[2] >= t0 && x[2] < t1 ? x[4] || 0 : 0), 0);
+      const lFin = cur ? pendLAt(lc + 1) : i + 1 < D.length ? arrL[i + 1] : pendLAt(t1), lTer = lIni + lEnt - lFin;
       const tEnd = cur ? lc + 1 : t1;
       let sa0: number | null = sinAsgAt(t0);
       let sa1: number | null = cur ? backlogR : sinAsgAt(tEnd);
@@ -178,7 +183,7 @@ export class PedidosCD {
         if (x[10] && x[6] && x[6] >= t0 && x[6] < t1) eje.push((x[6] - x[10]) / 60);
       });
       return {
-        i, d, cur, ini, ent, ter, fin, sa0, sa1,
+        i, d, cur, ini, ent, ter, fin, sa0, sa1, lIni, lEnt, lTer, lFin,
         esp: ok1 ? mediana(esp.filter((h) => h >= 0)) : null,
         eje: ok1 ? mediana(eje.filter((h) => h >= 0)) : null,
         nEsp: esp.length,
