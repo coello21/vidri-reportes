@@ -434,7 +434,7 @@
       out.push('<table class="mot"><thead><tr><th>POR ASIGNAR · DÍA DE LLEGADA</th><th class="r">PEDIDOS</th><th class="r">SKUS</th></tr></thead><tbody>' +
         filasR.map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td class="r">' + n(r[1]) + '</td><td class="r">' + n(r[2]) + '</td></tr>'; }).join('') +
         (ant ? '<tr class="sub"><td>Anteriores</td><td class="r">' + n(ant) + '</td><td class="r"></td></tr>' : '') +
-        '<tr class="tot"><td>Total</td><td class="r">' + n(P.sinAsig) + '</td><td class="r">' + n(P.skR) + '</td></tr></tbody></table>');
+        '</tbody></table>');
       out.push('</div></div></div>');
     }
     if (N) {
