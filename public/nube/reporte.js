@@ -63,6 +63,9 @@
     var entre = function (a, b) { return all.filter(function (x) { return x[2] >= a && x[2] < b; }); };
 
     var ini = pendAt(t0), entR = entre(t0, lc + 1), ent = entR.length, fin = pendAt(lc + 1), ter = ini + ent - fin;
+    // lo mismo en líneas (SKUs de los pedidos): tarjetas pequeñas del Resumen (Inició + Entraron − Terminadas = Ahora)
+    var linAt = function (t) { var c = 0; all.forEach(function (x) { if (x[2] >= t) return; if (x[6] ? x[6] >= t : x[3] !== 'A') c += x[4] || 0; }); return c; };
+    var lIni = linAt(t0), lEnt = entR.reduce(function (s, x) { return s + (x[4] || 0); }, 0), lFin = linAt(lc + 1), lTer = lIni + lEnt - lFin;
     var terMan = 0, terTar = 0;
     all.forEach(function (x) { if (x[6] && x[6] >= t0 && x[6] <= lc) { if (x[6] < t0 + 720) terMan++; else terTar++; } });
 
@@ -99,6 +102,8 @@
     var diaAsig = delDia.filter(function (x) { return x[10] || x[3] === 'P' || x[3] === 'A'; }).length;
     var diaTerm = delDia.filter(function (x) { return x[3] === 'A'; }).length;
     var diaPend = delDia.filter(function (x) { return x[3] !== 'A'; }).length;
+    // estado al corte de los pedidos que cayeron hoy (tarjetas de la pestaña Pedidos CD)
+    var cohP = delDia.filter(function (x) { return x[3] === 'P'; }).length, cohR = nDia - cohP - diaTerm;
     var porMot = {}; delDia.forEach(function (x) { var c = pedC(x); porMot[c] = (porMot[c] || 0) + 1; });
     var nej = delDia.filter(function (x) { return pedB(x) === 'N'; }).length;
     var skDia = delDia.reduce(function (s, x) { return s + (x[4] || 0); }, 0);
@@ -117,7 +122,7 @@
     all.forEach(function (x) { var d = dayOfMin(x[2]); if (!(d in ix7)) return; var c = pedC(x); if (porMot7[c]) porMot7[c][ix7[d]]++; });
     return {
       d7: d7, porMot7: porMot7,
-      lc: lc, hoy: hoy, ini: ini, ent: ent, ter: ter, fin: fin, terMan: terMan, terTar: terTar, prev: prev,
+      lc: lc, hoy: hoy, ini: ini, ent: ent, ter: ter, fin: fin, lIni: lIni, lEnt: lEnt, lTer: lTer, lFin: lFin, cohR: cohR, cohP: cohP, terMan: terMan, terTar: terTar, prev: prev,
       sinAsig: R.length, skR: skR, enPrep: P.length, viejos: viejos.length, skV: skV, porDiaR: porDiaR, porDiaV: porDiaV,
       asg: asg.length, asgMan: asgMan, asgPorDia: asgPorDia, espera: espera, cobertura: cobertura,
       nDia: nDia, diaAsig: diaAsig, diaTerm: diaTerm, diaPend: diaPend, porMot: porMot, nej: nej, skDia: skDia, serie: serie,
@@ -407,6 +412,7 @@
     "table.hm{width:100%;border-collapse:collapse;font-size:6.6pt}table.hm th{font-weight:600;font-size:6pt;color:#1E3A6E;text-align:left;border-bottom:1px solid #C9CED5;padding:3px 4px}table.hm th.r,table.hm td.r{text-align:right}table.hm th.hoy{color:#1A1A1A}" +
     "table.hm td{padding:3px 4px;border-bottom:1px solid #fff;white-space:nowrap}table.hm td span{opacity:.75;font-size:5.8pt}table.hm tr.tot td{color:#1E3A6E;font-weight:600;border-top:1px solid #C9CED5}" +
     ".notas{margin-top:12px;border:1px solid #E3E6EA;border-radius:6px;padding:7px 12px;display:grid;grid-template-columns:1fr 1fr;gap:16px}.notas .t{font-weight:600;font-size:7pt;margin-bottom:2px}.notas .t i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}.notas ul{padding-left:12px}.notas li{font-size:6.8pt;line-height:1.45;color:#3D434B}" +
+    ".fl{display:grid;grid-template-columns:1fr 12px 1fr 12px 1fr 12px 1fr;align-items:center;gap:4px}.fl>i{font-style:normal;text-align:center;color:#A3A5A8;font-weight:600;font-size:10pt}.fl>div,.ch>div{background:#F5F6F8;border-radius:5px;padding:5px 8px}.fl .t,.ch .t{font-size:6pt;color:#6D6E70}.fl .v,.ch .v{font-weight:600;font-size:12pt;line-height:1.15}.fl .s,.ch .s{font-size:6pt;color:#6D6E70}.fl .fin .v{color:#1E3A6E}.ch{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.ch .rec .v{color:#E0262B}" +
     ".foot{margin-top:8px;font-size:5.8pt;color:#9AA1AB;line-height:1.5}" +
     "@media screen{body{padding:56px 0 24px;background:#E9ECEF}.page{box-shadow:0 4px 18px rgba(0,0,0,.12)}" +
     ".tb{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;gap:8px;align-items:center;justify-content:center;padding:10px;background:#1A1A1A;color:#fff;font:13px 'IBM Plex Sans',sans-serif}" +
@@ -425,6 +431,18 @@
     out.push('<div class="hd">' + (logo ? '<img src="' + logo + '" alt="Vidri">' : '<b>VIDRI</b>') + '<div class="r"><b>Reporte ejecutivo · CD Nejapa</b>' + esc(lblLargo(M.dia)) + ' · ' + esc(M.momento) + '</div></div>');
     out.push('<div class="kpis">' + h.kpis.map(function (k) { return '<div class="k"><div class="l">' + esc(k.l) + '</div><div class="v' + (k.o ? ' o' : '') + '">' + esc(k.v) + '</div><div class="s">' + esc(k.s) + '</div></div>'; }).join('') + '</div>');
     if (P) {
+      // tarjetas pequeñas del Resumen: Inició + Entraron − Terminadas = Ahora (líneas; los pedidos debajo)
+      var dHoy = cap(DOW[dowOf(P.hoy)]) + ' ' + (+P.hoy.slice(8));
+      var fc = function (t, l, p, s, cls) { return '<div' + (cls ? ' class="' + cls + '"' : '') + '><div class="t">' + t + '</div><div class="v">' + n(l) + '</div><div class="s">líneas · ' + n(p) + ' pedidos · ' + s + '</div></div>'; };
+      out.push('<div class="sec"><h2>Líneas del día<span>líneas (SKUs) de los pedidos al corte de ' + esc(M.corteTxt) + '; debajo, los pedidos</span></h2><div class="fl">' +
+        fc('Inició', P.lIni, P.ini, 'sin terminar') + '<i>+</i>' + fc('Entraron', P.lEnt, P.ent, dHoy) + '<i>−</i>' + fc('Terminadas', P.lTer, P.ter, dHoy) + '<i>=</i>' + fc(M.cierre ? 'Quedaron' : 'Ahora', P.lFin, P.fin, 'sin terminar', 'fin') + '</div></div>');
+      // tarjetas de la pestaña Pedidos CD: estado de los pedidos que cayeron hoy
+      if (P.nDia) {
+        var pc = function (v) { return v && v / P.nDia < 0.01 ? 'menos de 1%' : Math.round(v / P.nDia * 100) + '%'; };
+        var cc = function (t, v, s, cls) { return '<div' + (cls ? ' class="' + cls + '"' : '') + '><div class="t">' + t + '</div><div class="v">' + n(v) + '</div><div class="s">' + pc(v) + ' · ' + s + '</div></div>'; };
+        out.push('<div class="sec"><h2>Estado de los pedidos que cayeron hoy<span>al corte de ' + esc(M.corteTxt) + '</span></h2><div class="ch">' +
+          cc('Recibidos sin empezar', P.cohR, 'nadie los ha empezado', 'rec') + cc('En proceso', P.cohP, 'en preparación') + cc('Actualizados', P.diaTerm, 'preparación terminada') + '</div></div>');
+      }
       var dR = Object.keys(P.porDiaR).sort().reverse(), filasR = [], ant = 0;
       dR.forEach(function (d) { if (filasR.length < 4) filasR.push([d === P.hoy ? 'Hoy' : cap(DOW[dowOf(d)]) + ' ' + (+d.slice(8)), P.porDiaR[d].c, P.porDiaR[d].sk]); else ant += P.porDiaR[d].c; });
       out.push('<div class="sec"><h2>Pedidos asignados por día y motivo<span>últimos 7 días · al corte de ' + esc(M.corteTxt) + '</span></h2>');
