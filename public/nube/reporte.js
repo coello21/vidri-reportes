@@ -202,7 +202,7 @@
   /** Pedidos por día y motivo, barras una junto a otra (igual que «Pedidos asignados por día y motivo» del Radar). */
   function grafPedMot(P) {
     var ks = MOT_PED.filter(function (m) { return P.porMot7[m[0]].some(function (v) { return v; }); });
-    var D = P.d7, W = 430, H = 132, l = 30, r = 6, t = 12, b = 22, iw = W - l - r, ih = H - t - b, N = D.length || 1;
+    var D = P.d7, W = 720, H = 150, l = 30, r = 6, t = 12, b = 22, iw = W - l - r, ih = H - t - b, N = D.length || 1;
     var top = 1; ks.forEach(function (m) { P.porMot7[m[0]].forEach(function (v) { top = Math.max(top, v); }); });
     var paso = top > 1500 ? 500 : top > 600 ? 200 : top > 250 ? 100 : 50, mx = niceMax(top * 1.08, paso);
     var slot = iw / N, gw = slot * 0.78, bw = gw / Math.max(1, ks.length), Y = function (v) { return t + ih - v / mx * ih; }, g = '';
@@ -427,15 +427,10 @@
     if (P) {
       var dR = Object.keys(P.porDiaR).sort().reverse(), filasR = [], ant = 0;
       dR.forEach(function (d) { if (filasR.length < 4) filasR.push([d === P.hoy ? 'Hoy' : cap(DOW[dowOf(d)]) + ' ' + (+d.slice(8)), P.porDiaR[d].c, P.porDiaR[d].sk]); else ant += P.porDiaR[d].c; });
-      out.push('<div class="sec"><h2>Pedidos CD<span>por día y motivo · al corte de ' + esc(M.corteTxt) + ' · ' + n(P.enPrep) + ' en preparación</span></h2><div class="two"><div>');
+      out.push('<div class="sec"><h2>Pedidos asignados por día y motivo<span>últimos 7 días · al corte de ' + esc(M.corteTxt) + '</span></h2>');
       var GP = grafPedMot(P);
       out.push('<div class="lg">' + GP.ks.map(function (m) { return '<span><i style="background:' + m[2] + '"></i>' + m[1] + '</span>'; }).join('') + '</div>');
-      out.push(GP.svg + '</div><div>');
-      out.push('<table class="mot"><thead><tr><th>POR ASIGNAR · DÍA DE LLEGADA</th><th class="r">PEDIDOS</th><th class="r">SKUS</th></tr></thead><tbody>' +
-        filasR.map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td class="r">' + n(r[1]) + '</td><td class="r">' + n(r[2]) + '</td></tr>'; }).join('') +
-        (ant ? '<tr class="sub"><td>Anteriores</td><td class="r">' + n(ant) + '</td><td class="r"></td></tr>' : '') +
-        '</tbody></table>');
-      out.push('</div></div></div>');
+      out.push(GP.svg + '</div>');
     }
     if (N) {
       var H = N.hoy, pW = N.prevW;
@@ -452,10 +447,6 @@
           N.top.slice(0, 5).map(function (x) { return '<tr><td>' + esc(x.sku) + '</td><td class="desc">' + esc(x.desc) + '</td><td class="r"><b>' + n(x.t) + '</b></td>' + (conMp ? '<td>' + esc(String(x.mp || '–').replace(/\s*\(.*$/, '')) + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table>');
       }
       out.push('</div>');
-    }
-    if (h.bueno.length || h.mejorar.length) {
-      out.push('<div class="notas"><div><div class="t"><i style="background:' + C.GREEN + '"></i>Lo bueno</div><ul>' + (h.bueno.length ? h.bueno.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') : '<li>–</li>') + '</ul></div>' +
-        '<div><div class="t"><i style="background:' + C.ORANGE + '"></i>Por mejorar</div><ul>' + (h.mejorar.length ? h.mejorar.map(function (x) { return '<li>' + esc(x.q) + '</li>'; }).join('') : '<li>Mantener el ritmo.</li>') + '</ul></div></div>');
     }
     var foot = ['Fill rate = líneas preparadas ÷ (preparadas + negadas), sin pedidos en cero (todas sus líneas negadas)'];
     if (P && N) foot.push(M.amanecer ? 'Negados: día completo de ayer' : 'Negados a la última carga' + (M.negHora ? ' (' + M.negHora + ')' : ''));
