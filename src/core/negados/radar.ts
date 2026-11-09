@@ -267,6 +267,16 @@ export class RadarNegados {
     return res;
   }
 
+  /**
+   * Archivo con fechas anteriores a ayer (historial): no vuelve a contar líneas, solo pone o completa el motivo de negado
+   * y los pedidos en cero de esos días (la misma línea no se cuenta dos veces). Devuelve los días que cambiaron.
+   */
+  aplicarMotivosHistorial(records: Registro[]): string[] {
+    const dias = aplicarMotivos(this.history, motivosDeRegistros(records));
+    if (dias.length) { this.store.updatedAt = new Date().toISOString(); this.cache.clear(); }
+    return dias;
+  }
+
   /** Lo que hace el botón "Cargar Excel": integra y quita del histórico los días de más de un año. */
   cargarRegistros(records: Registro[]): ResultadoIntegracion {
     if (!records.length) throw new Error('El archivo no tiene filas de datos reconocibles.');

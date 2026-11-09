@@ -1,7 +1,8 @@
 /**
  * "Cargar Excel" de la versión nueva. Mismas reglas que /radar/:
  *  - Rpt_OrdenesPreparacion (ayer + hoy): negados, Líneas preparadas, Negados sin actualizar y hora de asignación.
- *    Si todas sus fechas son anteriores a ayer (historial por semanas), solo se registra la hora de asignación.
+ *    Si todas sus fechas son anteriores a ayer (historial por semanas), no se vuelven a contar líneas: solo la hora de
+ *    asignación y el motivo de negado / pedidos en cero de esos días.
  *  - Document.xlsx / .csv (reporte de transferencias): pedidos CD. También acepta el Rpt_OrdenesPreparacion para la asignación.
  * Después se guarda en Supabase solo lo que cambió.
  */
@@ -82,12 +83,12 @@ export async function cargarNegados(ctx: Contexto, files: File[]) {
   try {
     if (!(await esperar(ctx))) return;
     const dias = ctx.radar.dias(), ult = dias.length ? dias[dias.length - 1] : null, lim = ult ? addDays(ult, -1) : null;
-    const hist: { f: File; info: LecturaAsignacion }[] = [], act: { f: File; buf: Uint8Array; info: LecturaAsignacion | null }[] = [];
+    const hist: { f: File; buf: Uint8Array; info: LecturaAsignacion }[] = [], act: { f: File; buf: Uint8Array; info: LecturaAsignacion | null }[] = [];
     for (const f of xs) {
       const buf = new Uint8Array(await f.arrayBuffer());
       let info: LecturaAsignacion | null = null;
       try { info = leerExcelAsignacion(buf); } catch (e) { console.error(e); }
-      if (info && lim && info.maxDay && info.maxDay < lim) hist.push({ f, info }); else act.push({ f, buf, info });
+      if (info && lim && info.maxDay && info.maxDay < lim) hist.push({ f, buf, info }); else act.push({ f, buf, info });
     }
 
     const partes: string[] = [];
@@ -115,10 +116,18 @@ export async function cargarNegados(ctx: Contexto, files: File[]) {
       partes.push(p.join(' · '));
     }
 
+    // archivos de historial: motivo de negado y pedidos en cero de esos días (las líneas no se vuelven a contar)
+    const motH = new Set<string>();
+    for (const { f, buf } of hist) {
+      try { ctx.radar.aplicarMotivosHistorial(leerExcelNegados(buf)).forEach((d) => motH.add(d)); }
+      catch (e) { console.error(e); aviso('err', f.name + ': no se pudo leer el motivo de negado: ' + ((e as Error)?.message || 'error'), 15000); }
+    }
+
     // hora de asignación (de todos los archivos que son Rpt_OrdenesPreparacion)
     let a = 0, pe = 0;
     for (const x of [...hist, ...act]) { if (!x.info) continue; const r = ctx.pedidos.aplicarAsignacion(x.info.M); a += r.a; pe += r.p; }
-    if (hist.length) partes.push(hist.length + ' archivo(s) con fechas anteriores a ayer (hasta el ' + etiquetaDia(hist.map((x) => x.info.maxDay!).sort().pop()!) + '): los negados de esas fechas no se modificaron');
+    if (hist.length) partes.push(hist.length + ' archivo(s) con fechas anteriores a ayer (hasta el ' + etiquetaDia(hist.map((x) => x.info.maxDay!).sort().pop()!) + '): ' +
+      (motH.size ? 'se actualizó el motivo de negado y los pedidos en cero en ' + fmtInt(motH.size) + ' día' + (motH.size === 1 ? '' : 's') + '; las líneas no se volvieron a contar' : 'los negados de esas fechas ya estaban al día'));
     if (a || pe) partes.push('hora de asignación registrada para ' + fmtInt(a) + ' pedidos' + (pe ? ' (' + fmtInt(pe) + ' esperan su reporte de transferencias)' : ''));
 
     ctx.redibujar(destino || ctx.radar.lastCompleteDay());
