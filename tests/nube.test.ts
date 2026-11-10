@@ -26,6 +26,7 @@ class BaseMemoria implements BaseDatos {
       (!o.sinTerminar || r.estado !== 'A') && (o.actualizadoDesdeMin == null || (r.actualizado_min || 0) >= o.actualizadoDesdeMin)).map((r) => ({ ...r }));
   }
   async leerMeta() { return this.meta ? structuredClone(this.meta) : null; }
+  async leerPedidosClaves(c: string[]) { return c.map((k) => this.pedidos.get(k)).filter((f): f is FilaPedido => !!f).map((f) => structuredClone(f)); }
   async guardarDias(f: { fecha: string; data: Dia }[]) { if (f.length) this.llamadas.push('dias:' + f.map((r) => r.fecha).join(',')); f.forEach((r) => this.dias.set(r.fecha, r.data)); }
   async borrarDias(f: string[]) { if (f.length) this.llamadas.push('borrar:' + f.join(',')); f.forEach((d) => this.dias.delete(d)); }
   async guardarPedidos(f: FilaPedido[]) { if (f.length) this.llamadas.push('pedidos:' + f.length); f.forEach((r) => this.pedidos.set(r.numero + '-' + r.origen, r)); }

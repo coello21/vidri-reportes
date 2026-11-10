@@ -23,6 +23,8 @@ export interface BaseDatos {
   /** Pedidos con fecha desde `desdeMin`; `opc` acota más (antes de, solo sin terminar, terminados desde). */
   leerPedidos(desdeMin: number, progreso?: Progreso, opc?: FiltroPedidos): Promise<FilaPedido[]>;
   leerMeta(): Promise<Meta | null>;
+  /** Pedidos guardados con esas claves "numero-origen" (para no pisar lo que otra carga guardó después). */
+  leerPedidosClaves(claves: string[]): Promise<FilaPedido[]>;
   guardarDias(filas: { fecha: string; data: Dia }[]): Promise<void>;
   borrarDias(fechas: string[]): Promise<void>;
   guardarPedidos(filas: FilaPedido[]): Promise<void>;
@@ -109,6 +111,15 @@ export class BaseSupabase implements BaseDatos {
       return q;
     };
     return this.paginado<FilaPedido>('pedidos', '*', f, ['numero', 'origen'], 1000, 'Pedidos', progreso);
+  }
+  async leerPedidosClaves(claves: string[]) {
+    const nums = [...new Set(claves.map((k) => k.slice(0, k.lastIndexOf('-'))))];
+    const quiero = new Set(claves);
+    const partes = await enParalelo(trozos(nums, 200).map((t) => async () => {
+      const r = await conReintentos(async () => revisar(await this.sb.from('pedidos').select('*').in('numero', t), 'Pedidos guardados'));
+      return ((r.data || []) as FilaPedido[]).filter((f) => quiero.has(f.numero + '-' + f.origen));
+    }), 4);
+    return partes.flat();
   }
   async leerMeta() {
     const r = revisar(await this.sb.from('pedidos_meta').select('cortes,asg_pend').eq('id', 1).maybeSingle(), 'Cortes');

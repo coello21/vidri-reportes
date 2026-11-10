@@ -3,6 +3,7 @@ import type { Pedido } from '../core/pedidos/catalogos';
 import type { Corte } from '../core/pedidos/cd';
 import type { BaseDatos, Progreso } from './base';
 import { aFilaBase, aPedido, clavePed, type FilaPedido } from './filas';
+import { combinarPedido, combinarMeta } from './combinar';
 
 export interface Datos {
   history: Historial;
@@ -148,7 +149,27 @@ export class Almacen {
     const res: ResultadoGuardar = { dias: upDias.length, diasQuitados: delDias.length, pedidos: upPed.length, catalogo: !!nStore, cortes: !!nMeta };
     if (!upDias.length && !delDias.length && !upPed.length && !nStore && !nMeta) return res;
 
-    await Promise.all([this.base.guardarDias(upDias), this.base.guardarPedidos(upPed)]);
+    // Otra carga (otra pestaña o el pipeline) pudo guardar algo más nuevo desde que se abrió la página:
+    // se lee lo que hay ahora y se combina, para no pisar pedidos ni cortes más recientes.
+    let guardarPed = upPed;
+    if (upPed.length) {
+      const hay = new Map((await this.base.leerPedidosClaves(upPed.map((f) => f.numero + '-' + f.origen))).map((f) => [f.numero + '-' + f.origen, f]));
+      guardarPed = [];
+      for (const f of upPed) {
+        const k = f.numero + '-' + f.origen, db = hay.get(k), c = combinarPedido(f, db);
+        if (db && JSON.stringify(c) === JSON.stringify(db)) { nPed.set(k, JSON.stringify(aPedido(db))); continue; }
+        guardarPed.push(c);
+        nPed.set(k, JSON.stringify(aPedido(c)));
+      }
+    }
+    if (nMeta) {
+      const ahora = await this.base.leerMeta();
+      const orig = this.fMeta ? (JSON.parse(this.fMeta) as { cortes: Corte[]; asg: Record<string, number> }) : { cortes: [], asg: {} };
+      const m = combinarMeta({ cortes: nMeta.cortes, asg: nMeta.asg }, orig, ahora ? { cortes: ahora.cortes || [], asg: ahora.asg_pend || {} } : null);
+      nMeta = { cortes: m.cortes, asg: m.asg, s: JSON.stringify(m) };
+    }
+    res.pedidos = guardarPed.length;
+    await Promise.all([this.base.guardarDias(upDias), this.base.guardarPedidos(guardarPed)]);
     await this.base.borrarDias(delDias);
     if (nStore) await this.base.guardarStore(JSON.parse(nStore));
     if (nMeta) await this.base.guardarMeta({ cortes: nMeta.cortes, asg_pend: nMeta.asg });
@@ -160,7 +181,7 @@ export class Almacen {
     if (nStore) this.fStore = nStore;
     if (nMeta) this.fMeta = nMeta.s;
 
-    await this.base.registrarCarga(origen, { dias: upDias.map((r) => r.fecha), dias_quitados: delDias, pedidos: upPed.length, catalogo: !!nStore, cortes: !!nMeta });
+    await this.base.registrarCarga(origen, { dias: upDias.map((r) => r.fecha), dias_quitados: delDias, pedidos: guardarPed.length, catalogo: !!nStore, cortes: !!nMeta });
     return res;
   }
 }
