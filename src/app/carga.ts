@@ -7,14 +7,11 @@
  * Después se guarda en Supabase solo lo que cambió.
  */
 import type { RadarNegados } from '../core/negados/radar';
-import { KEEP_DAYS } from '../core/negados/radar';
 import type { PedidosCD } from '../core/pedidos/cd';
-import { leerExcelNegados } from '../core/negados/parseo';
-import { leerExcelPedidos, leerExcelAsignacion, type LecturaAsignacion } from '../core/pedidos/parseo';
-import { contarRevision, fotoSinActualizar } from '../core/negados/extras';
-import { addDays } from '../core/comun/fechas';
+import { leerExcelPedidos, leerExcelAsignacion } from '../core/pedidos/parseo';
 import type { Almacen, ResultadoGuardar } from '../nube/almacen';
-import { fmtInt, fmtDateShort, etiquetaDia } from './ui/formato';
+import { fmtInt } from './ui/formato';
+import { procesarRpt, type ArchivoRpt, type ResultadoRpt } from './cargaRpt';
 import { aviso } from './ui/avisos';
 import { MESES_CORTO } from '../core/comun/fechas';
 
@@ -82,53 +79,13 @@ export async function cargarNegados(ctx: Contexto, files: File[]) {
   ocupado = true;
   try {
     if (!(await esperar(ctx))) return;
-    const dias = ctx.radar.dias(), ult = dias.length ? dias[dias.length - 1] : null, lim = ult ? addDays(ult, -1) : null;
-    const hist: { f: File; buf: Uint8Array; info: LecturaAsignacion }[] = [], act: { f: File; buf: Uint8Array; info: LecturaAsignacion | null }[] = [];
-    for (const f of xs) {
-      const buf = new Uint8Array(await f.arrayBuffer());
-      let info: LecturaAsignacion | null = null;
-      try { info = leerExcelAsignacion(buf); } catch (e) { console.error(e); }
-      if (info && lim && info.maxDay && info.maxDay < lim) hist.push({ f, buf, info }); else act.push({ f, buf, info });
-    }
-
-    const partes: string[] = [];
-    let destino: string | null = null, conError = false;
-    for (const { f, buf } of act) {
-      let records;
-      try { records = leerExcelNegados(buf); }
-      catch (e) { aviso('err', f.name + ': no se pudo leer el archivo: ' + ((e as Error)?.message || 'error'), 15000); return; }
-      fotoSinActualizar(ctx.radar.store, records);
-      contarRevision(ctx.radar.store, records, KEEP_DAYS);
-      const res = ctx.radar.cargarRegistros(records);
-      const days = Object.keys(res.addedByDay).sort();
-      destino = days.length ? (days.filter((d) => !ctx.radar.isPartialDay(d)).pop() || days[days.length - 1]) : destino;
-      const p: string[] = [];
-      p.push(res.added ? fmtInt(res.added) + ' líneas nuevas listas para despacho (' + days.map((d) => fmtDateShort(d) + ': ' + fmtInt(res.addedByDay[d])).join(', ') + ')' : 'Sin líneas nuevas');
-      if (res.already) p.push(fmtInt(res.already) + ' ya estaban registradas');
-      if (res.motDias) p.push('motivo de negado en ' + fmtInt(res.motDias) + ' día' + (res.motDias === 1 ? '' : 's'));
-      if (res.resolved) p.push(fmtInt(res.resolved) + ' pendientes completados');
-      p.push(fmtInt(res.pendingNow) + ' pendientes de despacho');
-      if (res.legacyIgnored) p.push(fmtInt(res.legacyIgnored) + ' del período de la versión anterior (ya contadas)');
-      if (res.fechaRespaldo) p.push(fmtInt(res.fechaRespaldo) + ' sin Fecha Actualizado (se usó Fecha Enviado Revisión)');
-      if (res.sinDato) { p.push('⚠ ' + fmtInt(res.sinDato) + ' líneas sin dato (celdas vacías) no se incluyeron'); conError = true; }
-      if (res.otherEstado) p.push(fmtInt(res.otherEstado) + ' con estado desconocido no se incluyeron');
-      if (res.recortados?.length) p.push('se quitaron ' + res.recortados.length + ' días con más de 1 año');
-      partes.push(p.join(' · '));
-    }
-
-    // archivos de historial: motivo de negado y pedidos en cero de esos días (las líneas no se vuelven a contar)
-    const motH = new Set<string>();
-    for (const { f, buf } of hist) {
-      try { ctx.radar.aplicarMotivosHistorial(leerExcelNegados(buf)).forEach((d) => motH.add(d)); }
-      catch (e) { console.error(e); aviso('err', f.name + ': no se pudo leer el motivo de negado: ' + ((e as Error)?.message || 'error'), 15000); }
-    }
-
-    // hora de asignación (de todos los archivos que son Rpt_OrdenesPreparacion)
-    let a = 0, pe = 0;
-    for (const x of [...hist, ...act]) { if (!x.info) continue; const r = ctx.pedidos.aplicarAsignacion(x.info.M); a += r.a; pe += r.p; }
-    if (hist.length) partes.push(hist.length + ' archivo(s) con fechas anteriores a ayer (hasta el ' + etiquetaDia(hist.map((x) => x.info.maxDay!).sort().pop()!) + '): ' +
-      (motH.size ? 'se actualizó el motivo de negado y los pedidos en cero en ' + fmtInt(motH.size) + ' día' + (motH.size === 1 ? '' : 's') + '; las líneas no se volvieron a contar' : 'los negados de esas fechas ya estaban al día'));
-    if (a || pe) partes.push('hora de asignación registrada para ' + fmtInt(a) + ' pedidos' + (pe ? ' (' + fmtInt(pe) + ' esperan su reporte de transferencias)' : ''));
+    const archivos: ArchivoRpt[] = [];
+    for (const f of xs) archivos.push({ nombre: f.name, buf: new Uint8Array(await f.arrayBuffer()) });
+    let r: ResultadoRpt;
+    try { r = procesarRpt(ctx.radar, ctx.pedidos, archivos); }
+    catch (e) { aviso('err', (e as Error)?.message || 'no se pudo leer el archivo', 15000); return; }
+    r.avisos.forEach((t) => aviso('err', t, 15000));
+    const { partes, destino, conError } = r;
 
     ctx.redibujar(destino || ctx.radar.lastCompleteDay());
     const txt = 'Cargado: ' + partes.join(' · ');
