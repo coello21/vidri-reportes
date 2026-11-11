@@ -357,13 +357,13 @@ export class TopNegados {
     try {
       const Q = this.cantidades(vm), pos: Record<string, number> = {}, tot: Record<string, number> = {};
       vm.codes.forEach((c) => { tot[c.sku] = (tot[c.sku] || 0) + c.count; if (c.bucket === 'positivo') pos[c.sku] = (pos[c.sku] || 0) + c.count; });
-      const t10 = vm.topCodes.slice(0, 10).map((d, i) => {
+      const t10 = vm.topCodes.map((d, i) => {
         const um = this.um(d.sku), q = Q.has ? Math.round((Q.qty[d.sku] || 0) * umFactor(um) * 100) / 100 : '';
         const m = this.motCod && this.motCod[d.sku];
         const mp = m ? Object.keys(m).sort((a, b) => m[b] - m[a] || motSort(a, b)).map((k) => motLabel(k) + ' ' + m[k]).join(' · ') : 'sin motivo registrado';
         return [i + 1, d.sku, d.desc, d.count, q, um, this.motCod ? mp : tot[d.sku] ? Math.round((pos[d.sku] || 0) / tot[d.sku] * 100) / 100 : ''];
       });
-      const ws1 = this.hoja('Top 10 por cantidad de veces negado · ' + this.fechaTxt(vm), ['#', 'Código', 'Descripción', 'Veces negado', 'Unidades negadas', 'UM', this.motCod ? 'Motivos registrados' : 'Con existencia (%)'], t10, [5, 12, 55, 14, 16, 8, this.motCod ? 50 : 18]);
+      const ws1 = this.hoja('Códigos negados por cantidad de veces · ' + this.fechaTxt(vm), ['#', 'Código', 'Descripción', 'Veces negado', 'Unidades negadas', 'UM', this.motCod ? 'Motivos registrados' : 'Con existencia (%)'], t10, [5, 12, 55, 14, 16, 8, this.motCod ? 50 : 18]);
       if (!this.motCod) for (let r = 1; r < 1 + t10.length; r++) { const c = ws1[XLSX.utils.encode_cell({ r, c: 6 })]; if (c && typeof c.v === 'number') c.z = '0%'; }
       const rows2: (string | number)[][] = [];
       if (!Q.has) rows2.push(['Las unidades negadas se registran desde el 7 oct 2026. Elige un día o rango desde esa fecha.']);
@@ -372,21 +372,21 @@ export class TopNegados {
         vm.topCodes.forEach((c) => { veces[c.sku] = c.count; });
         const items = Object.keys(Q.qty).map((s) => { const um = this.um(s); return { sku: s, desc: (this.radar.store.skus[s] || [''])[0], um, g: umGrupo(um), q: Q.qty[s] * umFactor(um), v: veces[s] || 0 }; }).filter((i) => i.q > 0 || i.v > 0);
         ([['uni', 'Unidades'], ['pqt', 'Paquetes'], ['m', 'Metros'], ['otr', 'Otras unidades de medida']] as [Grupo, string][]).forEach(([g, t]) => {
-          const L = items.filter((i) => i.g === g).sort(g === 'otr' ? (a, b) => b.v - a.v || b.q - a.q : (a, b) => b.q - a.q).slice(0, 5);
+          const L = items.filter((i) => i.g === g).sort(g === 'otr' ? (a, b) => b.v - a.v || b.q - a.q : (a, b) => b.q - a.q);
           L.forEach((i, k) => rows2.push([t, k + 1, i.sku, i.desc, Math.round(i.q * 100) / 100, g === 'm' ? 'm' : i.um, i.v]));
         });
       }
-      const ws2 = this.hoja('Top 5 por cantidad de unidades negadas · ' + this.fechaTxt(vm) + (Q.has && Q.has < Q.n ? ' · unidades de ' + Q.has + ' de ' + Q.n + ' días' : ''), ['Tipo de unidad', '#', 'Código', 'Descripción', 'Cantidad negada', 'UM', 'Veces negado'], rows2, [22, 5, 12, 55, 16, 8, 14]);
-      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws1, 'Top 10 veces'); XLSX.utils.book_append_sheet(wb, ws2, 'Top 5 unidades');
+      const ws2 = this.hoja('Códigos negados por cantidad de unidades · ' + this.fechaTxt(vm) + (Q.has && Q.has < Q.n ? ' · unidades de ' + Q.has + ' de ' + Q.n + ' días' : ''), ['Tipo de unidad', '#', 'Código', 'Descripción', 'Cantidad negada', 'UM', 'Veces negado'], rows2, [22, 5, 12, 55, 16, 8, 14]);
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws1, 'Por veces'); XLSX.utils.book_append_sheet(wb, ws2, 'Por unidades');
       if (this.motCod) {
         const MC = this.motCod, por: Record<string, { sku: string; n: number }[]> = {};
         for (const sku in MC) for (const k in MC[sku]) (por[k] || (por[k] = [])).push({ sku, n: MC[sku][k] });
         const rows3: (string | number)[][] = [];
-        Object.keys(por).sort(motSort).forEach((k) => por[k].sort((a, b) => b.n - a.n).slice(0, 5).forEach((x, i) => rows3.push([motLabel(k), i + 1, x.sku, (this.radar.store.skus[x.sku] || [''])[0] || '', x.n])));
-        XLSX.utils.book_append_sheet(wb, this.hoja('Top 5 por motivo de negado · ' + this.fechaTxt(vm), ['Motivo', '#', 'Código', 'Descripción', 'Veces negado'], rows3, [32, 5, 12, 55, 14]), 'Top 5 por motivo');
+        Object.keys(por).sort(motSort).forEach((k) => por[k].sort((a, b) => b.n - a.n).forEach((x, i) => rows3.push([motLabel(k), i + 1, x.sku, (this.radar.store.skus[x.sku] || [''])[0] || '', x.n])));
+        XLSX.utils.book_append_sheet(wb, this.hoja('Códigos negados por motivo · ' + this.fechaTxt(vm), ['Motivo', '#', 'Código', 'Descripción', 'Veces negado'], rows3, [32, 5, 12, 55, 14]), 'Por motivo');
       }
       this.bajar(wb, 'Top_negados_' + this.sufijo(vm) + '.xlsx');
-      aviso('ok', 'Descargando Top 10 y Top 5…');
+      aviso('ok', 'Descargando el listado completo de códigos negados…');
     } catch (err) { console.error(err); aviso('err', 'No se pudo generar el Excel: ' + ((err as Error)?.message || 'error')); }
   }
 
