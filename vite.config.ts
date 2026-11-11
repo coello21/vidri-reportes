@@ -9,6 +9,7 @@ export default defineConfig({
       input: {
         inicio: resolve(import.meta.dirname, 'index.html'),
         app: resolve(import.meta.dirname, 'app/index.html'),
+        resumenes: resolve(import.meta.dirname, 'resumenes/index.html'),
       },
     },
   },

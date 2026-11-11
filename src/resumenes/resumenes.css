@@ -1,0 +1,28 @@
+/* Resúmenes del Radar: tablas por día, semana y mes */
+.btnlink{display:inline-block;text-decoration:none;font:11px var(--font-mono);text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;border-radius:4px}
+.tab{padding-top:26px}
+.rs-kpis{margin:0 0 34px!important}
+.kpi .val.prep{color:var(--good)}
+.kpi .val.neg{color:var(--accent)}
+.rs-scroll{max-height:560px}
+.rs-t{width:100%;border-collapse:collapse;font-size:13.5px}
+.rs-t th{position:sticky;top:0;background:var(--surface);font:10.5px var(--font-mono);text-transform:uppercase;letter-spacing:.07em;color:var(--mut);text-align:left;padding:10px 12px;border-bottom:1px solid var(--ink);white-space:nowrap;cursor:default}
+.rs-t th[data-k]{cursor:pointer}
+.rs-t td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.rs-t .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rs-t td.prep{color:var(--good);font-weight:600}
+.rs-t td.neg{color:var(--accent);font-weight:600}
+.rs-t td.mut{color:var(--mut)}
+.rs-t td.mono{font-family:var(--font-mono);font-size:12.5px}
+.rs-t td small{display:block;color:var(--mut);font-size:12px;margin-top:2px}
+.rs-t tr[data-c]{cursor:pointer}
+.rs-t tr[data-c]:hover td{background:var(--surface-2)}
+.rs-t tr.sel td{background:#FBE3E3}
+.rs-bar{display:flex;width:100%;min-width:120px;height:9px;border-radius:5px;overflow:hidden;background:var(--surface-2)}
+.rs-bar i{background:var(--good)}
+.rs-bar b{background:var(--accent)}
+.rs-pc{font:10px var(--font-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--orange);margin-left:4px}
+.rs-det{display:grid;gap:30px;margin-top:34px}
+.rs-pick select{font:12px var(--font-mono);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:6px 8px;color:var(--ink);max-width:100%}
+.rs-search input{width:100%;box-sizing:border-box;font:13px var(--font-body);border:1px solid var(--border);border-radius:6px;padding:9px 12px;margin:2px 0 12px;background:var(--surface);color:var(--ink)}
+@media (max-width:700px){.rs-t{font-size:12.5px}.rs-t th,.rs-t td{padding:8px}.rs-bar{min-width:70px}}
