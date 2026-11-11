@@ -195,29 +195,37 @@ export class Resumen {
   }
 
   /**
+   * Motivos de un día con la regla de la página: cada línea (pedido + código) cuenta una sola vez, el primer día que
+   * se negó; si se vuelve a negar en los días siguientes (hasta KEEP_DAYS) no suma otra vez.
+   * Días sin detalle por línea: los motivos tal como se guardaron.
+   */
+  private motDia(d: string): { m: Record<string, number>; n: number } | null {
+    const H = this.radar.history, mo = (H[d] as DiaResumen | undefined)?.mot;
+    if (!mo) return null;
+    if (!mo.l) return { m: mo.m, n: mo.n };
+    const antes = new Set<string>(), desde = addDays(d, -KEEP_DAYS);
+    for (const x of Object.keys(H)) if (x < d && x >= desde) { const l = (H[x] as DiaResumen | undefined)?.mot?.l; if (l) Object.keys(l).forEach((k) => antes.add(k)); }
+    const m: Record<string, number> = {};
+    let n = 0;
+    for (const x in mo.l) { if (antes.has(x)) continue; const k = mo.k[mo.l[x][0]] ?? ''; m[k] = (m[k] || 0) + 1; n++; }
+    return { m, n };
+  }
+
+  /**
    * Dona: negadas del día o rango por motivo registrado, con la regla de la página: cada línea (pedido + código)
    * cuenta una sola vez, el primer día que se negó (si se vuelve a negar en los días siguientes no suma otra vez).
    * Días sin detalle por línea: los motivos tal como se guardaron; lo que no tiene motivo va como "Sin dato".
    */
   private renderMotDona(vm: VistaAgregada) {
-    const el = $('motDona'), H = this.radar.history, dias = this.radar.diasEnRango(vm.rangeFrom, vm.rangeTo).slice().sort();
+    const el = $('motDona'), H = this.radar.history, dias = this.radar.diasEnRango(vm.rangeFrom, vm.rangeTo);
     const cuenta: Record<string, number> = {};
     let sd = 0;
-    const vistas = new Set<string>();
-    if (dias.length) for (const d of Object.keys(H).sort()) {
-      if (d >= dias[0] || d < addDays(dias[0], -KEEP_DAYS)) continue;
-      const l = (H[d] as DiaResumen | undefined)?.mot?.l; if (l) Object.keys(l).forEach((x) => vistas.add(x));
-    }
     for (const d of dias) {
       const h = H[d] as DiaResumen | undefined;
       if (!h || h.v !== 2 || !h.meta) continue;
-      const mo = h.mot;
-      if (mo && mo.l) {
-        for (const x in mo.l) { if (vistas.has(x)) continue; vistas.add(x); const k = mo.k[mo.l[x][0]] ?? ''; cuenta[k] = (cuenta[k] || 0) + 1; }
-      } else if (mo) {
-        for (const k in mo.m) cuenta[k] = (cuenta[k] || 0) + mo.m[k];
-        sd += Math.max(0, (h.meta.totalNegados || 0) - mo.n);
-      } else sd += h.meta.totalNegados || 0;
+      const mo = this.motDia(d);
+      if (mo) for (const k in mo.m) cuenta[k] = (cuenta[k] || 0) + mo.m[k];
+      sd += Math.max(0, (h.meta.totalNegados || 0) - (mo ? mo.n : 0));
     }
     const filas = Object.keys(cuenta).filter((k) => cuenta[k] > 0).map((k) => ({ name: motLabel(k), color: motColor(k), v: cuenta[k] }));
     filas.sort((a, b) => b.v - a.v);
@@ -358,12 +366,13 @@ export class Resumen {
     const leg = document.querySelector<HTMLElement>('#vxMotCard .leg');
     if (leg && !leg.dataset.orig) leg.dataset.orig = leg.innerHTML;
     $('vxMotT').textContent = 'Negados por motivo · últimos 7 días';
-    if (d7.some((d) => dia(d)?.mot?.n)) {
+    const MD = d7.map((d) => this.motDia(d));
+    if (MD.some((x) => x?.n)) {
       // Mapa de calor: un renglón por motivo registrado y una columna por día; más oscuro = más negadas de ese motivo
       const ks = new Set<string>();
-      d7.forEach((d) => { const mo = dia(d)?.mot; if (mo) Object.keys(mo.m).forEach((x) => ks.add(x)); });
-      const filas = [...ks].map((x) => ({ name: motLabel(x), vals: d7.map((d) => dia(d)?.mot?.m[x] || 0) }));
-      const sd = d7.map((d) => Math.max(0, (dia(d)?.meta?.totalNegados || 0) - (dia(d)?.mot?.n || 0)));
+      MD.forEach((mo) => { if (mo) Object.keys(mo.m).forEach((x) => { if (mo.m[x]) ks.add(x); }); });
+      const filas = [...ks].map((x) => ({ name: motLabel(x), vals: MD.map((mo) => mo?.m[x] || 0) }));
+      const sd = d7.map((d, i) => Math.max(0, (dia(d)?.meta?.totalNegados || 0) - (MD[i]?.n || 0)));
       const totDia = d7.map((_, i) => filas.reduce((a, f) => a + f.vals[i], 0) + sd[i]);
       // de mayor a menor % en los 7 días; "Sin dato" siempre al final
       const pctFila = (f: { vals: number[] }) => f.vals.reduce((a, v, i) => a + (totDia[i] ? v / totDia[i] : 0), 0);
