@@ -6,7 +6,7 @@ import type { FilaBalance } from '../core/pedidos/cd';
 import * as XLSX from 'xlsx';
 import { aviso, descargar } from './ui/avisos';
 import type { RadarNegados, VistaAgregada, PreparadorVista } from '../core/negados/radar';
-import { parsePreparadorName, EXACTITUD_META } from '../core/negados/radar';
+import { parsePreparadorName, EXACTITUD_META, KEEP_DAYS } from '../core/negados/radar';
 import { addDays } from '../core/comun/fechas';
 import { lineasPreparadas } from '../core/negados/extras';
 import { motColor, motLabel, motSort, motivosDePreparador, fillRateCD, exclusionPorPreparador, negadosPorMotivo, EXIST_CERO } from '../core/negados/motivos';
@@ -194,15 +194,36 @@ export class Resumen {
     this.renderMotDona(vm);
   }
 
-  /** Dona: negadas del día o rango por motivo registrado (lo que no tiene motivo va como "Sin dato"). */
+  /**
+   * Dona: negadas del día o rango por motivo registrado, con la regla de la página: cada línea (pedido + código)
+   * cuenta una sola vez, el primer día que se negó (si se vuelve a negar en los días siguientes no suma otra vez).
+   * Días sin detalle por línea: los motivos tal como se guardaron; lo que no tiene motivo va como "Sin dato".
+   */
   private renderMotDona(vm: VistaAgregada) {
-    const el = $('motDona'), N = this.negMot(vm), neg = N.neg;
-    if (!neg) { el.innerHTML = '<p class="q">Sin negados</p>'; return; }
-    const filas = Object.keys(N.m).filter((k) => N.m[k] > 0).map((k) => ({ name: motLabel(k), color: motColor(k), v: N.m[k] }));
-    const sd = Math.max(0, neg - N.negMot);
+    const el = $('motDona'), H = this.radar.history, dias = this.radar.diasEnRango(vm.rangeFrom, vm.rangeTo).slice().sort();
+    const cuenta: Record<string, number> = {};
+    let sd = 0;
+    const vistas = new Set<string>();
+    if (dias.length) for (const d of Object.keys(H).sort()) {
+      if (d >= dias[0] || d < addDays(dias[0], -KEEP_DAYS)) continue;
+      const l = (H[d] as DiaResumen | undefined)?.mot?.l; if (l) Object.keys(l).forEach((x) => vistas.add(x));
+    }
+    for (const d of dias) {
+      const h = H[d] as DiaResumen | undefined;
+      if (!h || h.v !== 2 || !h.meta) continue;
+      const mo = h.mot;
+      if (mo && mo.l) {
+        for (const x in mo.l) { if (vistas.has(x)) continue; vistas.add(x); const k = mo.k[mo.l[x][0]] ?? ''; cuenta[k] = (cuenta[k] || 0) + 1; }
+      } else if (mo) {
+        for (const k in mo.m) cuenta[k] = (cuenta[k] || 0) + mo.m[k];
+        sd += Math.max(0, (h.meta.totalNegados || 0) - mo.n);
+      } else sd += h.meta.totalNegados || 0;
+    }
+    const filas = Object.keys(cuenta).filter((k) => cuenta[k] > 0).map((k) => ({ name: motLabel(k), color: motColor(k), v: cuenta[k] }));
     filas.sort((a, b) => b.v - a.v);
     if (sd) filas.push({ name: 'Sin dato (antes del registro)', color: '#D9D4CA', v: sd });
-    const tot = filas.reduce((a, f) => a + f.v, 0);  // igual que el total del mapa de motivos
+    if (!filas.length) { el.innerHTML = '<p class="q">Sin negados</p>'; return; }
+    const tot = filas.reduce((a, f) => a + f.v, 0);
     const R = 70, C = 2 * Math.PI * R;
     let acc = 0;
     const arcos = filas.map((f) => {
