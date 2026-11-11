@@ -222,7 +222,7 @@ export class Resumen {
     let sd = 0;
     for (const d of dias) {
       const h = H[d] as DiaResumen | undefined;
-      if (!h || h.v !== 2 || !h.meta) continue;
+      if (!h || !h.meta) continue;   // también los días guardados con el método anterior (v1), que ya pueden traer motivo
       const mo = this.motDia(d);
       if (mo) for (const k in mo.m) cuenta[k] = (cuenta[k] || 0) + mo.m[k];
       sd += Math.max(0, (h.meta.totalNegados || 0) - (mo ? mo.n : 0));
