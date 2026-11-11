@@ -712,3 +712,19 @@ html[data-theme="dark"] table.hm thead th,html[data-theme="dark"] table.hm tr.hm
 .flujo>div.fin b{color:var(--accent,#E0262B)}
 .flujo>i{flex:0 0 20px;display:flex;align-items:center;justify-content:center;font:600 16px var(--font-display);font-style:normal;color:var(--mut)}
 @media (max-width:640px){.flujo{flex-wrap:wrap}.flujo>div{flex:1 1 40%}.flujo>i{display:none}}
+
+/* Dona de motivos (Resumen) */
+.dona{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.dona svg{width:180px;height:180px;flex:none}
+.dona .dn-n{font:600 28px var(--font-display);fill:var(--ink)}
+.dona .dn-l{font:12px var(--font-body);fill:var(--mut)}
+.dn-leg{flex:1;min-width:220px;display:grid;gap:8px}
+.dn-r{display:grid;grid-template-columns:12px 1fr auto 52px;gap:10px;align-items:center;font-size:13px}
+.dn-r i{width:12px;height:12px;border-radius:2px}
+.dn-r b{font:600 13px var(--font-mono)}
+.dn-p{font:12px var(--font-mono);color:var(--mut);text-align:right}
+#sucCard .barrow{grid-template-columns:120px 1fr 48px}
+/* Top negados: tarjetas de código y sucursal; tabla de todos los códigos con alto fijo */
+.tp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important;margin:18px 0 8px}
+#tpTopCode,#tpTopStore{font-size:22px!important}
+#detalleCard .tablescroll{max-height:420px;overflow:auto}

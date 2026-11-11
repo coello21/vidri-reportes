@@ -148,6 +148,11 @@ export class TopNegados {
       $('tpTitle').textContent = 'Los 10 códigos más negados suman el ' + p10 + '% de los negados ' + p;
       $('tpLead').innerHTML = '<b>' + fmtInt(s10) + '</b> de ' + fmtInt(tn) + ' líneas negadas. ' + (top.length ? 'El primero, <b>' + esc(top[0].sku) + '</b>, se negó ' + fmtInt(top[0].count) + ' veces. ' : '');
     }
+    const tc = vm.topCodes[0], ts = vm.byStore[0];
+    $('tpTopCode').textContent = tc ? tc.sku : '—';
+    $('tpTopCodeDesc').textContent = tc ? (tc.desc.length > 46 ? tc.desc.slice(0, 46) + '…' : tc.desc) + ' · ' + fmtInt(tc.count) + ' veces' : '—';
+    $('tpTopStore').textContent = ts ? ts.name : '—';
+    $('tpTopStoreCount').textContent = ts ? fmtInt(ts.count) : '—';
     this.renderRanking1();
     this.renderRanking2();
     this.renderTopMotivo();
@@ -264,7 +269,13 @@ export class TopNegados {
       if (this.buckets.size) rows = rows.filter((r) => this.buckets.has(r.bucket as Bucket));
     }
     if (this.busqueda) { const q = normText(this.busqueda); rows = rows.filter((r) => normText(r.sku).includes(q) || normText(r.desc).includes(q)); }
-    return rows;
+    // top general: una fila por código con el total de veces (de los motivos elegidos); motivo = el principal (+ cuántos más)
+    const por = new Map<string, FilaDet[]>();
+    rows.forEach((r) => { const l = por.get(r.sku); if (l) l.push(r); else por.set(r.sku, [r]); });
+    return [...por.values()].map((l) => {
+      const p = l.slice().sort((a, b) => b.count - a.count)[0], n = l.reduce((a, r) => a + r.count, 0);
+      return { ...p, count: n, label: p.label + (l.length > 1 ? ' +' + (l.length - 1) : '') };
+    });
   }
 
   /** Botones del filtro del detalle: por motivo registrado si lo hay; si no, por disponible (como antes). */

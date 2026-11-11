@@ -191,6 +191,29 @@ export class Resumen {
       '</b> fueron error en el proceso y <b>' + fmtInt(sin) + '</b> por ' + sinTxt + '.' +
       (st ? ' La sucursal más afectada fue <b>' + esc(st.name) + '</b>.' : '');
     this.renderMotivo(vm);
+    this.renderMotDona(vm);
+  }
+
+  /** Dona: negadas del día o rango por motivo registrado (lo que no tiene motivo va como "Sin dato"). */
+  private renderMotDona(vm: VistaAgregada) {
+    const el = $('motDona'), N = this.negMot(vm), neg = N.neg;
+    if (!neg) { el.innerHTML = '<p class="q">Sin negados</p>'; return; }
+    const filas = Object.keys(N.m).filter((k) => N.m[k] > 0).map((k) => ({ name: motLabel(k), color: motColor(k), v: N.m[k] }));
+    const sd = Math.max(0, neg - N.negMot);
+    filas.sort((a, b) => b.v - a.v);
+    if (sd) filas.push({ name: 'Sin dato (antes del registro)', color: '#D9D4CA', v: sd });
+    const tot = filas.reduce((a, f) => a + f.v, 0);  // igual que el total del mapa de motivos
+    const R = 70, C = 2 * Math.PI * R;
+    let acc = 0;
+    const arcos = filas.map((f) => {
+      const l = f.v / tot * C, a = '<circle r="' + R + '" cx="90" cy="90" fill="none" stroke="' + f.color + '" stroke-width="26" stroke-dasharray="' + l.toFixed(2) + ' ' + (C - l).toFixed(2) +
+        '" stroke-dashoffset="' + (-acc).toFixed(2) + '"><title>' + esc(f.name) + ': ' + fmtInt(f.v) + ' (' + fmtPct(f.v / tot * 100) + ')</title></circle>';
+      acc += l; return a;
+    }).join('');
+    el.innerHTML = '<div class="dona"><svg viewBox="0 0 180 180" role="img" aria-label="Negados por motivo"><g transform="rotate(-90 90 90)">' + arcos + '</g>' +
+      '<text x="90" y="92" text-anchor="middle" class="dn-n">' + fmtInt(tot) + '</text><text x="90" y="112" text-anchor="middle" class="dn-l">negados</text></svg>' +
+      '<div class="dn-leg">' + filas.map((f) => '<div class="dn-r"><i style="background:' + f.color + '"></i><span class="dn-t">' + esc(f.name) + '</span><b class="tabular">' + fmtInt(f.v) +
+      '</b><span class="dn-p tabular">' + fmtPct(f.v / tot * 100) + '</span></div>').join('') + '</div></div>';
   }
 
   private renderExactitud(vm: VistaAgregada) {
