@@ -14,7 +14,7 @@ import type { Historial } from '../core/negados/tipos';
 import { nice, corto as cortoNum } from '../app/ui/graficos';
 import { aviso, descargar } from '../app/ui/avisos';
 import { fmtInt, fmtPct, esc, normText } from '../app/ui/formato';
-import { MESES_CORTO, DIAS_CORTO, diaSemana } from '../core/comun/fechas';
+import { MESES_CORTO, DIAS_CORTO, diaSemana, sumarDiasUTC } from '../core/comun/fechas';
 
 interface Dia {
   fecha: string; prep: number; neg: number; tot: number; parcial: boolean;
@@ -123,26 +123,67 @@ function tarjetas(dias0: Dia[], promedio: boolean) {
     kpi('Fill rate', f.pct != null ? fmtPct(f.pct) : '—', promedio ? 'del período' + (sinHoy ? ', sin el día en curso' : '') : '');
 }
 
-/* ---------------- gráfico: preparadas y negadas (líneas) ---------------- */
-interface Barra { k: string; l1: string; l2: string; prep: number; neg: number; parcial?: boolean }
-function grafico(el: HTMLElement, B: Barra[], sel: string, alClic: (k: string) => void) {
-  const W = Math.max(300, el.clientWidth || 900), H = 230, m = { l: 50, r: 16, t: 14, b: 38 }, iw = W - m.l - m.r, ih = H - m.t - m.b, n = B.length;
-  const max = nice(Math.max(1, ...B.map((b) => Math.max(b.prep, b.neg)))), slot = iw / Math.max(1, n);
+/* ---------------- gráfico: preparadas y negadas en líneas; discontinua = período anterior ---------------- */
+interface Punto { k?: string; prep: number; neg: number; parcial?: boolean; tip: string }
+interface Eje { l1: string; l2: string }
+function grafico(el: HTMLElement, X: Eje[], A: (Punto | null)[], P: (Punto | null)[], sel: number, alClic?: (k: string) => void) {
+  const W = Math.max(300, el.clientWidth || 900), H = 240, m = { l: 50, r: 16, t: 14, b: 38 }, iw = W - m.l - m.r, ih = H - m.t - m.b, n = X.length;
+  const vals = [...A, ...P].filter((x): x is Punto => !!x).flatMap((x) => [x.prep, x.neg]);
+  const max = nice(Math.max(1, ...vals)), slot = iw / Math.max(1, n);
   const cx = (i: number) => m.l + slot * i + slot / 2, y = (v: number) => m.t + ih - (v / max) * ih;
-  const step = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(iw / 52))));
+  const step = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(iw / 46))));
   let g = '';
   for (let q = 0; q <= 4; q++) { const v = max * q / 4, yy = y(v).toFixed(1); g += '<line class="gl" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + yy + '" y2="' + yy + '"/><text class="ax" x="' + (m.l - 8) + '" y="' + (+yy + 3.5) + '" text-anchor="end">' + cortoNum(v) + '</text>'; }
-  const i0 = B.findIndex((b) => b.k === sel);
-  if (i0 >= 0) g += '<rect x="' + (cx(i0) - slot / 2).toFixed(1) + '" y="' + m.t + '" width="' + slot.toFixed(1) + '" height="' + ih + '" fill="var(--surface-2)"/>';
-  const linea = (k: 'prep' | 'neg', col: string) => (n > 1 ? '<polyline fill="none" stroke="' + col + '" stroke-width="2.2" stroke-linejoin="round" points="' + B.map((b, i) => cx(i).toFixed(1) + ',' + y(b[k]).toFixed(1)).join(' ') + '"/>' : '') +
-    B.map((b, i) => '<circle cx="' + cx(i).toFixed(1) + '" cy="' + y(b[k]).toFixed(1) + '" r="' + (b.k === sel ? 4.6 : 3.4) + '" fill="' + (b.k === sel ? col : 'var(--surface)') + '" stroke="' + col + '" stroke-width="1.8" opacity="' + (b.parcial ? 0.5 : 1) + '"/>').join('');
-  g += linea('prep', 'var(--good)') + linea('neg', 'var(--accent)');
-  B.forEach((b, i) => {
-    g += '<g class="clk" data-k="' + b.k + '"><title>' + esc(b.l1 + ' ' + b.l2) + '\nPreparadas: ' + fmtInt(b.prep) + '\nNegadas: ' + fmtInt(b.neg) + '</title><rect x="' + (cx(i) - slot / 2).toFixed(1) + '" y="' + m.t + '" width="' + slot.toFixed(1) + '" height="' + ih + '" fill="transparent"/></g>';
-    if (i % step === 0 || i === n - 1) g += '<text class="ax' + (b.k === sel ? ' pk' : '') + '" x="' + cx(i).toFixed(1) + '" y="' + (H - 22) + '" text-anchor="middle">' + esc(b.l1) + '</text><text class="ax" x="' + cx(i).toFixed(1) + '" y="' + (H - 9) + '" text-anchor="middle">' + esc(b.l2) + '</text>';
+  if (sel >= 0) g += '<rect x="' + (cx(sel) - slot / 2).toFixed(1) + '" y="' + m.t + '" width="' + slot.toFixed(1) + '" height="' + ih + '" fill="var(--surface-2)"/>';
+  // une los días con datos (domingos y feriados sin datos no cortan la línea)
+  const linea = (S: (Punto | null)[], k: 'prep' | 'neg', col: string, dash: boolean) => {
+    let o = '', tramo: string[] = [];  // eslint-disable-line prefer-const
+    const fin = () => { if (tramo.length > 1) o += '<polyline fill="none" stroke="' + col + '" stroke-width="' + (dash ? 1.8 : 2.2) + '"' + (dash ? ' stroke-dasharray="6 4" opacity=".55"' : '') + ' stroke-linejoin="round" points="' + tramo.join(' ') + '"/>'; tramo = []; };
+    S.forEach((p, i) => { if (p) tramo.push(cx(i).toFixed(1) + ',' + y(p[k]).toFixed(1)); });
+    fin();
+    if (!dash) S.forEach((p, i) => { if (p) o += '<circle cx="' + cx(i).toFixed(1) + '" cy="' + y(p[k]).toFixed(1) + '" r="' + (i === sel ? 4.6 : 3.4) + '" fill="' + (i === sel ? col : 'var(--surface)') + '" stroke="' + col + '" stroke-width="1.8" opacity="' + (p.parcial ? 0.5 : 1) + '"/>'; });
+    return o;
+  };
+  g += linea(P, 'prep', 'var(--good)', true) + linea(P, 'neg', 'var(--accent)', true) + linea(A, 'prep', 'var(--good)', false) + linea(A, 'neg', 'var(--accent)', false);
+  X.forEach((e, i) => {
+    const a = A[i], p = P[i], tip = [a ? a.tip + '\nPreparadas: ' + fmtInt(a.prep) + ' · Negadas: ' + fmtInt(a.neg) : '', p ? p.tip + '\nPreparadas: ' + fmtInt(p.prep) + ' · Negadas: ' + fmtInt(p.neg) : ''].filter(Boolean).join('\n\n');
+    if (tip) g += '<g' + (alClic && a?.k ? ' class="clk" data-k="' + a.k + '"' : '') + '><title>' + esc(tip) + '</title><rect x="' + (cx(i) - slot / 2).toFixed(1) + '" y="' + m.t + '" width="' + slot.toFixed(1) + '" height="' + ih + '" fill="transparent"/></g>';
+    if (i % step === 0 || i === n - 1) g += '<text class="ax' + (i === sel ? ' pk' : '') + '" x="' + cx(i).toFixed(1) + '" y="' + (H - 22) + '" text-anchor="middle">' + esc(e.l1) + '</text><text class="ax" x="' + cx(i).toFixed(1) + '" y="' + (H - 9) + '" text-anchor="middle">' + esc(e.l2) + '</text>';
   });
   el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" height="' + H + '" role="img">' + g + '</svg>';
-  el.querySelectorAll<SVGGElement>('g.clk').forEach((x) => x.addEventListener('click', () => alClic(x.dataset.k!)));
+  if (alClic) el.querySelectorAll<SVGGElement>('g.clk').forEach((x) => x.addEventListener('click', () => alClic(x.dataset.k!)));
+}
+const leyenda = (act: string, ant: string) => '<span><i style="background:var(--good)"></i>Preparadas</span><span><i style="background:var(--accent)"></i>Negadas</span>' +
+  '<span>— ' + esc(act) + '</span><span>- - ' + esc(ant) + '</span>';
+const POR_FECHA = () => new Map(DIAS.map((d) => [d.fecha, d]));
+const punto = (d: Dia | undefined, tip: string): Punto | null => (d ? { k: d.fecha, prep: d.prep, neg: d.neg, parcial: d.parcial, tip } : null);
+/** Semana de lunes a domingo del lunes dado frente a la semana anterior. */
+function graficoSemana(el: HTMLElement, leg: HTMLElement, tit: HTMLElement, lunes: string, sel: string, alClic?: (k: string) => void) {
+  const F = POR_FECHA(), w = semana(lunes), wp = semana(sumarDiasUTC(lunes, -7));
+  const X: Eje[] = [], A: (Punto | null)[] = [], P: (Punto | null)[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = sumarDiasUTC(lunes, i), dp = sumarDiasUTC(lunes, i - 7);
+    X.push({ l1: DIAS_CORTO[diaSemana(d)], l2: corto(d) });
+    A.push(punto(F.get(d), largoDia(d))); P.push(punto(F.get(dp), largoDia(dp)));
+  }
+  tit.textContent = 'Semana ' + w.n + ' vs semana ' + wp.n;
+  leg.innerHTML = leyenda('Semana ' + w.n, 'Semana ' + wp.n);
+  grafico(el, X, A, P, X.findIndex((_, i) => sumarDiasUTC(lunes, i) === sel), alClic);
+}
+/** Mes por día (1 al 31) frente al mes anterior. */
+function graficoMes(el: HTMLElement, leg: HTMLElement, tit: HTMLElement, mes: string) {
+  const F = POR_FECHA(), y = +mes.slice(0, 4), mo = +mes.slice(5, 7), ant = mo === 1 ? (y - 1) + '-12' : y + '-' + String(mo - 1).padStart(2, '0');
+  const dias = (k: string) => new Date(+k.slice(0, 4), +k.slice(5, 7), 0).getDate(), n = Math.max(dias(mes), dias(ant));
+  const X: Eje[] = [], A: (Punto | null)[] = [], P: (Punto | null)[] = [];
+  for (let i = 1; i <= n; i++) {
+    const d = mes + '-' + String(i).padStart(2, '0'), dp = ant + '-' + String(i).padStart(2, '0');
+    X.push({ l1: String(i), l2: '' });
+    A.push(i <= dias(mes) ? punto(F.get(d), largoDia(d)) : null); P.push(i <= dias(ant) ? punto(F.get(dp), largoDia(dp)) : null);
+  }
+  const nom = (k: string) => { const s = MESES[+k.slice(5, 7) - 1]; return s.charAt(0).toUpperCase() + s.slice(1); };
+  tit.textContent = nom(mes) + ' vs ' + nom(ant).toLowerCase();
+  leg.innerHTML = leyenda(nom(mes), nom(ant));
+  grafico(el, X, A, P, -1);
 }
 
 /* ---------------- Por día ---------------- */
@@ -154,9 +195,7 @@ function pintarDia() {
   ($('selDia') as HTMLSelectElement).value = d.fecha;
   $('kSel').innerHTML = tarjetas([d], false);
   document.querySelectorAll<HTMLElement>('#tDia tr[data-f]').forEach((tr) => tr.classList.toggle('sel', tr.dataset.f === d.fecha));
-  const w = semana(d.fecha), S = DIAS.filter((x) => semana(x.fecha).lunes === w.lunes);
-  $('gDiaT').textContent = 'Semana ' + w.n;
-  grafico($('gDia'), S.map((x) => ({ k: x.fecha, l1: DIAS_CORTO[diaSemana(x.fecha)], l2: corto(x.fecha), prep: x.prep, neg: x.neg, parcial: x.parcial })), d.fecha, elegirDia);
+  graficoSemana($('gDia'), $('gDiaLeg'), $('gDiaT'), semana(d.fecha).lunes, d.fecha, elegirDia);
 }
 function elegirDia(f: string) { DIA_SEL = f; pintarDia(); }
 
@@ -171,9 +210,10 @@ function tablaGrupos(tipo: 'semana' | 'mes', tabla: string, cuenta: string, det:
   const g = G.find((x) => x.clave === SEL[tipo]), sl = $('sel-' + tipo) as HTMLSelectElement;
   sl.innerHTML = G.map((x) => `<option value="${x.clave}"${x.clave === SEL[tipo] ? ' selected' : ''}>${esc(x.titulo + ' · ' + x.sub)}</option>`).join('');
   $('k-' + tipo).innerHTML = g ? tarjetas(g.dias, true) : '';
-  const corta = (x: Grupo) => (tipo === 'semana' ? { l1: 'S' + x.titulo.replace('Semana ', ''), l2: x.sub.split(' – ')[0] } : { l1: x.titulo.slice(0, 3).toLowerCase(), l2: x.clave.slice(0, 4) });
-  grafico($('g-' + tipo), G.slice().reverse().map((x) => { const L = paraPromedio(x.dias); return { k: x.clave, ...corta(x), prep: Math.round(L.reduce((a, d) => a + d.prep, 0) / L.length), neg: Math.round(L.reduce((a, d) => a + d.neg, 0) / L.length) }; }), SEL[tipo],
-    (k) => { SEL[tipo] = k; tablaGrupos(tipo, tabla, cuenta, det); });
+  if (g) {
+    if (tipo === 'semana') graficoSemana($('g-' + tipo), $('l-' + tipo), $('t-' + tipo), semana(g.dias[0].fecha).lunes, '');
+    else graficoMes($('g-' + tipo), $('l-' + tipo), $('t-' + tipo), g.clave);
+  }
   detalle(tipo, G, det);
 }
 
