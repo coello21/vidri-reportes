@@ -55,6 +55,7 @@ function conectarPestanas(app: App) {
     },
   };
   const archivo = (btn: string, inp: string, fn: (c: Contexto, f: File[]) => Promise<void>) => {
+    if (!document.getElementById(btn)) return;     // en la página no hay «Cargar Excel» (se carga por la página de carga)
     const i = $(inp) as HTMLInputElement;
     $(btn).addEventListener('click', () => i.click());
     i.addEventListener('change', () => { const fs = Array.from(i.files || []); i.value = ''; if (fs.length) fn(ctx, fs); });
@@ -171,6 +172,11 @@ async function arrancarPrueba(): Promise<boolean> {
 
 async function arrancar() {
   if (COPIA) { await arrancarCopia(); return; }
+  // Solo en la página (no en el HTML descargado): enlace a Resúmenes y sin «Cargar Excel»,
+  // porque los archivos se suben por la página de carga y los procesa el pipeline. La copia conserva sus botones.
+  $('resumenesLnk').hidden = false;
+  ['selectBtn', 'pedSelectBtn', 'fileInput', 'pedFile'].forEach((id) => document.getElementById(id)?.remove());
+  $('pdEmpty').textContent = 'Todavía no se ha cargado el reporte de transferencias de pedidos. Se sube por la página de carga.';
   if (await arrancarPrueba()) return;
   // solo en la página: inicio de sesión y base de datos (no van dentro de la copia)
   const [{ crearCliente, iniciarSesion, quitarPantalla }, { CONFIG }, { BaseSupabase }, { Almacen }] =
