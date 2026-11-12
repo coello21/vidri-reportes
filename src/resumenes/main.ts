@@ -54,23 +54,31 @@ async function leer(sb: ReturnType<typeof crearCliente>) {
   const cubiertos = new Set(st?.covered || []);
   SB = sb;
   // al abrir solo los totales de cada día (liviano); el detalle de códigos se lee al ver una semana o un mes
-  const filas = await conReintentos(async () => {
-    const q = await sb.from('radar_dias').select('fecha,v:data->v,meta:data->meta,z:data->mot->z,hist:data->hist').order('fecha').limit(5000);
-    if (q.error) throw q.error; return q.data || [];
-  });
+  const SEL_DIA = 'fecha,v:data->v,meta:data->meta,z:data->mot->z,hist:data->hist';
+  const [filas, hist] = await Promise.all([
+    conReintentos(async () => { const q = await sb.from('radar_dias').select(SEL_DIA).order('fecha').limit(5000); if (q.error) throw q.error; return q.data || []; }),
+    // historial (antes del 24-ago) en su propia tabla, que el Radar no lee; si todavía no existe, se sigue sin él
+    sb.from('radar_hist').select(SEL_DIA).order('fecha').limit(5000).then((q) => (q.error ? [] : q.data || []), () => []),
+  ]);
+  const ya = new Set(filas.map((r: any) => r.fecha));
+  filas.push(...hist.filter((r: any) => !ya.has(r.fecha)));
+  filas.sort((a: any, b: any) => (a.fecha < b.fecha ? -1 : 1));
+  DIAS_HIST = new Set(hist.map((r: any) => r.fecha as string));
   DIAS = filas.map((r: any) => {
     const m = r.meta || {}, neg = m.totalNegados || 0, tot = m.totalFinal || 0, hist = +r.hist === 1;
     return { fecha: r.fecha, prep: m.totalPreparados != null ? m.totalPreparados : Math.max(tot - neg, 0), neg, tot, parcial: +r.v === 2 && !hist && !cubiertos.has(r.fecha), z: r.z == null ? null : +r.z, hist, det: false, codes: {}, prepCods: new Set<string>(), preps: new Set<string>() };
   });
 }
 let SB: ReturnType<typeof crearCliente>;
+let DIAS_HIST = new Set<string>();          // días que vienen de radar_hist
 /** Lee el detalle (códigos negados, códigos preparados, preparadores) de los días que todavía no lo tienen. */
 async function cargarDetalle(dias: Dia[]) {
   const falta = dias.filter((d) => !d.det), por = new Map(falta.map((d) => [d.fecha, d]));
   const lotes: string[][] = [];
-  for (let i = 0; i < falta.length; i += 8) lotes.push(falta.slice(i, i + 8).map((d) => d.fecha));
+  for (const L of [falta.filter((d) => DIAS_HIST.has(d.fecha)), falta.filter((d) => !DIAS_HIST.has(d.fecha))])
+    for (let i = 0; i < L.length; i += 8) lotes.push(L.slice(i, i + 8).map((d) => d.fecha));
   const partes = await enParalelo(lotes.map((l) => () => conReintentos(async () => {
-    const q = await SB.from('radar_dias').select('fecha,codes:data->codes,ps:data->prepSkus,preps:data->preps').in('fecha', l);
+    const q = await SB.from(DIAS_HIST.has(l[0]) ? 'radar_hist' : 'radar_dias').select('fecha,codes:data->codes,ps:data->prepSkus,preps:data->preps').in('fecha', l);
     if (q.error) throw q.error; return q.data || [];
   })), 4);
   partes.flat().forEach((r: any) => {
