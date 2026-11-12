@@ -19,6 +19,8 @@ import { MESES_CORTO, DIAS_CORTO, diaSemana, sumarDiasUTC } from '../core/comun/
 interface Dia {
   fecha: string; prep: number; neg: number; tot: number; parcial: boolean;
   z: number | null;                         // negadas de pedidos en cero (mot.z), para el fill rate
+  hist: boolean;                            // día de historial (versión liviana: sin códigos preparados)
+  det: boolean;                             // ya se leyó su detalle (se lee solo al ver su semana o mes)
   codes: Record<string, number>;            // código → veces negado
   prepCods: Set<string>;                    // códigos preparados
   preps: Set<string>;                       // preparadores con actividad
@@ -50,26 +52,34 @@ async function leer(sb: ReturnType<typeof crearCliente>) {
   const st = await conReintentos(async () => { const r = await sb.from('radar_store').select('skus:data->skus,covered:data->covered').eq('id', 1).maybeSingle(); if (r.error) throw r.error; return r.data as { skus: typeof SKUS; covered: string[] } | null; });
   SKUS = st?.skus || {};
   const cubiertos = new Set(st?.covered || []);
-  const fechas = await conReintentos(async () => { const r = await sb.from('radar_dias').select('fecha').order('fecha'); if (r.error) throw r.error; return (r.data || []).map((x) => x.fecha as string); });
+  SB = sb;
+  // al abrir solo los totales de cada día (liviano); el detalle de códigos se lee al ver una semana o un mes
+  const filas = await conReintentos(async () => {
+    const q = await sb.from('radar_dias').select('fecha,v:data->v,meta:data->meta,z:data->mot->z,hist:data->hist').order('fecha').limit(5000);
+    if (q.error) throw q.error; return q.data || [];
+  });
+  DIAS = filas.map((r: any) => {
+    const m = r.meta || {}, neg = m.totalNegados || 0, tot = m.totalFinal || 0, hist = +r.hist === 1;
+    return { fecha: r.fecha, prep: m.totalPreparados != null ? m.totalPreparados : Math.max(tot - neg, 0), neg, tot, parcial: +r.v === 2 && !hist && !cubiertos.has(r.fecha), z: r.z == null ? null : +r.z, hist, det: false, codes: {}, prepCods: new Set<string>(), preps: new Set<string>() };
+  });
+}
+let SB: ReturnType<typeof crearCliente>;
+/** Lee el detalle (códigos negados, códigos preparados, preparadores) de los días que todavía no lo tienen. */
+async function cargarDetalle(dias: Dia[]) {
+  const falta = dias.filter((d) => !d.det), por = new Map(falta.map((d) => [d.fecha, d]));
   const lotes: string[][] = [];
-  for (let i = 0; i < fechas.length; i += 8) lotes.push(fechas.slice(i, i + 8));
-  let hechos = 0;
-  const partes = await enParalelo(lotes.map((l) => async () => {
-    const r = await conReintentos(async () => {
-      const q = await sb.from('radar_dias').select('fecha,v:data->v,meta:data->meta,codes:data->codes,ps:data->prepSkus,preps:data->preps,z:data->mot->z').in('fecha', l);
-      if (q.error) throw q.error; return q.data || [];
-    });
-    hechos++; cargando('Leyendo los días guardados… ' + Math.round(hechos / lotes.length * 100) + '%');
-    return r;
-  }), 4);
-  DIAS = partes.flat().map((r: any) => {
-    const m = r.meta || {}, neg = m.totalNegados || 0, tot = m.totalFinal || 0;
-    const codes: Record<string, number> = {};
-    for (const k in r.codes || {}) { const a = r.codes[k]; const n = Array.isArray(a) ? a.reduce((x: number, y: number) => x + (y || 0), 0) : +a || 0; if (n) codes[k] = n; }
-    const prepCods = new Set<string>(), preps = new Set<string>(Object.keys(r.preps || {}));
-    for (const p in r.ps || {}) { preps.add(p); for (const k in r.ps[p]) prepCods.add(k); }
-    return { fecha: r.fecha, prep: m.totalPreparados != null ? m.totalPreparados : Math.max(tot - neg, 0), neg, tot, parcial: +r.v === 2 && !cubiertos.has(r.fecha), z: r.z == null ? null : +r.z, codes, prepCods, preps };
-  }).sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+  for (let i = 0; i < falta.length; i += 8) lotes.push(falta.slice(i, i + 8).map((d) => d.fecha));
+  const partes = await enParalelo(lotes.map((l) => () => conReintentos(async () => {
+    const q = await SB.from('radar_dias').select('fecha,codes:data->codes,ps:data->prepSkus,preps:data->preps').in('fecha', l);
+    if (q.error) throw q.error; return q.data || [];
+  })), 4);
+  partes.flat().forEach((r: any) => {
+    const d = por.get(r.fecha); if (!d) return;
+    for (const k in r.codes || {}) { const a = r.codes[k]; const n = Array.isArray(a) ? a.reduce((x: number, y: number) => x + (y || 0), 0) : +a || 0; if (n) d.codes[k] = n; }
+    Object.keys(r.preps || {}).forEach((p) => d.preps.add(p));
+    for (const p in r.ps || {}) { d.preps.add(p); for (const k in r.ps[p]) d.prepCods.add(k); }
+    d.det = true;
+  });
 }
 
 /* ---------------- grupos ---------------- */
@@ -231,10 +241,16 @@ function codigosDe(g: Grupo) {
 function detalle(tipo: 'semana' | 'mes', G: Grupo[], det: string) {
   const g = G.find((x) => x.clave === SEL[tipo]);
   if (!g) { $(det).innerHTML = ''; return; }
-  const C = codigosDe(g), nom = tipo === 'semana' ? 'la semana' : 'el mes';
+  const nom = tipo === 'semana' ? 'la semana' : 'el mes';
+  if (g.dias.some((d) => !d.det)) {
+    $(det).innerHTML = '<div class="chart full"><div class="cardhead"><div><h3>Detalle de ' + nom + ': ' + esc(g.titulo) + '</h3><p class="cardsub">Cargando…</p></div></div></div>';
+    cargarDetalle(g.dias).then(() => { if (SEL[tipo] === g.clave) detalle(tipo, G, det); }).catch((e) => { console.error(e); $(det).querySelector('.cardsub')!.textContent = 'No se pudo leer el detalle: ' + ((e as Error)?.message || 'error'); });
+    return;
+  }
+  const C = codigosDe(g), sinPrep = g.dias.some((d) => d.hist);
   $(det).innerHTML = `<div class="chart full"><div class="cardhead"><div><h3>Detalle de ${nom}: ${esc(g.titulo)}</h3><p class="cardsub">${esc(g.sub)} · ${g.dias.length} días con datos de ${g.posibles}</p></div>
 </div>
-    <section class="kpis rs-kpis">${kpi('Preparadas', fmtInt(g.prep), '<b>' + fmtInt(C.prep) + '</b> códigos distintos', 'prep')}${kpi('Negadas', fmtInt(g.neg), '<b>' + fmtInt(C.L.length) + '</b> códigos distintos', 'neg')}${kpi('Total líneas', fmtInt(g.tot), '<b>' + pct(g.neg, g.tot) + '</b> negado')}${kpi('Preparadores', fmtInt(C.preps), 'con actividad en ' + g.dias.length + ' días')}</section></div>
+    <section class="kpis rs-kpis">${kpi('Preparadas', fmtInt(g.prep), sinPrep ? '' : '<b>' + fmtInt(C.prep) + '</b> códigos distintos', 'prep')}${kpi('Negadas', fmtInt(g.neg), '<b>' + fmtInt(C.L.length) + '</b> códigos distintos', 'neg')}${kpi('Total líneas', fmtInt(g.tot), '<b>' + pct(g.neg, g.tot) + '</b> negado')}${kpi('Preparadores', fmtInt(C.preps), 'con actividad en ' + g.dias.length + ' días')}</section></div>
     <div class="chart full tablecard"><div class="cardhead"><div><h3>Códigos negados de ${nom}</h3><p class="cardsub">Cuántas veces se negó cada código y en cuántos días distintos. El Excel incluye todos los códigos.</p></div><button class="btn" id="xc-${tipo}" type="button">Descargar Excel</button></div>
     <div class="rs-search"><input type="text" id="bc-${tipo}" placeholder="Buscar código o descripción…" value="${esc(BUSCA[tipo] || '')}"></div>
     <div class="tablescroll rs-scroll"><table class="rs-t" id="tc-${tipo}"></table></div><div class="table-meta"><span id="nc-${tipo}"></span><span>Ordenado por veces negado</span></div></div>`;
