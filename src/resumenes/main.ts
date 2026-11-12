@@ -189,32 +189,17 @@ function graficoSemana(el: HTMLElement, leg: HTMLElement, tit: HTMLElement, lune
   leg.innerHTML = leyenda('Semana ' + w.n, 'Semana ' + wp.n);
   grafico(el, X, A, P, X.findIndex((_, i) => sumarDiasUTC(lunes, i) === sel), alClic);
 }
-/** Todas las semanas: promedio por día de cada una (sin el día en curso), la elegida resaltada. */
-function graficoSemanas(el: HTMLElement, leg: HTMLElement, tit: HTMLElement, G: Grupo[], sel: string, alClic: (k: string) => void) {
+/** Todas las semanas o todos los meses: promedio por día de cada uno (sin el día en curso), el elegido resaltado. */
+function graficoGrupos(tipo: 'semana' | 'mes', el: HTMLElement, leg: HTMLElement, tit: HTMLElement, G: Grupo[], sel: string, alClic: (k: string) => void) {
   const X: Eje[] = [], A: (Punto | null)[] = [];
   G.forEach((x) => {
     const L = paraPromedio(x.dias), n = L.length || 1;
-    X.push({ l1: 'S' + x.titulo.replace('Semana ', ''), l2: x.sub.split(' – ')[0] });
+    X.push(tipo === 'semana' ? { l1: 'S' + x.titulo.replace('Semana ', ''), l2: x.sub.split(' – ')[0] } : { l1: MESES_CORTO[+x.clave.slice(5, 7) - 1], l2: x.clave.slice(0, 4) });
     A.push({ k: x.clave, prep: Math.round(L.reduce((a, d) => a + d.prep, 0) / n), neg: Math.round(L.reduce((a, d) => a + d.neg, 0) / n), tip: x.titulo + ' · ' + x.sub + ' · promedio por día' });
   });
-  tit.textContent = 'Promedio por día de cada semana';
+  tit.textContent = 'Promedio por día de cada ' + (tipo === 'semana' ? 'semana' : 'mes');
   leg.innerHTML = '<span><i style="background:var(--good)"></i>Preparadas</span><span><i style="background:var(--accent)"></i>Negadas</span>';
   grafico(el, X, A, [], G.findIndex((x) => x.clave === sel), alClic);
-}
-/** Mes por día (1 al 31) frente al mes anterior. */
-function graficoMes(el: HTMLElement, leg: HTMLElement, tit: HTMLElement, mes: string) {
-  const F = POR_FECHA(), y = +mes.slice(0, 4), mo = +mes.slice(5, 7), ant = mo === 1 ? (y - 1) + '-12' : y + '-' + String(mo - 1).padStart(2, '0');
-  const dias = (k: string) => new Date(+k.slice(0, 4), +k.slice(5, 7), 0).getDate(), n = Math.max(dias(mes), dias(ant));
-  const X: Eje[] = [], A: (Punto | null)[] = [], P: (Punto | null)[] = [];
-  for (let i = 1; i <= n; i++) {
-    const d = mes + '-' + String(i).padStart(2, '0'), dp = ant + '-' + String(i).padStart(2, '0');
-    X.push({ l1: String(i), l2: '' });
-    A.push(i <= dias(mes) ? punto(F.get(d), largoDia(d)) : null); P.push(i <= dias(ant) ? punto(F.get(dp), largoDia(dp)) : null);
-  }
-  const nom = (k: string) => { const s = MESES[+k.slice(5, 7) - 1]; return s.charAt(0).toUpperCase() + s.slice(1); };
-  tit.textContent = nom(mes) + ' vs ' + nom(ant).toLowerCase();
-  leg.innerHTML = leyenda(nom(mes), nom(ant));
-  grafico(el, X, A, P, -1);
 }
 
 /* ---------------- Por día ---------------- */
@@ -242,8 +227,7 @@ function tablaGrupos(tipo: 'semana' | 'mes', tabla: string, cuenta: string, det:
   sl.innerHTML = G.map((x) => `<option value="${x.clave}"${x.clave === SEL[tipo] ? ' selected' : ''}>${esc(x.titulo + ' · ' + x.sub)}</option>`).join('');
   $('k-' + tipo).innerHTML = g ? tarjetas(g.dias, true) : '';
   if (g) {
-    if (tipo === 'semana') graficoSemanas($('g-' + tipo), $('l-' + tipo), $('t-' + tipo), G.slice().reverse(), g.clave, (k) => { SEL[tipo] = k; tablaGrupos(tipo, tabla, cuenta, det); });
-    else graficoMes($('g-' + tipo), $('l-' + tipo), $('t-' + tipo), g.clave);
+    graficoGrupos(tipo, $('g-' + tipo), $('l-' + tipo), $('t-' + tipo), G.slice().reverse(), g.clave, (k) => { SEL[tipo] = k; tablaGrupos(tipo, tabla, cuenta, det); });
   }
   detalle(tipo, G, det);
 }
