@@ -28,5 +28,4 @@
 @media (max-width:700px){.rs-t{font-size:12.5px}.rs-t th,.rs-t td{padding:8px}.rs-bar{min-width:70px}}
 .rs-t tr[data-f]{cursor:pointer}
 .rs-t tr[data-f]:hover td{background:var(--surface-2)}
-#selCard .rs-kpis{margin:6px 0 26px!important}
-.rs-vacio{font:12px var(--font-mono);color:var(--mut);padding:30px 0;text-align:center}
+#selCard .rs-kpis{margin:6px 0 0!important}

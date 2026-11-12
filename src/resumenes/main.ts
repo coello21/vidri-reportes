@@ -8,14 +8,10 @@ import '../app/estilos.css';
 import './resumenes.css';
 import * as XLSX from 'xlsx';
 import { crearCliente, iniciarSesion, quitarPantalla, cargando } from '../app/sesion';
-import { conReintentos, enParalelo, BaseSupabase } from '../nube/base';
-import { aPedido } from '../nube/filas';
-import { PedidosCD } from '../core/pedidos/cd';
+import { conReintentos, enParalelo } from '../nube/base';
 import { fillRateCD } from '../core/negados/motivos';
 import { lineasPreparadas } from '../core/negados/extras';
 import type { Historial, StoreRadar } from '../core/negados/tipos';
-import { inicioDia, sumarDiasUTC } from '../core/comun/fechas';
-import { dibujarSinTerminar } from '../app/ui/sinTerminar';
 import { tendenciaSobrePuntos, globoEnPuntos } from '../app/ui/graficos';
 import { fmtDateShort } from '../app/ui/formato';
 import { aviso, descargar } from '../app/ui/avisos';
@@ -50,8 +46,6 @@ function semana(s: string): { n: number; anio: number; lunes: string } {
 let DIAS: Dia[] = [];
 let SKUS: Record<string, [string, ...unknown[]]> = {};
 let REVN: Record<string, number> = {};      // líneas entregadas al revisador por día (tarjeta "Líneas preparadas")
-let BASE: BaseSupabase;
-let PED: PedidosCD | null = null;           // pedidos del día elegido y del mismo día de la semana anterior
 
 /* ---------------- lectura ---------------- */
 async function leer(sb: ReturnType<typeof crearCliente>) {
@@ -138,15 +132,9 @@ function tarjetasRadar(dias: Dia[]) {
     kpi('Fill rate', f.pct != null ? fmtPct(f.pct) : '—', f.base ? '<b>' + fmtInt(f.prep) + '</b> de ' + fmtInt(f.base) + ' líneas' : 'Sin líneas cerradas');
 }
 
-/* ---------------- Por día: día elegido + pedidos sin terminar ---------------- */
+/* ---------------- Por día: día elegido ---------------- */
 let DIA_SEL = '';
-const PED_DIA = new Map<string, Promise<unknown[]>>();
-async function pedidosDe(d: string) {
-  if (!PED_DIA.has(d)) { const t0 = inicioDia(d); PED_DIA.set(d, conReintentos(() => BASE.leerPedidos(t0, undefined, { antesDeMin: t0 + 1440 }))); }
-  return PED_DIA.get(d)!;
-}
-let META: Promise<Awaited<ReturnType<BaseSupabase['leerMeta']>>> | null = null;
-async function pintarDia() {
+function pintarDia() {
   const d = DIAS.find((x) => x.fecha === DIA_SEL) || DIAS[DIAS.length - 1];
   if (!d) return;
   DIA_SEL = d.fecha;
@@ -154,23 +142,8 @@ async function pintarDia() {
   $('kSel').innerHTML = tarjetasRadar([d]);
   $('selSub').textContent = largoDia(d.fecha) + (d.parcial ? ' · día en curso' : '');
   document.querySelectorAll<HTMLElement>('#tDia tr[data-f]').forEach((tr) => tr.classList.toggle('sel', tr.dataset.f === d.fecha));
-  const ref = d.fecha;
-  $('rsBurnT').textContent = 'Pedidos sin terminar';
-  $('rsBurn').innerHTML = '<p class="rs-vacio">Cargando pedidos…</p>'; $('rsBurnLeg').innerHTML = '';
-  try {
-    if (!META) META = conReintentos(() => BASE.leerMeta());
-    const [meta, a, b] = await Promise.all([META, pedidosDe(ref), pedidosDe(sumarDiasUTC(ref, -7))]);
-    if (DIA_SEL !== ref) return;
-    PED = new PedidosCD({ rows: ([...a, ...b] as Parameters<typeof aPedido>[0][]).map(aPedido), cortes: meta?.cortes || [] });
-    const A = PED.avance(ref);
-    if (!A.n) { $('rsBurn').innerHTML = '<p class="rs-vacio">No hay pedidos guardados de este día (Pedidos CD guarda los últimos 60 días).</p>'; return; }
-    dibujarSinTerminar(A, ref, $('rsBurn'), $('rsBurnLeg'), $('rsBurnT'));
-  } catch (e) {
-    console.error(e);
-    if (DIA_SEL === ref) $('rsBurn').innerHTML = '<p class="rs-vacio">No se pudieron leer los pedidos: ' + esc((e as Error)?.message || 'error') + '</p>';
-  }
 }
-function elegirDia(f: string) { DIA_SEL = f; void pintarDia(); }
+function elegirDia(f: string) { DIA_SEL = f; pintarDia(); }
 
 /* ---------------- Negados vs Preparados (mismo gráfico del Radar) ---------------- */
 function negPrepHtml(id: string) {
@@ -286,7 +259,6 @@ function pestana(t: string) {
 
 async function arrancar() {
   const sb = crearCliente();
-  BASE = new BaseSupabase(sb);
   await iniciarSesion(sb, async (s) => {
     await leer(sb);
     quitarPantalla();
@@ -297,7 +269,7 @@ async function arrancar() {
     ($('selDia') as HTMLSelectElement).innerHTML = DIAS.slice().reverse().map((d) => `<option value="${d.fecha}">${esc(largoDia(d.fecha))}${d.parcial ? ' (en curso)' : ''}</option>`).join('');
     ($('selDia') as HTMLSelectElement).addEventListener('change', (e) => elegirDia((e.target as HTMLSelectElement).value));
     render();
-    void pintarDia();
+    pintarDia();
     document.querySelectorAll<HTMLAnchorElement>('#vxNav a').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); history.replaceState(null, '', '#' + a.dataset.tab); pestana(a.dataset.tab || ''); }));
     pestana(location.hash.slice(1));
     $('xDia').addEventListener('click', () => excel('Resumen_por_dia', 'Por día', ['Fecha', 'Preparadas', 'Negadas', 'Total líneas', '% prep.', '% negado'],
