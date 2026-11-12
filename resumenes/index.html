@@ -25,8 +25,14 @@
 
 <section class="tab" id="tab-dia">
   <section class="kpis rs-kpis" id="kDia"></section>
+  <div class="chart full" id="selCard">
+    <div class="cardhead"><div><h3>Día elegido</h3><p class="cardsub" id="selSub">—</p></div><div class="rs-pick"><select id="selDia" aria-label="Día"></select></div></div>
+    <section class="kpis rs-kpis k3" id="kSel"></section>
+    <div class="pd-chart"><h3 id="rsBurnT">Pedidos sin terminar</h3><p class="q">Cuántos pedidos de ese día siguen sin terminar (recibidos o en proceso), hora por hora desde que empezó el día. La línea debe ir bajando; la discontinua es el mismo día de la semana anterior, para comparar el ritmo.</p>
+      <div class="leg" id="rsBurnLeg"></div><div id="rsBurn"></div></div>
+  </div>
   <div class="chart full tablecard">
-    <div class="cardhead"><div><h3>Preparadas vs negadas por día</h3><p class="cardsub">Líneas cerradas de cada día (listas para despacho), con las mismas reglas del Radar. Clic en un encabezado para ordenar.</p></div>
+    <div class="cardhead"><div><h3>Preparadas vs negadas por día</h3><p class="cardsub">Líneas cerradas de cada día (listas para despacho), con las mismas reglas del Radar. Clic en un encabezado para ordenar; clic en un día para verlo arriba.</p></div>
     <button class="btn" id="xDia" type="button">Descargar Excel</button></div>
     <div class="tablescroll rs-scroll"><table class="rs-t" id="tDia"></table></div>
     <div class="table-meta"><span id="nDia"></span><span>Azul = preparadas · Rojo = negadas</span></div>

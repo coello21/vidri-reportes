@@ -1,19 +1,30 @@
 /**
  * Resúmenes del Radar por día, semana y mes (como las pestañas del radar viejo), con los días guardados en Supabase.
- * Solo lee: preparadas, negadas y líneas cerradas son las mismas del Radar (meta de cada día).
+ * Solo lee: preparadas, negadas y líneas cerradas son las mismas del Radar (meta de cada día). Las tarjetas
+ * (Líneas preparadas, Negadas, Fill rate) y los gráficos usan las mismas funciones del Radar.
  */
 import '../app/radar.css';
 import '../app/estilos.css';
 import './resumenes.css';
 import * as XLSX from 'xlsx';
 import { crearCliente, iniciarSesion, quitarPantalla, cargando } from '../app/sesion';
-import { conReintentos, enParalelo } from '../nube/base';
+import { conReintentos, enParalelo, BaseSupabase } from '../nube/base';
+import { aPedido } from '../nube/filas';
+import { PedidosCD } from '../core/pedidos/cd';
+import { fillRateCD } from '../core/negados/motivos';
+import { lineasPreparadas } from '../core/negados/extras';
+import type { Historial, StoreRadar } from '../core/negados/tipos';
+import { inicioDia, sumarDiasUTC } from '../core/comun/fechas';
+import { dibujarSinTerminar } from '../app/ui/sinTerminar';
+import { tendenciaSobrePuntos, globoEnPuntos } from '../app/ui/graficos';
+import { fmtDateShort } from '../app/ui/formato';
 import { aviso, descargar } from '../app/ui/avisos';
 import { fmtInt, fmtPct, esc, normText } from '../app/ui/formato';
 import { MESES_CORTO, DIAS_CORTO, diaSemana } from '../core/comun/fechas';
 
 interface Dia {
   fecha: string; prep: number; neg: number; tot: number; parcial: boolean;
+  z: number | null;                         // negadas de pedidos en cero (mot.z), para el fill rate
   codes: Record<string, number>;            // código → veces negado
   prepCods: Set<string>;                    // códigos preparados
   preps: Set<string>;                       // preparadores con actividad
@@ -38,12 +49,16 @@ function semana(s: string): { n: number; anio: number; lunes: string } {
 
 let DIAS: Dia[] = [];
 let SKUS: Record<string, [string, ...unknown[]]> = {};
+let REVN: Record<string, number> = {};      // líneas entregadas al revisador por día (tarjeta "Líneas preparadas")
+let BASE: BaseSupabase;
+let PED: PedidosCD | null = null;           // pedidos del día elegido y del mismo día de la semana anterior
 
 /* ---------------- lectura ---------------- */
 async function leer(sb: ReturnType<typeof crearCliente>) {
   cargando('Leyendo los días guardados…');
-  const st = await conReintentos(async () => { const r = await sb.from('radar_store').select('skus:data->skus,covered:data->covered').eq('id', 1).maybeSingle(); if (r.error) throw r.error; return r.data as { skus: typeof SKUS; covered: string[] } | null; });
+  const st = await conReintentos(async () => { const r = await sb.from('radar_store').select('skus:data->skus,covered:data->covered,revN:data->revN').eq('id', 1).maybeSingle(); if (r.error) throw r.error; return r.data as { skus: typeof SKUS; covered: string[]; revN: Record<string, number> } | null; });
   SKUS = st?.skus || {};
+  REVN = st?.revN || {};
   const cubiertos = new Set(st?.covered || []);
   const fechas = await conReintentos(async () => { const r = await sb.from('radar_dias').select('fecha').order('fecha'); if (r.error) throw r.error; return (r.data || []).map((x) => x.fecha as string); });
   const lotes: string[][] = [];
@@ -51,7 +66,7 @@ async function leer(sb: ReturnType<typeof crearCliente>) {
   let hechos = 0;
   const partes = await enParalelo(lotes.map((l) => async () => {
     const r = await conReintentos(async () => {
-      const q = await sb.from('radar_dias').select('fecha,v:data->v,meta:data->meta,codes:data->codes,ps:data->prepSkus,preps:data->preps').in('fecha', l);
+      const q = await sb.from('radar_dias').select('fecha,v:data->v,meta:data->meta,codes:data->codes,ps:data->prepSkus,preps:data->preps,z:data->mot->z').in('fecha', l);
       if (q.error) throw q.error; return q.data || [];
     });
     hechos++; cargando('Leyendo los días guardados… ' + Math.round(hechos / lotes.length * 100) + '%');
@@ -63,7 +78,7 @@ async function leer(sb: ReturnType<typeof crearCliente>) {
     for (const k in r.codes || {}) { const a = r.codes[k]; const n = Array.isArray(a) ? a.reduce((x: number, y: number) => x + (y || 0), 0) : +a || 0; if (n) codes[k] = n; }
     const prepCods = new Set<string>(), preps = new Set<string>(Object.keys(r.preps || {}));
     for (const p in r.ps || {}) { preps.add(p); for (const k in r.ps[p]) prepCods.add(k); }
-    return { fecha: r.fecha, prep: m.totalPreparados != null ? m.totalPreparados : Math.max(tot - neg, 0), neg, tot, parcial: +r.v === 2 && !cubiertos.has(r.fecha), codes, prepCods, preps };
+    return { fecha: r.fecha, prep: m.totalPreparados != null ? m.totalPreparados : Math.max(tot - neg, 0), neg, tot, parcial: +r.v === 2 && !cubiertos.has(r.fecha), z: r.z == null ? null : +r.z, codes, prepCods, preps };
   }).sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
 }
 
@@ -95,8 +110,9 @@ function tablaDias() {
   const o = ORD.dia, L = DIAS.slice().sort((a: any, b: any) => { const x = a[o.k], y = b[o.k]; const r = x < y ? -1 : x > y ? 1 : 0; return o.asc ? r : -r; });
   const col = (k: string, t: string, cls = 'n') => `<th class="${cls}" data-k="${k}">${t}${o.k === k ? (o.asc ? ' ▲' : ' ▼') : ''}</th>`;
   $('tDia').innerHTML = '<thead><tr>' + col('fecha', 'Fecha', '') + col('prep', 'Preparadas') + col('neg', 'Negadas') + col('tot', 'Total líneas') + '<th class="n">% prep.</th><th class="n">% negado</th><th>Distribución</th></tr></thead><tbody>' +
-    L.map((d) => `<tr><td>${largoDia(d.fecha)}${d.parcial ? ' <span class="rs-pc">en curso</span>' : ''}</td><td class="n prep">${fmtInt(d.prep)}</td><td class="n neg">${fmtInt(d.neg)}</td><td class="n">${fmtInt(d.tot)}</td><td class="n">${pct(d.prep, d.tot)}</td><td class="n">${pct(d.neg, d.tot)}</td><td>${barra(d.prep, d.neg)}</td></tr>`).join('') + '</tbody>';
+    L.map((d) => `<tr data-f="${d.fecha}" class="${d.fecha === DIA_SEL ? 'sel' : ''}"><td>${largoDia(d.fecha)}${d.parcial ? ' <span class="rs-pc">en curso</span>' : ''}</td><td class="n prep">${fmtInt(d.prep)}</td><td class="n neg">${fmtInt(d.neg)}</td><td class="n">${fmtInt(d.tot)}</td><td class="n">${pct(d.prep, d.tot)}</td><td class="n">${pct(d.neg, d.tot)}</td><td>${barra(d.prep, d.neg)}</td></tr>`).join('') + '</tbody>';
   $('tDia').querySelectorAll<HTMLElement>('th[data-k]').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.k!; ORD.dia = { k, asc: o.k === k ? !o.asc : k === 'fecha' ? false : false }; tablaDias(); }));
+  $('tDia').querySelectorAll<HTMLElement>('tr[data-f]').forEach((tr) => tr.addEventListener('click', () => { elegirDia(tr.dataset.f!); $('selCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
   $('nDia').textContent = DIAS.length + ' días';
   const P = DIAS.reduce((a, d) => a + d.prep, 0), N = DIAS.reduce((a, d) => a + d.neg, 0), T = DIAS.reduce((a, d) => a + d.tot, 0);
   $('kDia').innerHTML = kpi('Días en el histórico', fmtInt(DIAS.length), DIAS.length ? corto(DIAS[0].fecha) + ' – ' + corto(DIAS[DIAS.length - 1].fecha) : '') +
@@ -105,6 +121,97 @@ function tablaDias() {
     kpi('Total líneas', fmtInt(T), 'promedio <b>' + fmtInt(DIAS.length ? T / DIAS.length : 0) + '</b> por día');
 }
 const kpi = (l: string, v: string, f: string, cls = '') => `<div class="kpi"><div class="lbl">${l}</div><div class="val tabular ${cls}">${v}</div><div class="foot">${f}</div></div>`;
+
+/* ---------------- tarjetas del Radar: Líneas preparadas, Negadas, Fill rate ---------------- */
+function tarjetasRadar(dias: Dia[]) {
+  if (!dias.length) return '';
+  const desde = dias[0].fecha, hasta = dias[dias.length - 1].fecha;
+  const H: Historial = {};
+  dias.forEach((d) => { H[d.fecha] = { v: 2, meta: { totalFinal: d.tot, totalNegados: d.neg, totalPreparados: d.prep }, ...(d.z != null ? { mot: { z: d.z } } : {}) } as unknown as Historial[string]; });
+  const f = fillRateCD(H, dias.map((d) => d.fecha));
+  const lp = lineasPreparadas({ revN: REVN } as unknown as StoreRadar, desde, hasta);
+  const ini = Object.keys(REVN).sort()[0];
+  const tot = dias.reduce((a, d) => a + d.tot, 0), neg = dias.reduce((a, d) => a + d.neg, 0);
+  const lpFoot = lp == null ? 'se registra desde el ' + (ini ? corto(ini) : '—') : ini && desde < ini ? 'solo desde el ' + corto(ini) + ' (antes no se registraba)' : 'entregadas al revisador';
+  return kpi('Líneas preparadas', lp == null ? '—' : fmtInt(lp), lpFoot) +
+    kpi('Líneas negadas', fmtInt(neg), '<b>' + pct(neg, tot) + '</b> de ' + fmtInt(tot) + ' líneas cerradas', 'neg') +
+    kpi('Fill rate', f.pct != null ? fmtPct(f.pct) : '—', f.base ? '<b>' + fmtInt(f.prep) + '</b> de ' + fmtInt(f.base) + ' líneas' : 'Sin líneas cerradas');
+}
+
+/* ---------------- Por día: día elegido + pedidos sin terminar ---------------- */
+let DIA_SEL = '';
+const PED_DIA = new Map<string, Promise<unknown[]>>();
+async function pedidosDe(d: string) {
+  if (!PED_DIA.has(d)) { const t0 = inicioDia(d); PED_DIA.set(d, conReintentos(() => BASE.leerPedidos(t0, undefined, { antesDeMin: t0 + 1440 }))); }
+  return PED_DIA.get(d)!;
+}
+let META: Promise<Awaited<ReturnType<BaseSupabase['leerMeta']>>> | null = null;
+async function pintarDia() {
+  const d = DIAS.find((x) => x.fecha === DIA_SEL) || DIAS[DIAS.length - 1];
+  if (!d) return;
+  DIA_SEL = d.fecha;
+  ($('selDia') as HTMLSelectElement).value = d.fecha;
+  $('kSel').innerHTML = tarjetasRadar([d]);
+  $('selSub').textContent = largoDia(d.fecha) + (d.parcial ? ' · día en curso' : '');
+  document.querySelectorAll<HTMLElement>('#tDia tr[data-f]').forEach((tr) => tr.classList.toggle('sel', tr.dataset.f === d.fecha));
+  const ref = d.fecha;
+  $('rsBurnT').textContent = 'Pedidos sin terminar';
+  $('rsBurn').innerHTML = '<p class="rs-vacio">Cargando pedidos…</p>'; $('rsBurnLeg').innerHTML = '';
+  try {
+    if (!META) META = conReintentos(() => BASE.leerMeta());
+    const [meta, a, b] = await Promise.all([META, pedidosDe(ref), pedidosDe(sumarDiasUTC(ref, -7))]);
+    if (DIA_SEL !== ref) return;
+    PED = new PedidosCD({ rows: ([...a, ...b] as Parameters<typeof aPedido>[0][]).map(aPedido), cortes: meta?.cortes || [] });
+    const A = PED.avance(ref);
+    if (!A.n) { $('rsBurn').innerHTML = '<p class="rs-vacio">No hay pedidos guardados de este día (Pedidos CD guarda los últimos 60 días).</p>'; return; }
+    dibujarSinTerminar(A, ref, $('rsBurn'), $('rsBurnLeg'), $('rsBurnT'));
+  } catch (e) {
+    console.error(e);
+    if (DIA_SEL === ref) $('rsBurn').innerHTML = '<p class="rs-vacio">No se pudieron leer los pedidos: ' + esc((e as Error)?.message || 'error') + '</p>';
+  }
+}
+function elegirDia(f: string) { DIA_SEL = f; void pintarDia(); }
+
+/* ---------------- Negados vs Preparados (mismo gráfico del Radar) ---------------- */
+function negPrepHtml(id: string) {
+  return `<div class="chart full"><div class="cardhead"><div><h3>Negados vs Preparados</h3><p class="cardsub">Líneas negadas frente a líneas sí preparadas (cantidad preparada &gt; 0) del período, y tendencia por día</p></div></div>
+    <div class="negprep-compare">
+      <div class="negprep-row negado"><span class="label">Negados</span><div class="track"><div class="fill" id="${id}FN"></div></div><span class="val tabular" id="${id}VN">—</span></div>
+      <div class="negprep-row preparado"><span class="label">Preparados</span><div class="track"><div class="fill" id="${id}FP"></div></div><span class="val tabular" id="${id}VP">—</span></div>
+    </div>
+    <div class="negprep-trend-wrap"><div class="negprep-trend-head"><span class="legend-item negado"><span class="sw"></span>Negados</span><span class="legend-item preparado"><span class="sw"></span>Preparados</span></div>
+      <div class="spark-wrap" id="${id}W"><svg id="${id}S" viewBox="0 0 900 160" preserveAspectRatio="none"></svg><div class="spark-tip" id="${id}T"></div></div></div></div>`;
+}
+function negPrep(id: string, dias: Dia[]) {
+  const neg = dias.reduce((a, d) => a + d.neg, 0), prep = dias.reduce((a, d) => a + d.prep, 0), total = Math.max(neg + prep, 1), max = Math.max(neg, prep, 1);
+  $(id + 'FN').style.width = Math.max(3, neg / max * 100) + '%';
+  $(id + 'FP').style.width = Math.max(3, prep / max * 100) + '%';
+  $(id + 'VN').innerHTML = '<b>' + fmtInt(neg) + '</b>' + fmtPct(neg / total * 100);
+  $(id + 'VP').innerHTML = '<b>' + fmtInt(prep) + '</b>' + fmtPct(prep / total * 100);
+  const svg = $(id + 'S') as unknown as SVGSVGElement, W = 900, H = 160, pad = 22;
+  const pts0 = dias.map((d) => ({ date: d.fecha, neg: d.neg, prep: d.prep }));
+  if (pts0.length < 2) {
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.innerHTML = '<text x="' + W / 2 + '" y="' + (H / 2 + 4) + '" text-anchor="middle" font-size="12" fill="var(--ink-muted)" font-family="var(--font-body)">Hace falta más de un día para ver la tendencia</text>';
+    return;
+  }
+  const mx = Math.max(...pts0.map((p) => Math.max(p.neg, p.prep)), 1);
+  const xAt = (i: number) => pad + i / (pts0.length - 1) * (W - 2 * pad), yAt = (v: number) => H - pad - (v / mx) * (H - 2 * pad - 16);
+  const path = (k: 'neg' | 'prep') => pts0.map((p, i) => (i === 0 ? 'M' : 'L') + xAt(i).toFixed(1) + ' ' + yAt(p[k]).toFixed(1)).join(' ');
+  let grid = '';
+  for (let g = 0; g <= 2; g++) { const y = pad + g * (H - 2 * pad - 16) / 2; grid += '<line x1="' + pad + '" y1="' + y.toFixed(1) + '" x2="' + (W - pad) + '" y2="' + y.toFixed(1) + '" stroke="var(--border)" stroke-width="1"/>'; }
+  const idx = pts0.length <= 8 ? pts0.map((_, i) => i) : [0, Math.round((pts0.length - 1) / 2), pts0.length - 1];
+  const labels = idx.map((i) => '<text x="' + xAt(i).toFixed(1) + '" y="' + (H - 4) + '" font-size="9.5" fill="var(--ink-muted)" text-anchor="middle" font-family="var(--font-mono)">' + fmtDateShort(pts0[i].date) + '</text>').join('');
+  const dots = (k: 'neg' | 'prep', col: string) => pts0.map((p, i) => '<circle class="np-dot" data-kind="' + k + '" data-date="' + p.date + '" data-v="' + p[k] + '" cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(p[k]).toFixed(1) + '" r="3.4" fill="var(--surface)" stroke="' + col + '" stroke-width="1.8"/>').join('');
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.innerHTML = grid + '<path d="' + path('prep') + '" fill="none" stroke="var(--good)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+    '<path d="' + path('neg') + '" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+    dots('neg', 'var(--accent)') + dots('prep', 'var(--good)') + labels;
+  const parcial = new Set(dias.filter((d) => d.parcial).map((d) => d.fecha));
+  globoEnPuntos(svg, $(id + 'W'), $(id + 'T'), '.np-dot', W, H, (c) =>
+    fmtDateShort(c.getAttribute('data-date')!) + ' — ' + fmtInt(+c.getAttribute('data-v')!) + ' ' + (c.getAttribute('data-kind') === 'neg' ? 'negados' : 'preparados'));
+  tendenciaSobrePuntos(svg, '.np-dot', (d) => parcial.has(d), 'data-kind');
+}
 
 const SEL: Record<string, string> = {};
 function tablaGrupos(tipo: 'semana' | 'mes', tabla: string, cuenta: string, det: string) {
@@ -133,7 +240,8 @@ function detalle(tipo: 'semana' | 'mes', G: Grupo[], det: string) {
   const C = codigosDe(g), nom = tipo === 'semana' ? 'la semana' : 'el mes';
   $(det).innerHTML = `<div class="chart full"><div class="cardhead"><div><h3>Detalle de ${nom}: ${esc(g.titulo)}</h3><p class="cardsub">${esc(g.sub)} · ${g.dias.length} días con datos de ${g.posibles}</p></div>
     <div class="rs-pick"><select id="sel-${tipo}">${G.map((x) => `<option value="${x.clave}"${x.clave === g.clave ? ' selected' : ''}>${esc(x.titulo + ' · ' + x.sub)}</option>`).join('')}</select></div></div>
-    <section class="kpis rs-kpis">${kpi('Preparadas', fmtInt(g.prep), '<b>' + fmtInt(C.prep) + '</b> códigos distintos', 'prep')}${kpi('Negadas', fmtInt(g.neg), '<b>' + fmtInt(C.L.length) + '</b> códigos distintos', 'neg')}${kpi('Total líneas', fmtInt(g.tot), '<b>' + pct(g.neg, g.tot) + '</b> negado')}${kpi('Preparadores', fmtInt(C.preps), 'con actividad en ' + g.dias.length + ' días')}</section></div>
+    <section class="kpis rs-kpis">${tarjetasRadar(g.dias)}${kpi('Preparadores', fmtInt(C.preps), 'con actividad en ' + g.dias.length + ' días')}</section></div>
+    ${negPrepHtml('np-' + tipo)}
     <div class="chart full tablecard"><div class="cardhead"><div><h3>Códigos negados de ${nom}</h3><p class="cardsub">Cuántas veces se negó cada código y en cuántos días distintos. El Excel incluye todos los códigos.</p></div><button class="btn" id="xc-${tipo}" type="button">Descargar Excel</button></div>
     <div class="rs-search"><input type="text" id="bc-${tipo}" placeholder="Buscar código o descripción…" value="${esc(BUSCA[tipo] || '')}"></div>
     <div class="tablescroll rs-scroll"><table class="rs-t" id="tc-${tipo}"></table></div><div class="table-meta"><span id="nc-${tipo}"></span><span>Ordenado por veces negado</span></div></div>`;
@@ -144,6 +252,7 @@ function detalle(tipo: 'semana' | 'mes', G: Grupo[], det: string) {
     $('nc-' + tipo).textContent = fmtInt(L.length) + ' códigos' + (L.length > 500 ? ' (mostrando 500)' : '');
   };
   pinta();
+  negPrep('np-' + tipo, g.dias);
   ($('bc-' + tipo) as HTMLInputElement).addEventListener('input', (e) => { BUSCA[tipo] = (e.target as HTMLInputElement).value; pinta(); });
   ($('sel-' + tipo) as HTMLSelectElement).addEventListener('change', (e) => { SEL[tipo] = (e.target as HTMLSelectElement).value; render(); });
   $('xc-' + tipo).addEventListener('click', () => excel('Codigos_negados_' + g.clave, 'Códigos', ['Código', 'Descripción', 'Veces negado', 'Días negado'], C.L.map((x) => [x.sku, x.desc, x.veces, x.dias])));
@@ -177,13 +286,18 @@ function pestana(t: string) {
 
 async function arrancar() {
   const sb = crearCliente();
+  BASE = new BaseSupabase(sb);
   await iniciarSesion(sb, async (s) => {
     await leer(sb);
     quitarPantalla();
     $('usuario').textContent = s.user?.email || '';
     const ult = DIAS[DIAS.length - 1];
     $('rsActual').textContent = ult ? 'Último día: ' + corto(ult.fecha) + (ult.parcial ? ' (en curso)' : '') : 'Sin datos';
+    DIA_SEL = ult ? ult.fecha : '';
+    ($('selDia') as HTMLSelectElement).innerHTML = DIAS.slice().reverse().map((d) => `<option value="${d.fecha}">${esc(largoDia(d.fecha))}${d.parcial ? ' (en curso)' : ''}</option>`).join('');
+    ($('selDia') as HTMLSelectElement).addEventListener('change', (e) => elegirDia((e.target as HTMLSelectElement).value));
     render();
+    void pintarDia();
     document.querySelectorAll<HTMLAnchorElement>('#vxNav a').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); history.replaceState(null, '', '#' + a.dataset.tab); pestana(a.dataset.tab || ''); }));
     pestana(location.hash.slice(1));
     $('xDia').addEventListener('click', () => excel('Resumen_por_dia', 'Por día', ['Fecha', 'Preparadas', 'Negadas', 'Total líneas', '% prep.', '% negado'],
