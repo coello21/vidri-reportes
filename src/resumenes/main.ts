@@ -145,9 +145,21 @@ function tarjetas(dias0: Dia[], promedio: boolean) {
 /* ---------------- gráfico: preparadas y negadas en líneas; discontinua = período anterior ---------------- */
 interface Punto { k?: string; prep: number; neg: number; parcial?: boolean; tip: string }
 interface Eje { l1: string; l2: string }
-function grafico(el: HTMLElement, X: Eje[], A: (Punto | null)[], P: (Punto | null)[], sel: number, alClic?: (k: string) => void) {
+/** Tendencia lineal (mínimos cuadrados) de los puntos con dato; devuelve el valor en cualquier posición i. */
+function tendencia(A: (Punto | null)[], k: 'prep' | 'neg', ultimos = 12): ((i: number) => number) | null {
+  const pts = A.map((p, i) => (p ? [i, p[k]] : null)).filter((x): x is number[] => !!x).slice(-ultimos);
+  if (pts.length < 3) return null;
+  const n = pts.length, sx = pts.reduce((a, p) => a + p[0], 0), sy = pts.reduce((a, p) => a + p[1], 0);
+  const sxx = pts.reduce((a, p) => a + p[0] * p[0], 0), sxy = pts.reduce((a, p) => a + p[0] * p[1], 0), den = n * sxx - sx * sx;
+  if (!den) return null;
+  const b = (n * sxy - sx * sy) / den, a0 = (sy - b * sx) / n;
+  return (i: number) => Math.max(0, a0 + b * i);
+}
+function grafico(el: HTMLElement, X: Eje[], A: (Punto | null)[], P: (Punto | null)[], sel: number, alClic?: (k: string) => void, futuros = 0, ultimos = 12) {
   const W = Math.max(300, el.clientWidth || 900), H = 250, m = { l: 46, r: 12, t: 10, b: 36 }, iw = W - m.l - m.r, ih = H - m.t - m.b, n = X.length;
+  const T = futuros ? { prep: tendencia(A, 'prep', ultimos), neg: tendencia(A, 'neg', ultimos) } : null;
   const vals = [...A, ...P].filter((x): x is Punto => !!x).flatMap((x) => [x.prep, x.neg]);
+  if (T) (['prep', 'neg'] as const).forEach((k) => { const f = T[k]; if (f) vals.push(f(n - 1)); });
   const max = nice(Math.max(1, ...vals)), slot = iw / Math.max(1, n);
   const cx = (i: number) => m.l + slot * i + slot / 2, y = (v: number) => m.t + ih - (v / max) * ih;
   const step = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(iw / 46))));
@@ -164,6 +176,19 @@ function grafico(el: HTMLElement, X: Eje[], A: (Punto | null)[], P: (Punto | nul
     return o;
   };
   g += linea(P, 'prep', 'var(--good)', true) + linea(P, 'neg', 'var(--accent)', true) + linea(A, 'prep', 'var(--good)', false) + linea(A, 'neg', 'var(--accent)', false);
+  // tendencia (discontinua) y proyección de los próximos períodos (puntos huecos con su valor)
+  if (T) (['prep', 'neg'] as const).forEach((k) => {
+    const f = T[k], col = k === 'prep' ? 'var(--good)' : 'var(--accent)';
+    if (!f) return;
+    const i0 = A.map((p, i) => (p ? i : -1)).filter((i) => i >= 0).slice(-ultimos)[0] || 0;
+    g += '<line x1="' + cx(i0).toFixed(1) + '" y1="' + y(f(i0)).toFixed(1) + '" x2="' + cx(n - 1).toFixed(1) + '" y2="' + y(f(n - 1)).toFixed(1) + '" stroke="' + col + '" stroke-width="1.6" stroke-dasharray="6 4" opacity=".6"/>';
+    for (let i = n - futuros; i < n; i++) {
+      const v = Math.round(f(i));
+      g += '<circle cx="' + cx(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="3.6" fill="var(--surface)" stroke="' + col + '" stroke-width="1.6" stroke-dasharray="2 2"/>' +
+        '<text class="ax" x="' + cx(i).toFixed(1) + '" y="' + (y(v) - 8).toFixed(1) + '" text-anchor="middle" fill="' + col + '">' + cortoNum(v) + '</text>';
+    }
+  });
+  if (futuros) g += '<rect x="' + (cx(n - futuros) - slot / 2).toFixed(1) + '" y="' + m.t + '" width="' + (slot * futuros).toFixed(1) + '" height="' + ih + '" fill="var(--surface-2)" opacity=".5"/>';
   X.forEach((e, i) => {
     const a = A[i], p = P[i], tip = [a ? a.tip + '\nPreparadas: ' + fmtInt(a.prep) + ' · Negadas: ' + fmtInt(a.neg) : '', p ? p.tip + '\nPreparadas: ' + fmtInt(p.prep) + ' · Negadas: ' + fmtInt(p.neg) : ''].filter(Boolean).join('\n\n');
     if (tip) g += '<g' + (alClic && a?.k ? ' class="clk" data-k="' + a.k + '"' : '') + '><title>' + esc(tip) + '</title><rect x="' + (cx(i) - slot / 2).toFixed(1) + '" y="' + m.t + '" width="' + slot.toFixed(1) + '" height="' + ih + '" fill="transparent"/></g>';
@@ -197,9 +222,17 @@ function graficoGrupos(tipo: 'semana' | 'mes', el: HTMLElement, leg: HTMLElement
     X.push(tipo === 'semana' ? { l1: 'S' + x.titulo.replace('Semana ', ''), l2: x.sub.split(' – ')[0] } : { l1: MESES_CORTO[+x.clave.slice(5, 7) - 1], l2: x.clave.slice(0, 4) });
     A.push({ k: x.clave, prep: Math.round(L.reduce((a, d) => a + d.prep, 0) / n), neg: Math.round(L.reduce((a, d) => a + d.neg, 0) / n), tip: x.titulo + ' · ' + x.sub + ' · promedio por día' });
   });
-  tit.textContent = tipo === 'semana' ? 'Semanas de ' + nombreMes(jueves(G[0])).toLowerCase() : 'Meses de ' + G[0].clave.slice(0, 4);
-  leg.innerHTML = '<span><i style="background:var(--good)"></i>Preparadas</span><span><i style="background:var(--accent)"></i>Negadas</span>';
-  grafico(el, X, A, [], G.findIndex((x) => x.clave === sel), alClic);
+  // próximos períodos (proyección por la tendencia)
+  const FUT = 2, ult = G[G.length - 1];
+  for (let i = 1; i <= FUT; i++) {
+    if (tipo === 'semana') { const lun = sumarDiasUTC(semana(ult.dias[0].fecha).lunes, 7 * i); X.push({ l1: 'S' + semana(lun).n, l2: corto(lun) }); }
+    else { const y0 = +ult.clave.slice(0, 4), m0 = +ult.clave.slice(5, 7) - 1 + i; X.push({ l1: MESES_CORTO[m0 % 12], l2: String(y0 + Math.floor(m0 / 12)) }); }
+    A.push(null);
+  }
+  tit.textContent = tipo === 'semana' ? 'Últimas ' + G.length + ' semanas hasta ' + nombreMes(jueves(ult)).toLowerCase() : 'Meses de ' + G[0].clave.slice(0, 4);
+  leg.innerHTML = '<span><i style="background:var(--good)"></i>Preparadas</span><span><i style="background:var(--accent)"></i>Negadas</span><span>- - tendencia</span><span>○ proyección</span>';
+  // tendencia: las 12 semanas que se ven; en meses, los últimos 6 (los meses viejos pesan menos en lo que viene)
+  grafico(el, X, A, [], G.findIndex((x) => x.clave === sel), alClic, FUT, tipo === 'semana' ? 12 : 6);
 }
 
 /* ---------------- Por día ---------------- */
@@ -233,7 +266,11 @@ function tablaGrupos(tipo: 'semana' | 'mes', tabla: string, cuenta: string, det:
   if (!PER[tipo] || !opciones.includes(PER[tipo])) PER[tipo] = per(G.find((x) => x.clave === SEL[tipo]) || G[0]);
   const sl = $('sel-' + tipo) as HTMLSelectElement;
   sl.innerHTML = opciones.map((o) => `<option value="${o}"${o === PER[tipo] ? ' selected' : ''}>${esc(tipo === 'semana' ? nombreMes(o) : o)}</option>`).join('');
-  const GP = G.filter((x) => per(x) === PER[tipo]).reverse();      // del período, en orden
+  let GP = G.filter((x) => per(x) === PER[tipo]).reverse();        // del período, en orden
+  if (tipo === 'semana' && GP.length) {                            // más semanas: las 12 que terminan en el mes elegido
+    const asc = G.slice().reverse(), fin = asc.indexOf(GP[GP.length - 1]);
+    GP = asc.slice(Math.max(0, fin - 11), fin + 1);
+  }
   if (!GP.some((x) => x.clave === SEL[tipo]) && GP.length) SEL[tipo] = GP[GP.length - 1].clave;
   const g = G.find((x) => x.clave === SEL[tipo]);
   $('s-' + tipo).textContent = g ? g.titulo + ' · ' + g.sub : '';
