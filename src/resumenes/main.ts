@@ -189,6 +189,18 @@ function graficoSemana(el: HTMLElement, leg: HTMLElement, tit: HTMLElement, lune
   leg.innerHTML = leyenda('Semana ' + w.n, 'Semana ' + wp.n);
   grafico(el, X, A, P, X.findIndex((_, i) => sumarDiasUTC(lunes, i) === sel), alClic);
 }
+/** Todas las semanas: promedio por día de cada una (sin el día en curso), la elegida resaltada. */
+function graficoSemanas(el: HTMLElement, leg: HTMLElement, tit: HTMLElement, G: Grupo[], sel: string, alClic: (k: string) => void) {
+  const X: Eje[] = [], A: (Punto | null)[] = [];
+  G.forEach((x) => {
+    const L = paraPromedio(x.dias), n = L.length || 1;
+    X.push({ l1: 'S' + x.titulo.replace('Semana ', ''), l2: x.sub.split(' – ')[0] });
+    A.push({ k: x.clave, prep: Math.round(L.reduce((a, d) => a + d.prep, 0) / n), neg: Math.round(L.reduce((a, d) => a + d.neg, 0) / n), tip: x.titulo + ' · ' + x.sub + ' · promedio por día' });
+  });
+  tit.textContent = 'Promedio por día de cada semana';
+  leg.innerHTML = '<span><i style="background:var(--good)"></i>Preparadas</span><span><i style="background:var(--accent)"></i>Negadas</span>';
+  grafico(el, X, A, [], G.findIndex((x) => x.clave === sel), alClic);
+}
 /** Mes por día (1 al 31) frente al mes anterior. */
 function graficoMes(el: HTMLElement, leg: HTMLElement, tit: HTMLElement, mes: string) {
   const F = POR_FECHA(), y = +mes.slice(0, 4), mo = +mes.slice(5, 7), ant = mo === 1 ? (y - 1) + '-12' : y + '-' + String(mo - 1).padStart(2, '0');
@@ -230,7 +242,7 @@ function tablaGrupos(tipo: 'semana' | 'mes', tabla: string, cuenta: string, det:
   sl.innerHTML = G.map((x) => `<option value="${x.clave}"${x.clave === SEL[tipo] ? ' selected' : ''}>${esc(x.titulo + ' · ' + x.sub)}</option>`).join('');
   $('k-' + tipo).innerHTML = g ? tarjetas(g.dias, true) : '';
   if (g) {
-    if (tipo === 'semana') graficoSemana($('g-' + tipo), $('l-' + tipo), $('t-' + tipo), semana(g.dias[0].fecha).lunes, '');
+    if (tipo === 'semana') graficoSemanas($('g-' + tipo), $('l-' + tipo), $('t-' + tipo), G.slice().reverse(), g.clave, (k) => { SEL[tipo] = k; tablaGrupos(tipo, tabla, cuenta, det); });
     else graficoMes($('g-' + tipo), $('l-' + tipo), $('t-' + tipo), g.clave);
   }
   detalle(tipo, G, det);
