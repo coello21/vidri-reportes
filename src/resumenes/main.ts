@@ -116,18 +116,19 @@ function tarjetas(dias0: Dia[], promedio: boolean) {
   const H: Historial = {};
   dias.forEach((d) => { H[d.fecha] = { v: 2, meta: { totalFinal: d.tot, totalNegados: d.neg, totalPreparados: d.prep }, ...(d.z != null ? { mot: { z: d.z } } : {}) } as unknown as Historial[string]; });
   const f = fillRateCD(H, dias.map((d) => d.fecha));
-  const v = (x: number) => fmtInt(promedio ? Math.round(x / n) : x), pr = promedio ? 'promedio por día · ' : '';
+  const v = (x: number) => fmtInt(promedio ? Math.round(x / n) : x);
   const sinHoy = promedio && dias.length < dias0.length;
-  return kpi('Total preparadas', v(P), pr + '<b>' + pct(P, T) + '</b> de las líneas', 'prep') +
-    kpi('Total negadas', v(N), pr + '<b>' + pct(N, T) + '</b> de las líneas', 'neg') +
-    kpi('Fill rate', f.pct != null ? fmtPct(f.pct) : '—', promedio ? 'del período' + (sinHoy ? ', sin el día en curso' : '') : '');
+  const pie = (x: number) => '<b>' + pct(x, T) + '</b>' + (promedio ? ' · promedio por día' : ' de las líneas');
+  return kpi('Total preparadas', v(P), pie(P), 'prep') +
+    kpi('Total negadas', v(N), pie(N), 'neg') +
+    kpi('Fill rate', f.pct != null ? fmtPct(f.pct) : '—', sinHoy ? 'sin el día en curso' : '');
 }
 
 /* ---------------- gráfico: preparadas y negadas en líneas; discontinua = período anterior ---------------- */
 interface Punto { k?: string; prep: number; neg: number; parcial?: boolean; tip: string }
 interface Eje { l1: string; l2: string }
 function grafico(el: HTMLElement, X: Eje[], A: (Punto | null)[], P: (Punto | null)[], sel: number, alClic?: (k: string) => void) {
-  const W = Math.max(300, el.clientWidth || 900), H = 240, m = { l: 50, r: 16, t: 14, b: 38 }, iw = W - m.l - m.r, ih = H - m.t - m.b, n = X.length;
+  const W = Math.max(300, el.clientWidth || 900), H = 250, m = { l: 46, r: 12, t: 10, b: 36 }, iw = W - m.l - m.r, ih = H - m.t - m.b, n = X.length;
   const vals = [...A, ...P].filter((x): x is Punto => !!x).flatMap((x) => [x.prep, x.neg]);
   const max = nice(Math.max(1, ...vals)), slot = iw / Math.max(1, n);
   const cx = (i: number) => m.l + slot * i + slot / 2, y = (v: number) => m.t + ih - (v / max) * ih;

@@ -1,7 +1,7 @@
 /* Resúmenes del Radar: tablas por día, semana y mes */
 .btnlink{display:inline-block;text-decoration:none;font:11px var(--font-mono);text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;border-radius:4px}
-.tab{padding-top:26px}
-.rs-kpis{margin:0 0 34px!important}
+.tab{padding-top:16px}
+.rs-kpis{margin:0 0 22px!important}
 .kpi .val.prep{color:var(--good)}
 .kpi .val.neg{color:var(--accent)}
 .rs-scroll{max-height:560px}
@@ -22,12 +22,19 @@
 .rs-bar i{background:var(--good)}
 .rs-bar b{background:var(--accent)}
 .rs-pc{font:10px var(--font-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--orange);margin-left:4px}
-.rs-det{display:grid;gap:30px;margin-top:34px}
+.rs-det{display:grid;gap:22px;margin-top:24px}
 .rs-pick select{font:12px var(--font-mono);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:6px 8px;color:var(--ink);max-width:100%}
 .rs-search input{width:100%;box-sizing:border-box;font:13px var(--font-body);border:1px solid var(--border);border-radius:6px;padding:9px 12px;margin:2px 0 12px;background:var(--surface);color:var(--ink)}
 @media (max-width:700px){.rs-t{font-size:12.5px}.rs-t th,.rs-t td{padding:8px}.rs-bar{min-width:70px}}
 .rs-t tr[data-f]{cursor:pointer}
 .rs-t tr[data-f]:hover td{background:var(--surface-2)}
-.rs-top{display:flex;justify-content:flex-end;margin:0 0 14px}
+.rs-top{display:flex;justify-content:flex-start;margin:0 0 10px}
 .rs-gh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
-.tab .pd-chart{margin-bottom:34px}
+/* tarjetas a la izquierda y gráfico a la derecha: sin espacio vacío */
+.rs-panel{display:grid;grid-template-columns:240px minmax(0,1fr);gap:22px;align-items:start;margin:0 0 22px}
+.rs-panel .kpis{grid-template-columns:1fr!important;gap:10px!important;margin:0!important}
+.rs-panel .kpi{padding:10px 14px!important}
+.rs-panel .kpi .val{font-size:28px!important;margin:4px 0 2px!important}
+.rs-panel .rs-gh h3{margin:0}
+.rs-kpis .kpi .foot:empty{display:none}
+@media (max-width:760px){.rs-panel{grid-template-columns:1fr}.rs-panel .kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}.rs-panel .kpi .val{font-size:22px!important}}
