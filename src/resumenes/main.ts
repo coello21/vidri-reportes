@@ -197,7 +197,7 @@ function graficoGrupos(tipo: 'semana' | 'mes', el: HTMLElement, leg: HTMLElement
     X.push(tipo === 'semana' ? { l1: 'S' + x.titulo.replace('Semana ', ''), l2: x.sub.split(' – ')[0] } : { l1: MESES_CORTO[+x.clave.slice(5, 7) - 1], l2: x.clave.slice(0, 4) });
     A.push({ k: x.clave, prep: Math.round(L.reduce((a, d) => a + d.prep, 0) / n), neg: Math.round(L.reduce((a, d) => a + d.neg, 0) / n), tip: x.titulo + ' · ' + x.sub + ' · promedio por día' });
   });
-  tit.textContent = 'Promedio por día de cada ' + (tipo === 'semana' ? 'semana' : 'mes');
+  tit.textContent = tipo === 'semana' ? 'Semanas de ' + nombreMes(jueves(G[0])).toLowerCase() : 'Meses de ' + G[0].clave.slice(0, 4);
   leg.innerHTML = '<span><i style="background:var(--good)"></i>Preparadas</span><span><i style="background:var(--accent)"></i>Negadas</span>';
   grafico(el, X, A, [], G.findIndex((x) => x.clave === sel), alClic);
 }
@@ -216,19 +216,30 @@ function pintarDia() {
 function elegirDia(f: string) { DIA_SEL = f; pintarDia(); }
 
 const SEL: Record<string, string> = {};
+const PER: Record<string, string> = {};     // mes (en semanas) o año (en meses) del selector
+/** Mes de una semana: el de su jueves (así una semana que cruza de mes queda en el mes donde tiene más días). */
+const jueves = (x: Grupo) => sumarDiasUTC(semana(x.dias[0].fecha).lunes, 3);
+const nombreMes = (k: string) => { const s = MESES[+k.slice(5, 7) - 1]; return s.charAt(0).toUpperCase() + s.slice(1) + ' de ' + k.slice(0, 4); };
 function tablaGrupos(tipo: 'semana' | 'mes', tabla: string, cuenta: string, det: string) {
   const G = agrupar(tipo);
   if (!SEL[tipo] && G.length) SEL[tipo] = G[0].clave;
   $(tabla).innerHTML = '<thead><tr><th>' + (tipo === 'semana' ? 'Semana' : 'Mes') + '</th><th class="n">Días con datos</th><th class="n">Preparadas</th><th class="n">Negadas</th><th class="n">Total líneas</th><th class="n">% negado</th><th>Distribución</th></tr></thead><tbody>' +
     G.map((g) => `<tr data-c="${g.clave}" class="${g.clave === SEL[tipo] ? 'sel' : ''}"><td><b>${esc(g.titulo)}</b><small>${esc(g.sub)}</small></td><td class="n mut">${g.dias.length} de ${g.posibles}</td><td class="n prep">${fmtInt(g.prep)}</td><td class="n neg">${fmtInt(g.neg)}</td><td class="n">${fmtInt(g.tot)}</td><td class="n">${pct(g.neg, g.tot)}</td><td>${barra(g.prep, g.neg)}</td></tr>`).join('') + '</tbody>';
-  $(tabla).querySelectorAll<HTMLElement>('tr[data-c]').forEach((tr) => tr.addEventListener('click', () => { SEL[tipo] = tr.dataset.c!; tablaGrupos(tipo, tabla, cuenta, det); $(det).scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
+  $(tabla).querySelectorAll<HTMLElement>('tr[data-c]').forEach((tr) => tr.addEventListener('click', () => { SEL[tipo] = tr.dataset.c!; PER[tipo] = ''; tablaGrupos(tipo, tabla, cuenta, det); $(det).scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
   $(cuenta).textContent = G.length + (tipo === 'semana' ? ' semanas' : (G.length === 1 ? ' mes' : ' meses'));
-  const g = G.find((x) => x.clave === SEL[tipo]), sl = $('sel-' + tipo) as HTMLSelectElement;
-  sl.innerHTML = G.map((x) => `<option value="${x.clave}"${x.clave === SEL[tipo] ? ' selected' : ''}>${esc(x.titulo + ' · ' + x.sub)}</option>`).join('');
+  // selector: en semanas, el mes (sus semanas); en meses, el año (sus meses)
+  const per = (x: Grupo) => (tipo === 'semana' ? jueves(x).slice(0, 7) : x.clave.slice(0, 4));
+  const opciones = [...new Set(G.map(per))];                      // del más reciente al más viejo
+  if (!PER[tipo] || !opciones.includes(PER[tipo])) PER[tipo] = per(G.find((x) => x.clave === SEL[tipo]) || G[0]);
+  const sl = $('sel-' + tipo) as HTMLSelectElement;
+  sl.innerHTML = opciones.map((o) => `<option value="${o}"${o === PER[tipo] ? ' selected' : ''}>${esc(tipo === 'semana' ? nombreMes(o) : o)}</option>`).join('');
+  const GP = G.filter((x) => per(x) === PER[tipo]).reverse();      // del período, en orden
+  if (!GP.some((x) => x.clave === SEL[tipo]) && GP.length) SEL[tipo] = GP[GP.length - 1].clave;
+  const g = G.find((x) => x.clave === SEL[tipo]);
+  $('s-' + tipo).textContent = g ? g.titulo + ' · ' + g.sub : '';
   $('k-' + tipo).innerHTML = g ? tarjetas(g.dias, true) : '';
-  if (g) {
-    graficoGrupos(tipo, $('g-' + tipo), $('l-' + tipo), $('t-' + tipo), G.slice().reverse(), g.clave, (k) => { SEL[tipo] = k; tablaGrupos(tipo, tabla, cuenta, det); });
-  }
+  if (g) graficoGrupos(tipo, $('g-' + tipo), $('l-' + tipo), $('t-' + tipo), GP, g.clave, (k) => { SEL[tipo] = k; tablaGrupos(tipo, tabla, cuenta, det); });
+  $(tabla).querySelectorAll<HTMLElement>('tr[data-c]').forEach((tr) => tr.classList.toggle('sel', tr.dataset.c === SEL[tipo]));
   detalle(tipo, G, det);
 }
 
@@ -315,7 +326,7 @@ async function arrancar() {
       DIAS.slice().reverse().map((d) => [d.fecha, d.prep, d.neg, d.tot, d.tot ? Math.round(d.prep / d.tot * 1000) / 10 : 0, d.tot ? Math.round(d.neg / d.tot * 1000) / 10 : 0])));
     $('xSem').addEventListener('click', () => excelGrupos('semana'));
     $('xMes').addEventListener('click', () => excelGrupos('mes'));
-    (['semana', 'mes'] as const).forEach((t) => ($('sel-' + t) as HTMLSelectElement).addEventListener('change', (e) => { SEL[t] = (e.target as HTMLSelectElement).value; render(); }));
+    (['semana', 'mes'] as const).forEach((t) => ($('sel-' + t) as HTMLSelectElement).addEventListener('change', (e) => { PER[t] = (e.target as HTMLSelectElement).value; SEL[t] = ''; render(); }));
   });
 }
 arrancar().catch((e) => { console.error(e); aviso('err', 'No se pudo abrir: ' + ((e as Error)?.message || 'error'), 30000); });

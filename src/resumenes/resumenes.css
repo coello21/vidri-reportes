@@ -28,7 +28,8 @@
 @media (max-width:700px){.rs-t{font-size:12.5px}.rs-t th,.rs-t td{padding:8px}.rs-bar{min-width:70px}}
 .rs-t tr[data-f]{cursor:pointer}
 .rs-t tr[data-f]:hover td{background:var(--surface-2)}
-.rs-top{display:flex;justify-content:flex-start;margin:0 0 10px}
+.rs-top{display:flex;justify-content:flex-start;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 10px}
+.rs-sel{font:12px var(--font-mono);color:var(--mut)}
 .rs-gh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
 /* tarjetas a la izquierda y gráfico a la derecha: sin espacio vacío */
 .rs-panel{display:grid;grid-template-columns:240px minmax(0,1fr);gap:22px;align-items:start;margin:0 0 22px}
