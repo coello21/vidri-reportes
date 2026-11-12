@@ -123,25 +123,26 @@ function tarjetas(dias0: Dia[], promedio: boolean) {
     kpi('Fill rate', f.pct != null ? fmtPct(f.pct) : '—', promedio ? 'del período' + (sinHoy ? ', sin el día en curso' : '') : '');
 }
 
-/* ---------------- gráfico: preparadas y negadas (barras apiladas) ---------------- */
+/* ---------------- gráfico: preparadas y negadas (líneas) ---------------- */
 interface Barra { k: string; l1: string; l2: string; prep: number; neg: number; parcial?: boolean }
 function grafico(el: HTMLElement, B: Barra[], sel: string, alClic: (k: string) => void) {
-  const W = Math.max(300, el.clientWidth || 900), H = 230, m = { l: 50, r: 12, t: 12, b: 38 }, iw = W - m.l - m.r, ih = H - m.t - m.b, n = B.length;
-  const max = nice(Math.max(1, ...B.map((b) => b.prep + b.neg))), slot = iw / Math.max(1, n), bw = Math.max(4, Math.min(46, slot * 0.62));
+  const W = Math.max(300, el.clientWidth || 900), H = 230, m = { l: 50, r: 16, t: 14, b: 38 }, iw = W - m.l - m.r, ih = H - m.t - m.b, n = B.length;
+  const max = nice(Math.max(1, ...B.map((b) => Math.max(b.prep, b.neg)))), slot = iw / Math.max(1, n);
   const cx = (i: number) => m.l + slot * i + slot / 2, y = (v: number) => m.t + ih - (v / max) * ih;
   const step = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(iw / 52))));
   let g = '';
   for (let q = 0; q <= 4; q++) { const v = max * q / 4, yy = y(v).toFixed(1); g += '<line class="gl" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + yy + '" y2="' + yy + '"/><text class="ax" x="' + (m.l - 8) + '" y="' + (+yy + 3.5) + '" text-anchor="end">' + cortoNum(v) + '</text>'; }
+  const i0 = B.findIndex((b) => b.k === sel);
+  if (i0 >= 0) g += '<rect x="' + (cx(i0) - slot / 2).toFixed(1) + '" y="' + m.t + '" width="' + slot.toFixed(1) + '" height="' + ih + '" fill="var(--surface-2)"/>';
+  const linea = (k: 'prep' | 'neg', col: string) => (n > 1 ? '<polyline fill="none" stroke="' + col + '" stroke-width="2.2" stroke-linejoin="round" points="' + B.map((b, i) => cx(i).toFixed(1) + ',' + y(b[k]).toFixed(1)).join(' ') + '"/>' : '') +
+    B.map((b, i) => '<circle cx="' + cx(i).toFixed(1) + '" cy="' + y(b[k]).toFixed(1) + '" r="' + (b.k === sel ? 4.6 : 3.4) + '" fill="' + (b.k === sel ? col : 'var(--surface)') + '" stroke="' + col + '" stroke-width="1.8" opacity="' + (b.parcial ? 0.5 : 1) + '"/>').join('');
+  g += linea('prep', 'var(--good)') + linea('neg', 'var(--accent)');
   B.forEach((b, i) => {
-    const hp = (b.prep / max) * ih, hn = (b.neg / max) * ih, x = (cx(i) - bw / 2).toFixed(1);
-    g += '<g class="bar clk' + (b.k === sel ? ' sel' : '') + '" data-k="' + b.k + '" opacity="' + (b.parcial ? 0.5 : 1) + '"><title>' + esc(b.l1 + ' ' + b.l2) + '\nPreparadas: ' + fmtInt(b.prep) + '\nNegadas: ' + fmtInt(b.neg) + '</title>' +
-      '<rect x="' + x + '" y="' + (m.t + ih - hp).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0.5, hp).toFixed(1) + '" fill="var(--good)"/>' +
-      '<rect x="' + x + '" y="' + (m.t + ih - hp - hn).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0.5, hn).toFixed(1) + '" fill="var(--accent)"/>' +
-      '<rect x="' + (cx(i) - slot / 2).toFixed(1) + '" y="' + m.t + '" width="' + slot.toFixed(1) + '" height="' + ih + '" fill="transparent"/></g>';
+    g += '<g class="clk" data-k="' + b.k + '"><title>' + esc(b.l1 + ' ' + b.l2) + '\nPreparadas: ' + fmtInt(b.prep) + '\nNegadas: ' + fmtInt(b.neg) + '</title><rect x="' + (cx(i) - slot / 2).toFixed(1) + '" y="' + m.t + '" width="' + slot.toFixed(1) + '" height="' + ih + '" fill="transparent"/></g>';
     if (i % step === 0 || i === n - 1) g += '<text class="ax' + (b.k === sel ? ' pk' : '') + '" x="' + cx(i).toFixed(1) + '" y="' + (H - 22) + '" text-anchor="middle">' + esc(b.l1) + '</text><text class="ax" x="' + cx(i).toFixed(1) + '" y="' + (H - 9) + '" text-anchor="middle">' + esc(b.l2) + '</text>';
   });
   el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" height="' + H + '" role="img">' + g + '</svg>';
-  el.querySelectorAll<SVGGElement>('g.bar').forEach((x) => x.addEventListener('click', () => alClic(x.dataset.k!)));
+  el.querySelectorAll<SVGGElement>('g.clk').forEach((x) => x.addEventListener('click', () => alClic(x.dataset.k!)));
 }
 
 /* ---------------- Por día ---------------- */
