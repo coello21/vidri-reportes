@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { RadarNegados } from '../src/core/negados/radar';
-import { motivosDePreparador } from '../src/core/negados/motivos';
+import { motivosDePreparador, recordarMotivos } from '../src/core/negados/motivos';
 import type { Registro, DiaResumen } from '../src/core/negados/tipos';
 
 const r = (ped: number, sku: string, prep: number, mot: string | undefined, conCol = true): Registro => {
@@ -100,5 +100,21 @@ describe('Pedidos en cero', () => {
     R.integrar([L(1, 'a', 0), L(1, 'b', 0, 'P')]);
     R.integrar([L(1, 'a', 0), L(1, 'b', 0)]);
     expect(fillRateCD(R.history, ['2026-11-03']).excl).toBe(2);
+  });
+});
+
+describe('Motivo recordado de la revisión (el ERP lo borra al cerrar, 12 nov 2026)', () => {
+  it('pone a la línea cerrada sin motivo el que traía en R y no lo borra un archivo posterior', () => {
+    const R = new RadarNegados();
+    const enR = { ...r(1, 'a', 0, 'Físico no se encuentra'), Estado: 'R', FechaAct: null, FechaRevision: new Date('2026-11-03T09:00:00') };
+    expect(recordarMotivos(R.store, [enR, r(2, 'b', 0, 'Existencia a cero')])).toBe(0);
+    const cerradas = [r(1, 'a', 0, ''), r(2, 'b', 0, ''), r(3, 'c', 0, '')];
+    expect(recordarMotivos(R.store, cerradas)).toBe(2);
+    R.integrar(cerradas);
+    expect((R.history['2026-11-03'] as DiaResumen).mot!.m).toEqual({ 'Físico no se encuentra': 1, 'Existencia a cero': 1, '': 1 });
+    // archivo posterior sin motivo y sin memoria: se conserva el motivo que ya tenía la línea
+    R.store.motR = undefined;
+    R.aplicarMotivosHistorial([r(1, 'a', 0, ''), r(2, 'b', 0, ''), r(3, 'c', 0, '')]);
+    expect((R.history['2026-11-03'] as DiaResumen).mot!.m).toEqual({ 'Físico no se encuentra': 1, 'Existencia a cero': 1, '': 1 });
   });
 });

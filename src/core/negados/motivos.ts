@@ -7,9 +7,9 @@
  *   trae igual o más negadas de ese día (un archivo más viejo o parcial no lo baja). Cargar dos veces no duplica.
  * - Motivo vacío = "" ("Sin motivo").
  */
-import { ymd } from '../comun/fechas';
+import { ymd, addDays } from '../comun/fechas';
 import { dedupRecords } from './dedup';
-import type { Historial, MotivosDia, Registro, DiaResumen } from './tipos';
+import type { Historial, MotivosDia, Registro, DiaResumen, StoreRadar } from './tipos';
 
 export const MOT_COL: Record<string, string> = {
   'Existencia a cero': '#1E3A6E', 'Sin existencia ubicación picking': '#8A9BB8', 'Físico no se encuentra': '#E0262B',
@@ -25,6 +25,42 @@ export const motLabel = (k: string): string => (k === '' ? 'Sin motivo' : k);
 export const motColor = (k: string): string => MOT_COL[k] || '#6F685C';
 const rango = (k: string) => (k === '' ? 99 : MOT_ORD.indexOf(k) + 1 || 50);
 export const motSort = (a: string, b: string): number => rango(a) - rango(b) || (a < b ? -1 : a > b ? 1 : 0);
+
+/** Días que se recuerda el motivo de una línea negada (desde su fecha de revisión). */
+export const DIAS_MOT_R = 4;
+
+/**
+ * Desde el 12 nov 2026 el ERP borra el motivo de negado cuando la línea pasa a A (cerrada); mientras está en R sí
+ * lo trae. Se recuerda el último motivo registrado de cada línea negada (pedido|código), de cualquier carga, y se le
+ * pone a la línea cerrada que llega sin motivo. Se guarda en store.motR (día de revisión -> motivo -> llaves) solo
+ * los últimos DIAS_MOT_R días. Devuelve cuántas líneas cerradas recuperaron su motivo.
+ */
+export function recordarMotivos(store: StoreRadar, records: Registro[]): number {
+  if (!records.some((r) => 'Motivo' in r)) return 0;
+  const S = store as StoreRadar & { motR?: Record<string, Record<string, string>> };
+  const M = new Map<string, [string, string]>();
+  for (const d in S.motR || {}) for (const m in S.motR![d]) S.motR![d][m].split(',').forEach((k) => { if (k) M.set(k, [d, m]); });
+  const negada = (r: Registro) => r.Pedido != null && r.Pedido !== '' && r.CantPrep != null && r.CantPrep <= 0;
+  for (const r of records) {
+    const m = motClean(r.Motivo), f = r.FechaRevision || r.FechaAct || r.Fecha;
+    if (!m || !f || !negada(r)) continue;
+    const k = r.Pedido + '|' + r.SKU, d = ymd(f), o = M.get(k);
+    if (!o || d >= o[0]) M.set(k, [d, m]);
+  }
+  let n = 0;
+  for (const r of records) {
+    if (r.Estado !== 'A' || !negada(r) || motClean(r.Motivo)) continue;
+    const o = M.get(r.Pedido + '|' + r.SKU);
+    if (o) { r.Motivo = o[1]; n++; }
+  }
+  const dias = [...new Set([...M.values()].map((x) => x[0]))].sort(), desde = dias.length ? addDays(dias[dias.length - 1], -DIAS_MOT_R) : '';
+  const G: Record<string, Record<string, string[]>> = {};
+  M.forEach(([d, m], k) => { if (d < desde) return; ((G[d] || (G[d] = {}))[m] || (G[d][m] = [])).push(k); });
+  const out: Record<string, Record<string, string>> = {};
+  for (const d of Object.keys(G).sort()) { out[d] = {}; for (const m of Object.keys(G[d]).sort()) out[d][m] = G[d][m].sort().join(','); }
+  if (Object.keys(out).length) S.motR = out; else delete S.motR;
+  return n;
+}
 
 /** Línea negada de un día: motivo, preparador y código (la clave es pedido|código). */
 type LineaMot = { mot: string; prep: string; sku: string };
@@ -179,7 +215,8 @@ export function aplicarMotivos(history: Historial, porDia: Record<string, Motivo
     delete nuevo.nz;
     const viejas = h.mot ? lineasDe(h.mot) : null;
     if (h.mot && viejas) {
-      lineasDe(nuevo)!.forEach((x, key) => viejas.set(key, x));
+      // si la línea ya tenía motivo y el archivo nuevo la trae sin motivo, se conserva el que tenía
+      lineasDe(nuevo)!.forEach((x, key) => { const v = viejas.get(key); viejas.set(key, !x.mot && v?.mot ? { ...x, mot: v.mot } : x); });
       // pedidos en cero: los de antes y los nuevos, menos los que este archivo muestra con algo preparado o abierto
       const zp: Record<string, 1> = { ...(h.mot.zp || {}), ...(nuevo.zp || {}) }, bp2 = { ...(h.mot.bp2 || {}), ...(nuevo.bp2 || {}) };
       nz.forEach((x) => { if (!nuevo.zp?.[x]) delete zp[x]; });

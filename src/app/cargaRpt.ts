@@ -11,6 +11,7 @@ import type { PedidosCD } from '../core/pedidos/cd';
 import { leerExcelNegados } from '../core/negados/parseo';
 import { leerExcelAsignacion, type LecturaAsignacion } from '../core/pedidos/parseo';
 import { contarRevision, fotoSinActualizar } from '../core/negados/extras';
+import { recordarMotivos } from '../core/negados/motivos';
 import { addDays } from '../core/comun/fechas';
 import { fmtInt, fmtDateShort, etiquetaDia } from './ui/formato';
 
@@ -42,6 +43,7 @@ export function procesarRpt(radar: RadarNegados, pedidos: PedidosCD, archivos: A
     let records;
     try { records = leerExcelNegados(a.buf); }
     catch (e) { throw new Error(a.nombre + ': no se pudo leer el archivo: ' + ((e as Error)?.message || 'error')); }
+    const recup = recordarMotivos(radar.store, records);
     fotoSinActualizar(radar.store, records);
     contarRevision(radar.store, records, KEEP_DAYS);
     const res = radar.cargarRegistros(records);
@@ -50,6 +52,7 @@ export function procesarRpt(radar: RadarNegados, pedidos: PedidosCD, archivos: A
     const p: string[] = [];
     p.push(res.added ? fmtInt(res.added) + ' líneas nuevas listas para despacho (' + days.map((d) => fmtDateShort(d) + ': ' + fmtInt(res.addedByDay[d])).join(', ') + ')' : 'Sin líneas nuevas');
     if (res.already) p.push(fmtInt(res.already) + ' ya estaban registradas');
+    if (recup) p.push('motivo recuperado de la revisión en ' + fmtInt(recup) + ' líneas cerradas');
     if (res.motDias) p.push('motivo de negado en ' + fmtInt(res.motDias) + ' día' + (res.motDias === 1 ? '' : 's'));
     if (res.resolved) p.push(fmtInt(res.resolved) + ' pendientes completados');
     p.push(fmtInt(res.pendingNow) + ' pendientes de despacho');
@@ -64,7 +67,7 @@ export function procesarRpt(radar: RadarNegados, pedidos: PedidosCD, archivos: A
   // archivos de historial: motivo de negado y pedidos en cero de esos días (las líneas no se vuelven a contar)
   const motH = new Set<string>();
   for (const { a } of hist) {
-    try { radar.aplicarMotivosHistorial(leerExcelNegados(a.buf)).forEach((d) => motH.add(d)); }
+    try { const rec = leerExcelNegados(a.buf); recordarMotivos(radar.store, rec); radar.aplicarMotivosHistorial(rec).forEach((d) => motH.add(d)); }
     catch (e) { console.error(e); avisos.push(a.nombre + ': no se pudo leer el motivo de negado: ' + ((e as Error)?.message || 'error')); }
   }
 
