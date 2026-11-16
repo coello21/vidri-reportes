@@ -9,12 +9,12 @@ import { RadarNegados } from '../core/negados/radar';
 import { PedidosCD } from '../core/pedidos/cd';
 import { procesarRpt, type ArchivoRpt, type ResultadoRpt } from '../app/cargaRpt';
 
-export async function procesarRptEnBase(base: BaseDatos, archivos: ArchivoRpt[], hoy = new Date()): Promise<ResultadoRpt & { guardado: ResultadoGuardar }> {
+export async function procesarRptEnBase(base: BaseDatos, archivos: ArchivoRpt[], hoy = new Date(), previos: ArchivoRpt[] = []): Promise<ResultadoRpt & { guardado: ResultadoGuardar }> {
   const almacen = new Almacen(base);
   const d = await almacen.leer({ diasRadar: CONFIG.DIAS_RADAR, diasPedidos: CONFIG.DIAS_PEDIDOS, hoy });
   const radar = new RadarNegados(d.history, d.store);
   const pedidos = new PedidosCD(d.pedidos);
-  const r = procesarRpt(radar, pedidos, archivos);
+  const r = procesarRpt(radar, pedidos, archivos, previos);
   radar.persistSeen();
   pedidos.podarAsignaciones();
   const guardado = await almacen.guardar({

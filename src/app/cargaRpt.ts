@@ -12,6 +12,8 @@ import { leerExcelNegados } from '../core/negados/parseo';
 import { leerExcelAsignacion, type LecturaAsignacion } from '../core/pedidos/parseo';
 import { contarRevision, fotoSinActualizar } from '../core/negados/extras';
 import { recordarMotivos } from '../core/negados/motivos';
+import { rehacerDesdeRevision, DESDE_REVISION } from '../core/negados/revision';
+import type { Historial, Registro } from '../core/negados/tipos';
 import { addDays } from '../core/comun/fechas';
 import { fmtInt, fmtDateShort, etiquetaDia } from './ui/formato';
 
@@ -27,8 +29,14 @@ export interface ResultadoRpt {
   avisos: string[];
 }
 
-/** Lanza un error con el nombre del archivo si uno de ayer + hoy no se puede leer (no se aplica nada de los siguientes). */
-export function procesarRpt(radar: RadarNegados, pedidos: PedidosCD, archivos: ArchivoRpt[]): ResultadoRpt {
+/**
+ * Lanza un error con el nombre del archivo si uno de ayer + hoy no se puede leer (no se aplica nada de los siguientes).
+ * previos = cargas anteriores del Rpt (el pipeline las baja del bucket) para rehacer los días con la regla de revisión.
+ */
+export function procesarRpt(radar: RadarNegados, pedidos: PedidosCD, archivos: ArchivoRpt[], previos: ArchivoRpt[] = []): ResultadoRpt {
+  const antes: Historial = {};
+  for (const d of Object.keys(radar.history)) if (d >= DESDE_REVISION) antes[d] = JSON.parse(JSON.stringify(radar.history[d]));
+  const leidos: Registro[][] = [];
   const dias = radar.dias(), ult = dias.length ? dias[dias.length - 1] : null, lim = ult ? addDays(ult, -1) : null;
   const hist: { a: ArchivoRpt; info: LecturaAsignacion }[] = [], act: { a: ArchivoRpt; info: LecturaAsignacion | null }[] = [];
   for (const a of archivos) {
@@ -43,6 +51,7 @@ export function procesarRpt(radar: RadarNegados, pedidos: PedidosCD, archivos: A
     let records;
     try { records = leerExcelNegados(a.buf); }
     catch (e) { throw new Error(a.nombre + ': no se pudo leer el archivo: ' + ((e as Error)?.message || 'error')); }
+    leidos.push(records);
     const recup = recordarMotivos(radar.store, records);
     fotoSinActualizar(radar.store, records);
     contarRevision(radar.store, records, KEEP_DAYS);
@@ -67,9 +76,17 @@ export function procesarRpt(radar: RadarNegados, pedidos: PedidosCD, archivos: A
   // archivos de historial: motivo de negado y pedidos en cero de esos días (las líneas no se vuelven a contar)
   const motH = new Set<string>();
   for (const { a } of hist) {
-    try { const rec = leerExcelNegados(a.buf); recordarMotivos(radar.store, rec); radar.aplicarMotivosHistorial(rec).forEach((d) => motH.add(d)); }
+    try { const rec = leerExcelNegados(a.buf); leidos.push(rec); recordarMotivos(radar.store, rec); radar.aplicarMotivosHistorial(rec).forEach((d) => motH.add(d)); }
     catch (e) { console.error(e); avisos.push(a.nombre + ': no se pudo leer el motivo de negado: ' + ((e as Error)?.message || 'error')); }
   }
+
+  // desde el 12-nov: líneas contadas desde que se mandan a revisión (ver core/negados/revision.ts)
+  const prev: Registro[][] = [];
+  for (const a of previos) {
+    try { prev.push(leerExcelNegados(a.buf)); } catch (e) { console.error(e); avisos.push(a.nombre + ': no se pudo leer la carga anterior'); }
+  }
+  const reh = rehacerDesdeRevision(radar, antes, [...prev, ...leidos]);
+  if (reh.length) partes.push('desde el 12-nov se cuenta desde la revisión: ' + reh.map((d) => fmtDateShort(d)).join(', ') + ' recalculados con ' + (prev.length + leidos.length) + ' cargas');
 
   // hora de asignación (de todos los archivos que son Rpt_OrdenesPreparacion)
   let n = 0, pe = 0;
