@@ -9,7 +9,13 @@ import { $, esc, fmtInt, fmtDateShort, fechaLarga, normText } from './ui/formato
 import { aviso, descargar } from './ui/avisos';
 import { sinActualizarPorCodigo } from '../core/negados/extras';
 import { ymd } from '../core/comun/fechas';
-import { motivosPorCodigo, negadosPorMotivo, motLabel, motColor, motSort } from '../core/negados/motivos';
+import { motivosPorCodigo, motivosPorPasillo, negadosPorMotivo, motLabel, motColor, motSort } from '../core/negados/motivos';
+import { barrasCategoria } from './ui/graficos';
+
+/** Motivos para preparación y almacenamiento (primera fila) y para inventario (segunda fila), en ese orden. */
+const MOT_PREP = ['Físico no se encuentra', 'Pasillo bloqueado', 'Sin existencia ubicación picking'];
+const MOT_INV = ['Producto incompleto o averiado', 'Existencia a cero'];
+const ordenTop = (k: string) => { const i = [...MOT_PREP, ...MOT_INV].indexOf(k); return i >= 0 ? i : k === '' ? 99 : 50; };
 
 /** Fila del detalle: por código y motivo (registrado, o por disponible en días sin motivo). */
 interface FilaDet { sku: string; desc: string; bucket: string; label: string; color: string; count: number }
@@ -156,6 +162,7 @@ export class TopNegados {
     this.renderRanking1();
     this.renderRanking2();
     this.renderTopMotivo();
+    this.renderPasillos();
     this.renderSucursales();
     this.renderDetalle();
     this.renderSinActualizar();
@@ -223,21 +230,39 @@ export class TopNegados {
     box.querySelectorAll<HTMLElement>('tr.clk').forEach((r) => r.addEventListener('click', () => this.elegirCodigo(r.dataset.sku!)));
   }
 
-  /** Ranking 3: los 5 códigos más negados de cada motivo registrado. */
+  /** Ranking 2: los 5 códigos más negados de cada motivo registrado (primero los de preparación, abajo los de inventario). */
   private renderTopMotivo() {
     const el = $('topMot'), MC = this.motCod;
     if (!MC) { el.innerHTML = '<p class="q">Aparece con el motivo de negado registrado (desde el 27 oct 2026). Elige un día o rango desde esa fecha.</p>'; return; }
     const por: Record<string, { sku: string; n: number }[]> = {}, tot: Record<string, number> = {};
     for (const sku in MC) for (const k in MC[sku]) { (por[k] || (por[k] = [])).push({ sku, n: MC[sku][k] }); tot[k] = (tot[k] || 0) + MC[sku][k]; }
     const desc = (sku: string) => (this.radar.store.skus[sku] || [''])[0] || '';
-    el.innerHTML = Object.keys(por).sort(motSort).map((k) => {
+    const ks = Object.keys(por).sort((a, b) => ordenTop(a) - ordenTop(b) || motSort(a, b)), nf = ks.find((k) => !MOT_PREP.includes(k));
+    el.innerHTML = ks.map((k) => {
       const L = por[k].sort((a, b) => b.n - a.n || (a.sku < b.sku ? -1 : 1)).slice(0, 5);
-      return '<div class="r2"><h4><i class="mdot" style="background:' + motColor(k) + '"></i>' + esc(motLabel(k)) + ' <span>' + fmtInt(tot[k]) + ' líneas</span></h4>' +
+      return '<div class="r2' + (k === nf ? ' nf' : '') + '"><h4><i class="mdot" style="background:' + motColor(k) + '"></i>' + esc(motLabel(k)) + ' <span>' + fmtInt(tot[k]) + ' líneas</span></h4>' +
         '<div class="tw"><table class="rk-tbl"><thead><tr><th>Código</th><th>Descripción</th><th class="n">Veces</th></tr></thead><tbody>' +
         L.map((x) => '<tr class="clk" data-sku="' + esc(x.sku) + '"><td class="sku">' + esc(x.sku) + '</td><td title="' + esc(desc(x.sku)) + '">' + esc(desc(x.sku)) + '</td><td class="n"><b>' + fmtInt(x.n) + '</b></td></tr>').join('') +
         '</tbody></table></div></div>';
     }).join('');
     el.querySelectorAll<HTMLElement>('tr.clk').forEach((r) => r.addEventListener('click', () => this.elegirCodigo(r.dataset.sku!)));
+  }
+
+  /** Negados por pasillo: un gráfico para preparación y almacenamiento y otro para inventario. */
+  private renderPasillos() {
+    const ds = this.diasSel(this.vm!), P = motivosPorPasillo(this.radar.history, ds);
+    $('pasNota').textContent = P && P.dias < ds.length ? 'Solo ' + P.dias + ' de ' + ds.length + ' días traen la ubicación (desde el 12-nov).' : '';
+    const orden = (a: string, b: string) => { const r = (x: string) => (/^\d+$/.test(x) ? 0 : x === 'Sin ubicación' ? 2 : 1); return r(a) - r(b) || a.localeCompare(b, 'es', { numeric: true }); };
+    const pinta = (id: string, leg: string, mots: string[]) => {
+      const el = $(id), lg = $(leg);
+      lg.innerHTML = mots.map((k) => '<span><i style="background:' + motColor(k) + '"></i>' + esc(k) + '</span>').join('');
+      if (!P) { el.innerHTML = '<p class="vacio">Aparece en los días con ubicación guardada (desde el 12-nov).</p>'; return; }
+      const cats = Object.keys(P.pas).filter((x) => mots.some((k) => P.pas[x][k])).sort(orden);
+      if (!cats.length) { el.innerHTML = '<p class="vacio">Sin negados de estos motivos en el día o rango elegido.</p>'; return; }
+      barrasCategoria(el, cats.map((x) => (x.startsWith('Zona ') ? x.slice(5, 11) : x)), mots.map((k) => ({ name: k, color: motColor(k), vals: cats.map((x) => P.pas[x][k] || 0) })), 'líneas negadas');
+    };
+    pinta('pasA', 'pasLegA', MOT_PREP);
+    pinta('pasB', 'pasLegB', MOT_INV);
   }
 
   private renderSucursales() {

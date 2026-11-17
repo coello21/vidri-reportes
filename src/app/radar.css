@@ -681,7 +681,11 @@ table.hm td{white-space:nowrap}
 #topMot h4 span{font:11px var(--font-mono);color:var(--ink-muted);margin-left:4px}
 .tg.m{background:transparent;color:var(--ink);white-space:nowrap}
 .tg.m i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:0}
-#topMot{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:22px 32px}
+#topMot{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px 32px}
+#topMot .r2.nf{grid-column-start:1}
+@media (max-width:980px){#topMot{grid-template-columns:1fr}}
+#pasCard .pas-h{font:600 15px/1.3 var(--font-display);margin:16px 0 2px}
+#pasCard .vacio{font-size:13px;color:var(--mut);padding:8px 0}
 #topMot .r2{margin:0}
 #topMot .tw{overflow:visible;max-height:none}
 #topMot th{position:static}

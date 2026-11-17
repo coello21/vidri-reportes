@@ -189,3 +189,22 @@ export function ranking(el: HTMLElement, items: ItemRanking[], escapar: (s: stri
   const max = Math.max(1, ...items.map((i) => i.v)), show = lim ? items.slice(0, lim) : items;
   el.innerHTML = show.length ? '<div class="rk-h"><span></span><span></span><span>Pedidos</span><span>Tendencia diaria</span></div>' + show.map((i) => '<div class="rk"><div class="rk-l"><b>' + escapar(i.l) + '</b>' + (i.s ? '<span>' + i.s + '</span>' : '') + '</div><div class="vb-t"><i style="width:' + Math.max(i.v ? 1 : 0, i.v / max * 100) + '%;background:' + (i.c || 'var(--blue)') + '"></i></div><div class="vb-n">' + fmtInt(i.v) + (i.p != null ? '<span>' + i.p + '%</span>' : '') + '</div><div class="rk-t">' + miniTendencia(i.series, i.c) + tendenciaEtiqueta(i.tr) + '</div></div>').join('') + (lim && items.length > lim ? '<p class="q" style="margin-top:8px">y ' + (items.length - lim) + ' más…</p>' : '') : '<p class="q">Sin datos en el periodo.</p>';
 }
+
+/** Barras apiladas por categoría (ej. pasillos), con el total encima de cada barra. */
+export function barrasCategoria(el: HTMLElement, cats: string[], series: Serie[], unit = 'líneas') {
+  const W = Math.max(300, el.clientWidth || 900), H = 250, m = { l: 46, r: 12, t: 18, b: 30 }, iw = W - m.l - m.r, ih = H - m.t - m.b, n = cats.length;
+  const tot = cats.map((_, i) => series.reduce((a, s) => a + (s.vals[i] || 0), 0)), max = nice(Math.max(1, ...tot));
+  const slot = iw / Math.max(1, n), bw = Math.max(4, Math.min(38, slot * 0.7)), cx = (i: number) => m.l + slot * i + slot / 2, y = (v: number) => m.t + ih - (v / max) * ih;
+  let g = '';
+  for (let k = 0; k <= 4; k++) { const v = max * k / 4, yy = y(v).toFixed(1); g += '<line class="gl" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + yy + '" y2="' + yy + '"/><text class="ax" x="' + (m.l - 8) + '" y="' + (+yy + 3.5) + '" text-anchor="end">' + corto(v) + '</text>'; }
+  const step = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(iw / 30))));
+  cats.forEach((c, i) => {
+    let y0 = m.t + ih;
+    g += '<g class="bar"><title>' + [c].concat(series.filter((s) => s.vals[i]).map((s) => s.name + ': ' + fmtInt(s.vals[i]))).concat(['Total: ' + fmtInt(tot[i]) + ' ' + unit]).join('\n') + '</title>';
+    series.forEach((s) => { const v = s.vals[i] || 0; if (!v) return; const h = (v / max) * ih; y0 -= h; g += '<rect x="' + (cx(i) - bw / 2).toFixed(1) + '" y="' + y0.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0.5, h).toFixed(1) + '" fill="' + s.color + '"/>'; });
+    if (tot[i] && bw >= 14) g += '<text class="ax vl" x="' + cx(i).toFixed(1) + '" y="' + (y0 - 4).toFixed(1) + '" text-anchor="middle">' + fmtInt(tot[i]) + '</text>';
+    g += '<rect x="' + (cx(i) - slot / 2).toFixed(1) + '" y="' + m.t + '" width="' + slot.toFixed(1) + '" height="' + ih + '" fill="transparent"/></g>';
+    if (i % step === 0) g += '<text class="ax" x="' + cx(i).toFixed(1) + '" y="' + (H - 12) + '" text-anchor="middle">' + c.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</text>';
+  });
+  el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" height="' + H + '" role="img">' + g + '</svg>';
+}

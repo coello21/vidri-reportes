@@ -198,15 +198,21 @@
       <p class="q">Veces negadas por día de los 10 códigos del ranking. La línea discontinua es el promedio diario (sin contar el día en curso). Clic en una barra para ver ese día.</p>
       <div id="vxTopTrend"></div>
     </div>
-    <div class="chart full">
-      <div class="rk-eb">Ranking 2</div><h3>Top 5 por cantidad de unidades negadas</h3>
-      <p class="q">Separado por unidad de medida, porque un paquete, un metro y una unidad no se pueden sumar entre sí. <span id="vxR2Note"></span></p>
-      <div id="vxR2" class="r2grid"></div>
-    </div>
     <div class="chart full" id="topMotCard">
-      <div class="rk-eb">Ranking 3</div><h3>Top 5 por motivo de negado</h3>
+      <div class="rk-eb">Ranking 2</div><h3>Top 5 por motivo de negado</h3>
       <p class="q">Los códigos más negados de cada motivo que registró el preparador, para saber a quién le toca: «Físico no se encuentra» y «Pasillo bloqueado», al CD; «Existencia a cero», a inventario y compras; «Sin existencia ubicación picking», bajar de tarimas.</p>
       <div id="topMot" class="r2grid"></div>
+    </div>
+    <div class="chart full" id="pasCard">
+      <h3>Negados por pasillo</h3>
+      <p class="q">Del día o rango elegido, por motivo registrado. Pasillo = los 2 primeros dígitos de la Ubicación 1 (02B20N0206 → 02); lo que no es de pasillo va por zona. <span id="pasNota"></span></p>
+      <h4 class="pas-h">Preparación y almacenamiento</h4><div class="leg" id="pasLegA"></div><div id="pasA"></div>
+      <h4 class="pas-h">Inventario</h4><div class="leg" id="pasLegB"></div><div id="pasB"></div>
+    </div>
+    <div class="chart full">
+      <div class="rk-eb">Ranking 3</div><h3>Top 5 por cantidad de unidades negadas</h3>
+      <p class="q">Separado por unidad de medida, porque un paquete, un metro y una unidad no se pueden sumar entre sí. <span id="vxR2Note"></span></p>
+      <div id="vxR2" class="r2grid"></div>
     </div>
 
     

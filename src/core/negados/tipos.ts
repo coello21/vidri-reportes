@@ -65,7 +65,9 @@ export interface MotivosDia {
   /** B2B del día (pedidos corporativos cerrados ese día): [pedidos, completos sin contar lo negado por "Existencia a cero"] */
   b?: [number, number];
   /** líneas negadas del día: "pedido|código" -> [motivo (índice en k), preparador (índice en p)]; para juntar archivos */
-  l?: Record<string, [number, number]>;
+  l?: Record<string, [number, number] | [number, number, number]>;
+  /** pasillos de las líneas (tercer valor de l), desde el 17 nov 2026 */
+  s?: string[];
   /** preparadores de las líneas (l) */
   p?: string[];
   /** pedidos B2B del día: pedido -> 1 si cumplió, 0 si no */
