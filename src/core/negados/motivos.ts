@@ -343,6 +343,22 @@ export function motivosPorPasillo(history: Historial, dias: string[]): { pas: Re
   return n ? { pas, dias: n } : null;
 }
 
+/** Códigos negados en un pasillo en unos días, por motivo (solo los motivos pedidos): veces por código y motivo. */
+export function codigosDePasillo(history: Historial, dias: string[], pasillo: string, mots: string[]): { sku: string; mot: string; n: number }[] {
+  const M = new Map<string, { sku: string; mot: string; n: number }>();
+  for (const d of dias) {
+    const mo = (history[d] as DiaResumen | undefined)?.mot;
+    if (!mo || !mo.l || !mo.s) continue;
+    for (const key in mo.l) {
+      const v: number[] = mo.l[key], ps = v[2] != null ? mo.s[v[2]] : 'Sin ubicación', k = mo.k[v[0]];
+      if (ps !== pasillo || !mots.includes(k)) continue;
+      const sku = key.slice(key.lastIndexOf('|') + 1), id = sku + '|' + k, x = M.get(id) || { sku, mot: k, n: 0 };
+      x.n++; M.set(id, x);
+    }
+  }
+  return [...M.values()].sort((a, b) => b.n - a.n || motSort(a.mot, b.mot) || (a.sku < b.sku ? -1 : 1));
+}
+
 /** Veces negado de cada código por motivo registrado en unos días (suma de todos los preparadores). */
 export function motivosPorCodigo(history: Historial, dias: string[]): Record<string, Record<string, number>> | null {
   const out: Record<string, Record<string, number>> = {};

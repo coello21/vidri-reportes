@@ -732,3 +732,13 @@ html[data-theme="dark"] table.hm thead th,html[data-theme="dark"] table.hm tr.hm
 .tp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important;margin:18px 0 8px}
 #tpTopCode,#tpTopStore{font-size:22px!important}
 #detalleCard .tablescroll{max-height:420px;overflow:auto}
+
+#pasCard g.bar.clk{cursor:pointer}#pasCard g.bar.clk:hover rect{opacity:.85}
+#pasDlg{border:1px solid var(--line,#ddd);border-radius:10px;padding:16px 18px;width:min(760px,calc(100vw - 32px));max-height:85vh;background:var(--surface,#fff);color:inherit}
+#pasDlg::backdrop{background:rgba(0,0,0,.35)}
+#pasDlg .dlg-h{display:flex;justify-content:space-between;align-items:center;gap:12px}#pasDlg h3{margin:0}
+#pasDlg .dlg-t{max-height:60vh;overflow:auto}#pasDlg th{position:sticky;top:0;background:var(--surface,#fff)}
+#pasDlg td:nth-child(2){max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#pasDlg i.mdot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+#pasDlg tr.clk{cursor:pointer}
+#tab-top #pasDlg .rk-tbl th:last-child{display:table-cell}

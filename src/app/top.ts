@@ -9,7 +9,7 @@ import { $, esc, fmtInt, fmtDateShort, fechaLarga, normText } from './ui/formato
 import { aviso, descargar } from './ui/avisos';
 import { sinActualizarPorCodigo } from '../core/negados/extras';
 import { ymd } from '../core/comun/fechas';
-import { motivosPorCodigo, motivosPorPasillo, negadosPorMotivo, motLabel, motColor, motSort } from '../core/negados/motivos';
+import { motivosPorCodigo, motivosPorPasillo, codigosDePasillo, negadosPorMotivo, motLabel, motColor, motSort } from '../core/negados/motivos';
 import { barrasCategoria } from './ui/graficos';
 
 /** Motivos para preparación y almacenamiento (primera fila) y para inventario (segunda fila), en ese orden. */
@@ -259,10 +259,28 @@ export class TopNegados {
       if (!P) { el.innerHTML = '<p class="vacio">Aparece en los días con ubicación guardada (desde el 12-nov).</p>'; return; }
       const cats = Object.keys(P.pas).filter((x) => mots.some((k) => P.pas[x][k])).sort(orden);
       if (!cats.length) { el.innerHTML = '<p class="vacio">Sin negados de estos motivos en el día o rango elegido.</p>'; return; }
-      barrasCategoria(el, cats.map((x) => (x.startsWith('Zona ') ? x.slice(5, 11) : x)), mots.map((k) => ({ name: k, color: motColor(k), vals: cats.map((x) => P.pas[x][k] || 0) })), 'líneas negadas');
+      barrasCategoria(el, cats.map((x) => (x.startsWith('Zona ') ? x.slice(5) : x)), mots.map((k) => ({ name: k, color: motColor(k), vals: cats.map((x) => P.pas[x][k] || 0) })), 'líneas negadas',
+        (i) => this.abrirPasillo(cats[i], mots, id === 'pasA' ? 'Preparación y almacenamiento' : 'Inventario'));
     };
     pinta('pasA', 'pasLegA', MOT_PREP);
     pinta('pasB', 'pasLegB', MOT_INV);
+  }
+
+  /** Ventana con los códigos negados de un pasillo (del día o rango elegido y de los motivos de ese gráfico). */
+  private abrirPasillo(pasillo: string, mots: string[], grupo: string) {
+    const ds = this.diasSel(this.vm!), L = codigosDePasillo(this.radar.history, ds, pasillo, mots), dlg = $('pasDlg') as HTMLDialogElement;
+    const desc = (sku: string) => (this.radar.store.skus[sku] || [''])[0] || '', tot = L.reduce((a, x) => a + x.n, 0);
+    $('pasDlgT').textContent = (/^\d+$/.test(pasillo) ? 'Pasillo ' : '') + pasillo + ' · ' + grupo;
+    $('pasDlgQ').textContent = fmtInt(tot) + ' líneas negadas de ' + fmtInt(new Set(L.map((x) => x.sku)).size) + ' códigos · ' + (ds.length === 1 ? fechaLarga(ds[0]) : 'del ' + fechaLarga(ds[0]) + ' al ' + fechaLarga(ds[ds.length - 1])) + '. Clic en un código para verlo en el detalle.';
+    $('pasDlgTbl').innerHTML = '<thead><tr><th>Código</th><th>Descripción</th><th>Motivo</th><th class="n">Veces</th></tr></thead><tbody>' +
+      L.map((x) => '<tr class="clk" data-sku="' + esc(x.sku) + '"><td class="sku">' + esc(x.sku) + '</td><td title="' + esc(desc(x.sku)) + '">' + esc(desc(x.sku)) + '</td><td><i class="mdot" style="background:' + motColor(x.mot) + '"></i>' + esc(motLabel(x.mot)) + '</td><td class="n"><b>' + fmtInt(x.n) + '</b></td></tr>').join('') + '</tbody>';
+    $('pasDlgTbl').querySelectorAll<HTMLElement>('tr.clk').forEach((r) => r.addEventListener('click', () => { dlg.close(); this.elegirCodigo(r.dataset.sku!); }));
+    if (!dlg.dataset.listo) {
+      dlg.dataset.listo = '1';
+      $('pasDlgX').addEventListener('click', () => dlg.close());
+      dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+    }
+    dlg.showModal();
   }
 
   private renderSucursales() {
