@@ -14,6 +14,13 @@ export const fmtDateShort = (d: string): string => new Date(d + 'T12:00:00').toL
 export const fechaLarga = (d: string): string => new Date(d + 'T12:00:00').toLocaleDateString('es-SV', { day: 'numeric', month: 'long' });
 /** "17-oct" corto con mes de la lista de la página: "17-oct" */
 export const etiquetaDia = (d: string): string => +d.slice(8) + '-' + MESES_CORTO[+d.slice(5, 7) - 1];
+/** Días con el cambio en el proceso de revisión: sus fechas salen en rojo en gráficos y tablas. */
+export const DIAS_CAMBIO: [string, string] = ['2026-11-12', '2026-11-18'];
+export const esDiaCambio = (d: string): boolean => d >= DIAS_CAMBIO[0] && d <= DIAS_CAMBIO[1];
+/** ' cb' si el día es de la semana del cambio (para la clase CSS). */
+export const cCambio = (d: string): string => (esDiaCambio(d) ? ' cb' : '');
+/** <title> para SVG en los días del cambio. */
+export const tCambio = (d: string): string => (esDiaCambio(d) ? '<title>Semana del cambio en el proceso de revisión</title>' : '');
 export const dowCorto = (d: string): string => DIAS_CORTO[diaSemana(d)];
 export const dowLargo = (d: string): string => DIAS_LARGO[diaSemana(d)];
 /** "viernes 17-oct" */

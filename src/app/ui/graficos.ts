@@ -1,6 +1,6 @@
 /** Gráficos SVG compartidos por las pantallas (misma apariencia que el Radar original). */
 import { diaSemana } from '../../core/comun/fechas';
-import { fmtInt, dowCorto, diaConSemana, etiquetaDia } from './formato';
+import { fmtInt, dowCorto, diaConSemana, etiquetaDia, cCambio, tCambio } from './formato';
 
 /** Redondea hacia arriba a un valor "bonito" para el eje. */
 export function nice(v: number): number {
@@ -82,7 +82,7 @@ export function barrasApiladas(el: HTMLElement, days: string[], series: Serie[],
     g += '<rect x="' + (cx(i) - slot / 2).toFixed(1) + '" y="' + m.t + '" width="' + slot.toFixed(1) + '" height="' + ih + '" fill="transparent"/></g>';
     if (i % step === 0 || (i === n - 1 && showLast)) {
       const w = diaSemana(d);
-      g += '<text class="ax' + ((w === 1 || w === 2) ? ' pk' : '') + '" x="' + cx(i).toFixed(1) + '" y="' + (H - 22) + '" text-anchor="middle">' + dowCorto(d) + '</text><text class="ax" x="' + cx(i).toFixed(1) + '" y="' + (H - 9) + '" text-anchor="middle">' + etiquetaDia(d) + '</text>';
+      g += '<text class="ax' + ((w === 1 || w === 2) ? ' pk' : '') + cCambio(d) + '" x="' + cx(i).toFixed(1) + '" y="' + (H - 22) + '" text-anchor="middle">' + tCambio(d) + dowCorto(d) + '</text><text class="ax' + cCambio(d) + '" x="' + cx(i).toFixed(1) + '" y="' + (H - 9) + '" text-anchor="middle">' + tCambio(d) + etiquetaDia(d) + '</text>';
     }
   });
   const idx = days.map((_, i) => i).filter((i) => !part.has(i));
@@ -156,7 +156,7 @@ export function lineas(el: HTMLElement, days: string[], series: SerieLinea[], op
   for (let k = 0; k <= 4; k++) { const v = max * k / 4, yy = y(v).toFixed(1); g += '<line class="gl" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + yy + '" y2="' + yy + '"/><text class="ax" x="' + (m.l - 8) + '" y="' + (+yy + 3.5) + '" text-anchor="end">' + corto(v) + '</text>'; }
   const step = Math.max(1, Math.ceil(days.length / Math.max(2, Math.floor(iw / 64))));
   const lastL = Math.floor((days.length - 1) / step) * step, showL = (days.length - 1) === lastL || (x(days.length - 1) - x(lastL)) >= 60;
-  days.forEach((d, i) => { if (i % step === 0 || (i === days.length - 1 && showL)) g += '<text class="ax" x="' + x(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + etiquetaDia(d) + '</text>'; });
+  days.forEach((d, i) => { if (i % step === 0 || (i === days.length - 1 && showL)) g += '<text class="ax' + cCambio(d) + '" x="' + x(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + tCambio(d) + etiquetaDia(d) + '</text>'; });
   const idx = days.map((_, i) => i).filter((i) => !part.has(i));
   series.forEach((s) => {
     g += '<polyline fill="none" stroke="' + s.color + '" stroke-width="2" points="' + s.vals.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ') + '"/>';

@@ -746,7 +746,9 @@ html[data-theme="dark"] table.hm thead th,html[data-theme="dark"] table.hm tr.hm
 #tab-top #pasDlg .rk-tbl th:last-child{display:table-cell}
 
 /* Nota del cambio en el proceso de revisión (desde el 12-nov-2026) */
-.vxh .nota-cambio{margin:8px 0 0;font:11px var(--font-mono,monospace);text-transform:uppercase;letter-spacing:.06em;color:#E0262B}
+/* semana del cambio en el proceso de revisión: fechas en rojo */
+.ax.cb,text.cb{fill:#E0262B!important}
+.daychip.cb .d,.dch.cb .w,th.cb,th.cb span,td.cb{color:#E0262B!important}
 
 .kpis.k5{grid-template-columns:repeat(5,minmax(0,1fr))!important}
 .kpi.aparte{border-style:dashed!important}

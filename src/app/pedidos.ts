@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx';
 import { PedidosCD, type FiltroBodega, type FilaPorFecha } from '../core/pedidos/cd';
 import { MOTIVOS, MOTIVO_NOMBRE, ESTADO_NOMBRE, BODEGA_NOMBRE, bodegaDe, motivoVista, nombreSucursal, type Bodega, type Estado, type MotivoVista, type Pedido } from '../core/pedidos/catalogos';
 import { diaDeMin, sumarDiasUTC, diaSemana, DIAS_CORTO, DIAS_LARGO, MESES_CORTO } from '../core/comun/fechas';
-import { $, esc, fmtInt, etiquetaDia } from './ui/formato';
+import { $, esc, fmtInt, etiquetaDia, cCambio } from './ui/formato';
 import { barrasApiladas, lineas, barras, ranking, nice, corto, tendenciaPct } from './ui/graficos';
 import { descargar } from './ui/avisos';
 
@@ -197,7 +197,7 @@ export class PedidosVista {
     const prev = el.scrollLeft;
     el.innerHTML = D.map((d) => {
       const w = diaSemana(d);
-      return '<button type="button" class="dch' + (d === this.dia ? ' on' : '') + (w === 1 || w === 2 ? ' pk' : '') + '" data-d="' + d + '"><span class="w">' + DIAS_CORTO[w] + ' ' + etiquetaDia(d) + '</span><b>' + fmtInt(c[d] || 0) + '</b><span class="u">pedidos' + (d === cutDay ? ' · parcial' : '') + '</span></button>';
+      return '<button type="button" class="dch' + (d === this.dia ? ' on' : '') + (w === 1 || w === 2 ? ' pk' : '') + cCambio(d) + '" data-d="' + d + '"><span class="w">' + DIAS_CORTO[w] + ' ' + etiquetaDia(d) + '</span><b>' + fmtInt(c[d] || 0) + '</b><span class="u">pedidos' + (d === cutDay ? ' · parcial' : '') + '</span></button>';
     }).join('');
     const on = el.querySelector<HTMLElement>('.dch.on');
     if (on) { const r = on.offsetLeft - el.offsetLeft; if (r < prev || r > prev + el.clientWidth - on.offsetWidth) el.scrollLeft = r - el.clientWidth / 2; else el.scrollLeft = prev; }
@@ -214,7 +214,7 @@ export class PedidosVista {
     $('pdArrT').textContent = r.cur ? 'Hoy se empezó con ' + fmtInt(r.ini) + ' pedidos sin asignar; van ' + fmtInt(r.ter) + ' asignados'
       : 'El ' + w + ' ' + etiquetaDia(r.d) + ' quedaron ' + fmtInt(r.fin) + ' pedidos sin asignar para el día siguiente' + (r.fin > r.ini ? ', ' + fmtInt(r.fin - r.ini) + ' más de los que había al empezar' : r.fin < r.ini ? ', ' + fmtInt(r.ini - r.fin) + ' menos de los que había al empezar' : '');
     el.innerHTML = '<div class="pd-tbl"><table class="bal"><thead><tr><th>Día</th><th>Venían de antes sin asignar</th><th>+ Entraron ese día</th><th>− Se asignaron</th><th>= Quedaron sin asignar</th></tr></thead><tbody>' +
-      rows.map((x) => '<tr class="clk' + (x.d === ref ? ' sel' : '') + '" data-i="' + x.i + '"><td>' + dowC(x.d) + ' ' + etiquetaDia(x.d) + (x.cur ? ' <span class="tag">en curso</span>' : '') + '</td><td>' + fmtInt(x.ini) + '</td><td>' + fmtInt(x.ent) + '</td><td>' + fmtInt(x.ter) +
+      rows.map((x) => '<tr class="clk' + (x.d === ref ? ' sel' : '') + '" data-i="' + x.i + '"><td class="' + cCambio(x.d) + '">' + dowC(x.d) + ' ' + etiquetaDia(x.d) + (x.cur ? ' <span class="tag">en curso</span>' : '') + '</td><td>' + fmtInt(x.ini) + '</td><td>' + fmtInt(x.ent) + '</td><td>' + fmtInt(x.ter) +
         '</td><td class="' + (x.fin > x.ini ? 'up' : x.fin < x.ini ? 'dn' : '') + '"><b>' + (x.cur ? fmtInt(x.fin) + ' hasta ahora' : fmtInt(x.fin)) + '</b> ' + (x.fin > x.ini ? '▲' : x.fin < x.ini ? '▼' : '') + '</td></tr>').join('') + '</tbody></table></div>';
     el.querySelectorAll<HTMLElement>('tr.clk').forEach((tr) => tr.addEventListener('click', () => pick(+tr.dataset.i!)));
     return r;
@@ -320,7 +320,7 @@ export class PedidosVista {
     const tc: Record<string, number> = {};
     let gt = 0;
     days.forEach((d) => { tc[d] = 0; });
-    let h = '<table><thead><tr><th>Motivo</th>' + days.map((d) => '<th>' + etiquetaDia(d) + '</th>').join('') + '<th>Total</th></tr></thead><tbody>';
+    let h = '<table><thead><tr><th>Motivo</th>' + days.map((d) => '<th class="' + cCambio(d) + '">' + etiquetaDia(d) + '</th>').join('') + '<th>Total</th></tr></thead><tbody>';
     cats.forEach((c) => {
       let t = 0;
       h += '<tr><td>' + MOTIVO_NOMBRE[c] + '</td>' + days.map((d) => { const v = M[c][d]; t += v; tc[d] += v; return '<td class="' + (v ? (sumarDiasUTC(lcDay, -2) >= d ? 'old' : '') : 'z') + '">' + (v ? fmtInt(v) : '·') + '</td>'; }).join('') + '<td><b>' + fmtInt(t) + '</b></td></tr>';

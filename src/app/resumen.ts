@@ -11,7 +11,7 @@ import { addDays } from '../core/comun/fechas';
 import { lineasPreparadas } from '../core/negados/extras';
 import { motColor, motLabel, motSort, motivosDePreparador, fillRateCD, exclusionPorPreparador, negadosPorMotivo, EXIST_CERO } from '../core/negados/motivos';
 import type { DiaResumen } from '../core/negados/tipos';
-import { $, esc, fmtInt, fmtPct, fmtDateShort, fechaLarga } from './ui/formato';
+import { $, esc, fmtInt, fmtPct, fmtDateShort, fechaLarga, cCambio, tCambio, esDiaCambio } from './ui/formato';
 import { barrasApiladas, tendenciaSobrePuntos, globoEnPuntos } from './ui/graficos';
 
 type ClaveOrden = 'name' | 'solicitado' | 'preparados' | 'negados' | 'fillRate';
@@ -317,7 +317,7 @@ export class Resumen {
       const partial = this.radar.isPartialDay(d), legacy = this.radar.isLegacyDay(d);
       const title = fmtInt(m.totalNegados) + ' negados de ' + fmtInt(m.totalFinal) + ' líneas' +
         (partial ? ' — día parcial: falta cargar el reporte que lo completa' : '') + (legacy ? ' — calculado con la versión anterior' : '');
-      return '<button class="daychip' + active + (partial ? ' partial' : '') + (legacy ? ' legacy' : '') + '" data-date="' + d + '" title="' + title + '">' +
+      return '<button class="daychip' + active + cCambio(d) + (partial ? ' partial' : '') + (legacy ? ' legacy' : '') + '" data-date="' + d + '" title="' + title + '">' +
         '<span class="d">' + fmtDateShort(d) + '</span><span class="n">' + fmtInt(m.totalNegados) + ' <small>negados</small></span>' +
         (partial ? '<span class="tag">Parcial</span>' : '') + '</button>';
     }).join('');
@@ -389,7 +389,7 @@ export class Resumen {
       filas.sort((a, b) => pctFila(b) - pctFila(a));
       if (sd.some((v) => v)) filas.push({ name: 'Sin dato (antes del registro)', vals: sd });
       const DOW = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'], sel = vm.meta.fecha;
-      const th = d7.map((d, i) => '<th class="r' + (d === sel ? ' sel' : '') + '" data-i="' + i + '" title="Ver este día">' + DOW[new Date(d + 'T12:00:00').getDay()] +
+      const th = d7.map((d, i) => '<th class="r' + (d === sel ? ' sel' : '') + cCambio(d) + '" data-i="' + i + '" title="Ver este día">' + DOW[new Date(d + 'T12:00:00').getDay()] +
         '<br><span>' + esc(fmtDateShort(d)) + '</span></th>').join('');
       // cada celda: % de las negadas de ese día (la columna suma 100 %) y entre paréntesis las líneas
       // colores Vidri: de blanco a rojo según el % del día
@@ -464,7 +464,7 @@ export class Resumen {
     let grid = '';
     for (let g = 0; g <= 2; g++) { const y = pad + g * (H - 2 * pad - 16) / 2; grid += '<line x1="' + pad + '" y1="' + y.toFixed(1) + '" x2="' + (W - pad) + '" y2="' + y.toFixed(1) + '" stroke="var(--border)" stroke-width="1"/>'; }
     const idx = pts0.length <= 8 ? pts0.map((_, i) => i) : [0, Math.round((pts0.length - 1) / 2), pts0.length - 1];
-    const labels = idx.map((i) => '<text x="' + xAt(i).toFixed(1) + '" y="' + (H - 4) + '" font-size="9.5" fill="var(--ink-muted)" text-anchor="middle" font-family="var(--font-mono)">' + fmtDateShort(pts0[i].date) + '</text>').join('');
+    const labels = idx.map((i) => '<text x="' + xAt(i).toFixed(1) + '" y="' + (H - 4) + '" font-size="9.5" fill="' + (esDiaCambio(pts0[i].date) ? '#E0262B' : 'var(--ink-muted)') + '" text-anchor="middle" font-family="var(--font-mono)">' + tCambio(pts0[i].date) + fmtDateShort(pts0[i].date) + '</text>').join('');
     const dots = (k: 'neg' | 'prep', col: string) => pts0.map((p, i) => '<circle class="np-dot" data-kind="' + k + '" data-date="' + p.date + '" data-v="' + p[k] + '" cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(p[k]).toFixed(1) + '" r="3.4" fill="var(--surface)" stroke="' + col + '" stroke-width="1.8" style="cursor:pointer;"/>').join('');
     svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
     svg.innerHTML = grid + '<path d="' + path('prep') + '" fill="none" stroke="var(--good)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
