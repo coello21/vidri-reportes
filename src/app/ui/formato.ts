@@ -20,7 +20,7 @@ export const esDiaCambio = (d: string): boolean => d >= DIAS_CAMBIO[0] && d <= D
 /** ' cb' si el día es de la semana del cambio (para la clase CSS). */
 export const cCambio = (d: string): string => (esDiaCambio(d) ? ' cb' : '');
 /** <title> para SVG en los días del cambio. */
-export const tCambio = (d: string): string => (esDiaCambio(d) ? '<title>Semana del cambio en el proceso de revisión</title>' : '');
+export const tCambio = (d: string): string => (esDiaCambio(d) ? '<title>Inconveniente por el cambio en la revisión</title>' : '');
 export const dowCorto = (d: string): string => DIAS_CORTO[diaSemana(d)];
 export const dowLargo = (d: string): string => DIAS_LARGO[diaSemana(d)];
 /** "viernes 17-oct" */
