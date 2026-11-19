@@ -7,7 +7,7 @@ const LC = D('2026-10-22 07:38');
 const p = (n: number, f: string, est: string, act: string | null): Pedido => [n, 67, D(f), est, 3, 'exi', act ? D(act) : 0, D(f), LC, 'N'] as unknown as Pedido;
 
 describe('Pendiente por fecha del pedido', () => {
-  it('agrupa lo sin terminar por fecha del pedido; el balance cuenta solo lo sin asignar', () => {
+  it('cuadra con el balance: días anteriores = Venían de antes, hoy = Entraron, siguen sin asignar = Quedan', () => {
     const ped = new PedidosCD({
       rows: [
         p(1, '2026-10-22 06:00', 'R', null),               // hoy, sin empezar
@@ -19,17 +19,15 @@ describe('Pendiente por fecha del pedido', () => {
       ],
       cortes: [{ t: LC, ini: 0, fin: 0, n: 6, cargado: 'x' }],
     });
+    // desde el 19-nov: pendiente = sin asignar (Recibido sin orden). Sin horas de asignación, los A y P ya no cuentan.
     const R = ped.porFecha()!;
     expect(R.hoy).toBe('2026-10-22');
     const fila = (d: string | null) => R.filas.find((f) => f.dia === d)!;
     expect(fila('2026-10-22')).toMatchObject({ hoy: true, inicio: 1, sinEmpezar: 1, terminados: 0 });
-    expect(fila('2026-10-21')).toMatchObject({ inicio: 2, sinEmpezar: 1, terminados: 1 });
-    expect(fila('2026-10-20')).toMatchObject({ inicio: 1, enProceso: 1 });
-    expect(fila(null)).toMatchObject({ inicio: 1, enProceso: 1 });
-    expect(R.filas.map((f) => f.dia)).toEqual(['2026-10-22', '2026-10-21', '2026-10-20', null]);
-    // desde el 19-nov el balance mide lo pendiente de asignar (Recibido sin orden), no lo sin terminar:
-    // sin horas de asignación, solo cuentan los que siguen en Recibido al último corte (pedidos 1 y 2)
+    expect(fila('2026-10-21')).toMatchObject({ inicio: 1, sinEmpezar: 1, terminados: 0 });
+    expect(R.filas.map((f) => f.dia)).toEqual(['2026-10-22', '2026-10-21']);
     const b = ped.balance().find((x) => x.cur)!;
-    expect(b.fin).toBe(2);
+    const sinAsignar = R.filas.reduce((a, f) => a + f.sinEmpezar, 0);
+    expect([R.filas.filter((f) => !f.hoy).reduce((a, f) => a + f.inicio, 0), fila('2026-10-22').inicio, sinAsignar]).toEqual([b.ini, b.ent, b.fin]);
   });
 });

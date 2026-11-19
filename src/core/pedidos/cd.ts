@@ -205,18 +205,20 @@ export class PedidosCD {
     const lc = this.ultimoCorte();
     if (!lc) return null;
     const hoy = diaDeMin(lc), t0 = inicioDia(hoy), limite = sumarDiasUTC(hoy, -diasSueltos);
+    // misma regla que el balance: pendiente = sin asignar (desde el 19-nov-2026)
+    const rec = (x: Pedido) => x[7] || x[2];
+    const sinAsg = (x: Pedido, t: number) => rec(x) < t && !(x[3] === 'A' && x[6] && x[6] < t) &&
+      (x[10] ? x[10] >= t : (x[3] === 'R' || x[3] === 'E') && x[8] >= lc);
     const M = new Map<string, FilaPorFecha>();
-    for (const x of this.vigentes(bod)) {
-      const nuevo = x[2] >= t0;
-      const pendiente = x[6] ? x[6] >= t0 : x[3] !== 'A';   // misma regla que el balance
-      if (!nuevo && !pendiente) continue;
-      const d = diaDeMin(x[2]), k = d < limite ? 'ant' : d;
+    for (const x of this.rows.values()) {
+      if (bod !== 'all' && bodegaDe(x) !== bod) continue;
+      const nuevo = rec(x) >= t0 && rec(x) <= lc;
+      if (!nuevo && !sinAsg(x, t0)) continue;
+      const d = diaDeMin(rec(x)), k = d < limite ? 'ant' : d;
       let f = M.get(k);
       if (!f) { f = { dia: k === 'ant' ? null : d, hoy: d === hoy, inicio: 0, terminados: 0, sinEmpezar: 0, enProceso: 0 }; M.set(k, f); }
       f.inicio++;
-      if (x[3] === 'A') f.terminados++;
-      else if (x[3] === 'P') f.enProceso++;
-      else f.sinEmpezar++;
+      if (sinAsg(x, lc + 1)) f.sinEmpezar++; else f.terminados++;
     }
     const filas = [...M.values()].sort((a, b) => (b.dia || '') < (a.dia || '') ? -1 : (b.dia || '') > (a.dia || '') ? 1 : 0);
     return { hoy, lc, filas };
@@ -241,7 +243,8 @@ export class PedidosCD {
     const pend = (rows: Pedido[], base: number, h: number) => {
       const t = base + h * 60;
       let c = 0;
-      rows.forEach((x) => { if (x[2] <= t && !(x[6] ? x[6] <= t : x[3] === 'A')) c++; });
+      // sin asignar a esa hora (sin orden de preparación todavía), igual que el balance
+      rows.forEach((x) => { if (x[2] <= t && !(x[3] === 'A' && x[6] && x[6] <= t) && (x[10] ? x[10] > t : x[3] === 'R' || x[3] === 'E')) c++; });
       return c;
     };
     const v1 = hs.map((h) => pend(C, t0, h));

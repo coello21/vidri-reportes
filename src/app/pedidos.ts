@@ -26,7 +26,7 @@ const dowC = (d: string) => DIAS_CORTO[diaSemana(d)];
 const dowL = (d: string) => DIAS_LARGO[diaSemana(d)];
 
 export class PedidosVista {
-  bod: FiltroBodega = 'all';
+  bod: FiltroBodega = 'N';
   dia: string | null = null;
   est = new Set<Estado>(['R']);
 
@@ -142,10 +142,10 @@ export class PedidosVista {
 
     // entran vs atendidos
     const ing = z(), ate = z();
-    P.all.forEach((x) => { const d = diaDeMin(x[2]); if (d in di) ing[di[d]] += x[4]; if (x[6]) { const a = diaDeMin(x[6]); if (a in di) ate[di[a]] += x[4]; } });
+    P.all.forEach((x) => { const d = diaDeMin(x[7] || x[2]); if (d in di) ing[di[d]] += x[4]; if (x[10]) { const a = diaDeMin(x[10]); if (a in di) ate[di[a]] += x[4]; } });
     lineas($('pdFlow'), D7, [{ name: 'Entran', color: '#1E3A6E', vals: ing.slice(k7), off: -6 }, { name: 'Atendidos', color: '#E0262B', vals: ate.slice(k7), off: 8 }], { partial: p7 });
     const avg = (a: number[]) => { const xs = fi.map((i) => a[i]).filter((v) => v > 0); return xs.length ? sum(xs) / xs.length : 0; };
-    $('pdFlowT').textContent = avg(ate) >= avg(ing) ? 'El CD atiende al ritmo de lo que entra' : 'Entra más de lo que el CD atiende';
+    $('pdFlowT').textContent = avg(ate) >= avg(ing) ? 'Se asigna al ritmo de lo que entra' : 'Entra más de lo que se asigna';
 
     // pendiente sin asignar
     const age = (x: Pedido) => (B.lc - (x[7] || x[2])) / 60;
@@ -169,8 +169,8 @@ export class PedidosVista {
     T('pdArrT', 'Balance diario de pedidos');
     T('pdCohT', 'Estado de los pedidos que cayeron ese día');
     T('pdSucT', 'Pedidos por sucursal destino');
-    T('pdFlowT', 'SKUs ingresados vs SKUs actualizados');
-    document.querySelectorAll<HTMLElement>('#pdFlowT~.leg span').forEach((sp) => { sp.innerHTML = sp.innerHTML.replace('Entran', 'Ingresados').replace('Atendidos', 'Actualizados'); });
+    T('pdFlowT', 'SKUs ingresados vs SKUs asignados');
+    document.querySelectorAll<HTMLElement>('#pdFlowT~.leg span').forEach((sp) => { sp.innerHTML = sp.innerHTML.replace('Entran', 'Ingresados').replace('Atendidos', 'Asignados'); });
     document.querySelectorAll<HTMLElement>('#tab-pedidos .leg i.dash').forEach((i) => { i.parentElement!.style.display = 'none'; });
     const sec = $('pdK1').closest('.kpis');
     if (!sec || !sec.parentNode) return;
@@ -221,14 +221,13 @@ export class PedidosVista {
     const F = R.filas, sum = (k: 'inicio' | 'terminados' | 'sinEmpezar' | 'enProceso') => F.reduce((a, f) => a + f[k], 0);
     const nombre = (f: FilaPorFecha) => f.dia == null ? 'Días anteriores' : f.hoy ? 'Hoy, ' + dowC(f.dia) + ' ' + etiquetaDia(f.dia) : dowC(f.dia) + ' ' + etiquetaDia(f.dia);
     const ayer = F.find((f) => f.dia === sumarDiasUTC(R.hoy, -1));
-    $('pdFechT').textContent = 'Pendiente de hoy según la fecha del pedido' + (ayer && ayer.sinEmpezar ? ': de ayer siguen ' + fmtInt(ayer.sinEmpezar) + ' sin empezar' : '');
+    $('pdFechT').textContent = 'Pendiente de asignar según la fecha del pedido' + (ayer && ayer.sinEmpezar ? ': de ayer siguen ' + fmtInt(ayer.sinEmpezar) + ' sin asignar' : '');
     const fila = (n: string, f: { inicio: number; terminados: number; sinEmpezar: number; enProceso: number }, cls = '') =>
-      '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + n + '</td><td>' + fmtInt(f.inicio) + '</td><td>' + fmtInt(f.terminados) + '</td><td' + (f.sinEmpezar ? ' class="up"' : '') + '>' + fmtInt(f.sinEmpezar) +
-      '</td><td>' + fmtInt(f.enProceso) + '</td><td><b>' + fmtInt(f.sinEmpezar + f.enProceso) + '</b></td></tr>';
-    el.innerHTML = '<div class="pd-tbl"><table class="bal"><thead><tr><th>Fecha del pedido</th><th>Al empezar el día<br><span class="q">(hoy: entraron)</span></th><th>Terminados hoy</th><th>Siguen sin empezar</th><th>Siguen en proceso</th><th>Sin terminar al corte</th></tr></thead><tbody>' +
+      '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + n + '</td><td>' + fmtInt(f.inicio) + '</td><td>' + fmtInt(f.terminados) + '</td><td' + (f.sinEmpezar ? ' class="up"' : '') + '><b>' + fmtInt(f.sinEmpezar) + '</b></td></tr>';
+    el.innerHTML = '<div class="pd-tbl"><table class="bal"><thead><tr><th>Fecha del pedido</th><th>Sin asignar al empezar el día<br><span class="q">(hoy: entraron)</span></th><th>Se asignaron hoy</th><th>Siguen sin asignar al corte</th></tr></thead><tbody>' +
       F.map((f) => fila(nombre(f), f, f.hoy ? 'sel' : '')).join('') +
       fila('Total', { inicio: sum('inicio'), terminados: sum('terminados'), sinEmpezar: sum('sinEmpezar'), enProceso: sum('enProceso') }, 'tot') + '</tbody></table></div>' +
-      '<p class="pd-note">Corte: ' + corteTxt(R.lc) + ' · Sin terminar = recibidos + en proceso (todavía no actualizados); no es lo pendiente de preparar.</p>';
+      '<p class="pd-note">Corte: ' + corteTxt(R.lc) + ' · Sin asignar = recibidos que todavía no tienen orden de preparación. El total de la última columna es el «Quedan sin asignar» del balance.</p>';
   }
 
   /** Estado al último corte de los pedidos que cayeron el día elegido, y su curva de "sin terminar". */
@@ -237,11 +236,11 @@ export class PedidosVista {
     const pct = (v: number) => (n ? (v && v / n < 0.01 ? 'menos de 1' : String(Math.round(v / n * 100))) : '0');
     const w = DIAS_CORTO[diaSemana(ref)] + ' ' + etiquetaDia(ref);
     const k = (id: string, v: string, f: string) => { $(id).textContent = v; $(id + 'F').innerHTML = f; };
-    $('pdCohT').textContent = n ? 'De los ' + fmtInt(n) + ' pedidos que cayeron el ' + w + ', ' + pct(A.terminados) + '% ya se terminó y ' + pct(A.sinEmpezar) + '% sigue sin empezar' : 'No cayeron pedidos el ' + w;
+    $('pdCohT').textContent = n ? 'De los ' + fmtInt(n) + ' pedidos que cayeron el ' + w + ', ' + pct(A.sinEmpezar) + '% sigue sin asignar' : 'No cayeron pedidos el ' + w;
     $('pdCohQ').textContent = 'Estado al último corte (' + corteTxt(lc) + ') de los pedidos con fecha del ' + w + (ref === cutDay ? ' (día en curso: siguen cayendo pedidos)' : '') + '.';
-    k('pdC2', fmtInt(A.sinEmpezar), pct(A.sinEmpezar) + '% · recibidos, nadie los ha empezado');
-    k('pdC3', fmtInt(A.enProceso), pct(A.enProceso) + '% · en preparación');
-    k('pdC4', fmtInt(A.terminados), pct(A.terminados) + '% · actualizados, preparación terminada');
+    k('pdC2', fmtInt(A.sinEmpezar), pct(A.sinEmpezar) + '% · recibidos, sin asignar');
+    k('pdC3', fmtInt(A.enProceso), pct(A.enProceso) + '% · procesando (en preparación o en despacho)');
+    k('pdC4', fmtInt(A.terminados), pct(A.terminados) + '% · actualizados (ya salió todo: despacho)');
 
     // barras por día de llegada
     const all = this.ped.vigentes(this.bod), S = { R: [] as number[], P: [] as number[], A: [] as number[] };
@@ -262,7 +261,7 @@ export class PedidosVista {
     const line = (vals: number[] | null, hh: number[], col: string, dash: boolean, lab: string) => {
       if (!vals || !vals.length) return '';
       let o = '<polyline fill="none" stroke="' + col + '" stroke-width="2.2"' + (dash ? ' stroke-dasharray="6 4"' : '') + ' points="' + vals.map((v, i) => x(hh[i]).toFixed(1) + ',' + y(v).toFixed(1)).join(' ') + '"/>';
-      vals.forEach((v, i) => { o += '<circle cx="' + x(hh[i]).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="6" fill="transparent"><title>' + lab + ' · ' + DIAS_LARGO[diaSemana(sumarDiasUTC(ref, Math.floor(hh[i] / 24)))] + ' ' + String(hh[i] % 24).padStart(2, '0') + ':00 → ' + fmtInt(v) + ' sin terminar</title></circle>'; });
+      vals.forEach((v, i) => { o += '<circle cx="' + x(hh[i]).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="6" fill="transparent"><title>' + lab + ' · ' + DIAS_LARGO[diaSemana(sumarDiasUTC(ref, Math.floor(hh[i] / 24)))] + ' ' + String(hh[i] % 24).padStart(2, '0') + ':00 → ' + fmtInt(v) + ' sin asignar</title></circle>'; });
       const li = vals.length - 1;
       return o + '<text class="lb" x="' + (x(hh[li]) + 6).toFixed(1) + '" y="' + (y(vals[li]) + 4).toFixed(1) + '" fill="' + col + '">' + fmtInt(vals[li]) + '</text>';
     };
@@ -276,8 +275,8 @@ export class PedidosVista {
       return;
     }
     $('pdBurnT').textContent = A.quedabanSemanaPasada == null || !A.nSemanaPasada
-      ? 'Quedan ' + fmtInt(A.quedan) + ' pedidos del ' + dowL(ref) + ' sin terminar'
-      : 'Quedan ' + fmtInt(A.quedan) + ' pedidos del ' + dowL(ref) + ' sin terminar; a esta misma altura la semana pasada quedaban ' + fmtInt(A.quedabanSemanaPasada);
+      ? 'Quedan ' + fmtInt(A.quedan) + ' pedidos del ' + dowL(ref) + ' sin asignar'
+      : 'Quedan ' + fmtInt(A.quedan) + ' pedidos del ' + dowL(ref) + ' sin asignar; a esta misma altura la semana pasada quedaban ' + fmtInt(A.quedabanSemanaPasada);
   }
 
   private renderSucursales(rows: Pedido[]) {
