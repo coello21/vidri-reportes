@@ -714,8 +714,10 @@ html[data-theme="dark"] table.hm thead th,html[data-theme="dark"] table.hm tr.hm
 .flujo>div em{display:block;font-style:normal;font-size:11px;color:var(--ink-2)}
 .flujo>div small{display:block;font-size:10.5px;color:var(--mut)}
 .flujo>div.fin b{color:var(--accent,#E0262B)}
+.flujo:has(>div.aparte){max-width:1010px}
+.flujo>div.aparte{margin:0 0 0 12px;border-style:dashed}
 .flujo>i{flex:0 0 20px;display:flex;align-items:center;justify-content:center;font:600 16px var(--font-display);font-style:normal;color:var(--mut)}
-@media (max-width:640px){.flujo{flex-wrap:wrap}.flujo>div{flex:1 1 40%}.flujo>i{display:none}}
+@media (max-width:640px){.flujo{flex-wrap:wrap}.flujo>div{flex:1 1 40%}.flujo>i{display:none}.flujo>div.aparte{margin:0}}
 
 /* Dona de motivos (Resumen) */
 .dona{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
