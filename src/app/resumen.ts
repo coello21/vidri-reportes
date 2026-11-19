@@ -281,7 +281,7 @@ export class Resumen {
     const pl = r.cur ? pendLinDe(this.radar.store, r.d) : null;
     el.innerHTML = c('Venían de antes', r.lIni, r.ini, 'sin asignar') + '<i>+</i>' + c('Entraron', r.lEnt, r.ent, dia) + '<i>−</i>' +
       c('Se asignaron', r.lTer, r.ter, dia) + '<i>=</i>' + c(r.cur ? 'Quedan ahora' : 'Quedaron', r.lFin, r.fin, 'sin asignar', 'fin') +
-      (pl ? c('Ya empezados sin preparador', pl.l, pl.p, 'total por línea: ' + fmtInt(r.lFin + pl.l), 'aparte') : '');
+      (pl ? c('Por asignar en pedidos en proceso', pl.l, pl.p, 'total por línea: ' + fmtInt(r.lFin + pl.l), 'aparte') : '');
     el.title = 'Pendiente de preparar (bodega Nejapa): líneas = SKUs de los pedidos recibidos que todavía no tienen orden de preparación.';
     el.hidden = false;
   }

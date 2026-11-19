@@ -126,7 +126,7 @@ export class PedidosVista {
         '');
       const pl = r.cur && this.pendLin ? this.pendLin(r.d) : null;
       $('pdK5C').hidden = !pl; $('pdKpis').classList.toggle('k5', !!pl);
-      if (pl) k('pdK5', fmtInt(pl.p), 'pedidos que ya empezaron con zonas sin preparador<br>' + fmtInt(pl.l) + ' SKUs · total por SKU: ' + fmtInt(r.lFin + pl.l));
+      if (pl) k('pdK5', fmtInt(pl.p), 'pedidos en proceso con líneas sin preparador<br>' + fmtInt(pl.l) + ' SKUs · total por SKU: ' + fmtInt(r.lFin + pl.l));
     }
 
     // títulos
