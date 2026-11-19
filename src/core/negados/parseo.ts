@@ -18,7 +18,16 @@ const NEED_LABEL: Record<string, string> = {
   Disponible: 'Disponible', Desc: 'Descripción', Sucursal: 'Sucursal', Estado: 'Estado', Fecha: 'Fecha Creación', FechaAct: 'Fecha Actualizado',
 };
 
-/** Convierte las filas de la hoja (matriz) en registros. Lanza error si faltan columnas. */
+/** Ubicaciones que no son del CD Nejapa (no se cuentan en el Radar). */
+const ZONAS_FUERA = new Set(['ROTOTEC CONSTRU', 'TRANSITO-BAZINNI', 'TRANSITO-MATCO', 'TRASLADO MOBU-NNEO']);
+/** true si la Ubicación 1 es de Nejapa: fuera quedan las que empiezan con HC, PV o CL y las de ZONAS_FUERA. */
+export function esZonaNejapa(ubic: unknown): boolean {
+  const u = ubic == null ? '' : String(ubic).trim().toUpperCase();
+  return !(u.startsWith('HC') || u.startsWith('PV') || u.startsWith('CL') || ZONAS_FUERA.has(u));
+}
+
+/** Convierte las filas de la hoja (matriz) en registros. Lanza error si faltan columnas.
+ *  Las filas de ubicaciones que no son de Nejapa se descartan (ver esZonaNejapa). */
 export function filasARegistros(rows: unknown[][]): Registro[] {
   let headerIdx = -1;
   let headerMap: Record<string, number> = {};
@@ -49,6 +58,7 @@ export function filasARegistros(rows: unknown[][]): Registro[] {
     if (sku == null || String(sku).trim() === '') continue;
     const raw: Record<string, unknown> = {};
     for (const k in headerMap) raw[k] = r[headerMap[k]];
+    if (!esZonaNejapa(raw.Ubic1)) continue;
     const rec: Registro = {
       ...raw,
       SKU: String(raw.SKU).trim(),

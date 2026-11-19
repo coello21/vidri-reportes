@@ -742,3 +742,6 @@ html[data-theme="dark"] table.hm thead th,html[data-theme="dark"] table.hm tr.hm
 #pasDlg i.mdot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
 #pasDlg tr.clk{cursor:pointer}
 #tab-top #pasDlg .rk-tbl th:last-child{display:table-cell}
+
+/* Nota del cambio en el proceso de revisión (desde el 12-nov-2026) */
+.vxh .nota-cambio{margin:8px 0 0;font:11px var(--font-mono,monospace);text-transform:uppercase;letter-spacing:.06em;color:#E0262B}
