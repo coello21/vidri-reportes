@@ -4,7 +4,7 @@ import './estilos.css';
 import { RadarNegados } from '../core/negados/radar';
 import { PedidosCD } from '../core/pedidos/cd';
 import type { Almacen } from '../nube/almacen';
-import { Resumen } from './resumen';
+import { Resumen, pendLinDe } from './resumen';
 import { TopNegados } from './top';
 import { PedidosVista } from './pedidos';
 import { $ } from './ui/formato';
@@ -44,6 +44,7 @@ function ponerPestana(app: App, t: string) {
 function conectarPestanas(app: App) {
   app.resumen.alCambiar = (vm) => app.top.render(vm);
   app.resumen.flujo = () => app.pedidos.balance('N');
+  app.ped.pendLin = (dia) => pendLinDe(app.radar.store, dia);
   // Cargar Excel
   const ctx: Contexto = {
     radar: app.radar, pedidos: app.pedidos, almacen: app.almacen, listo: () => app.listo,

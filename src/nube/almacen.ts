@@ -16,7 +16,7 @@ export interface Datos {
  * (seen: líneas ya contadas, revK: líneas en revisión) se leen después, en segundo plano.
  * Si el catálogo gana una parte nueva y no se pone aquí, igual se lee después (no se pierde al guardar).
  */
-export const STORE_LIGERO = ['skus', 'pending', 'pneg', 'b2b', 'covered', 'revN', 'backlog', 'updatedAt', 'revKT', 'legacyCutoff', 'revX'];
+export const STORE_LIGERO = ['skus', 'pending', 'pneg', 'b2b', 'covered', 'revN', 'backlog', 'updatedAt', 'revKT', 'legacyCutoff', 'revX', 'pendLin'];
 
 export interface ResultadoGuardar { dias: number; diasQuitados: number; pedidos: number; catalogo: boolean; cortes: boolean }
 

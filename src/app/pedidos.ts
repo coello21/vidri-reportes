@@ -30,6 +30,8 @@ export class PedidosVista {
   dia: string | null = null;
   est = new Set<Estado>(['R']);
 
+  /** líneas sin preparador de pedidos ya empezados (las pone main.ts desde el estado del Radar) */
+  pendLin: ((dia: string) => { l: number; p: number } | null) | null = null;
   constructor(private ped: PedidosCD) { this.conectar(); }
 
   private conectar() {
@@ -120,7 +122,8 @@ export class PedidosVista {
       const bR = ped.pendientes(['R'], this.bod).ok.length, bPp = ped.pendientes(['P'], this.bod).ok.length;
       k('pdK4', fmtInt(r.fin), (r.fin > r.ini ? '▲ ' + fmtInt(r.fin - r.ini) + ' más que al empezar' : r.fin < r.ini ? '▼ ' + fmtInt(r.ini - r.fin) + ' menos que al empezar' : 'igual que al empezar') +
         (r.cur ? ' · al último corte' : '') +
-        '<br>' + fmtInt(r.lFin) + ' SKUs' + (r.cur ? ' · ' + fmtInt(bPp) + ' pedidos en preparación (Procesando) no cuentan aquí' : ''));
+        '<br>' + fmtInt(r.lFin) + ' SKUs' + (r.cur ? ' · ' + fmtInt(bPp) + ' pedidos en preparación (Procesando) no cuentan aquí' : '') +
+        ((() => { const pl = r.cur && this.pendLin ? this.pendLin(r.d) : null; return pl ? '<br>+ <b>' + fmtInt(pl.l) + '</b> SKUs sin preparador en ' + fmtInt(pl.p) + ' pedidos ya empezados' : ''; })()));
     }
 
     // títulos
