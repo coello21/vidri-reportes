@@ -253,11 +253,12 @@
       <span class="lbl2">Bodega</span><div id="pdBod" class="chips"></div>
       <span class="cut" id="pdCut"></span>
     </div>
-    <section class="kpis" aria-label="Balance del día">
+    <section class="kpis" id="pdKpis" aria-label="Balance del día">
       <div class="kpi"><div class="lbl" id="pdK1L">Venían de días anteriores</div><div class="val" id="pdK1">—</div><div class="foot" id="pdK1F"></div></div>
       <div class="kpi"><div class="lbl" id="pdK2L">+ Entraron ese día</div><div class="val" id="pdK2">—</div><div class="foot" id="pdK2F"></div></div>
       <div class="kpi"><div class="lbl" id="pdK3L">− Se terminaron</div><div class="val" id="pdK3">—</div><div class="foot" id="pdK3F"></div></div>
       <div class="kpi"><div class="lbl" id="pdK4L">= Sin terminar</div><div class="val acc" id="pdK4">—</div><div class="foot" id="pdK4F"></div></div>
+      <div class="kpi aparte" id="pdK5C" hidden><div class="lbl">Ya empezados sin preparador</div><div class="val" id="pdK5">—</div><div class="foot" id="pdK5F"></div></div>
     </section>
     <div class="vgrid">
       <div class="chart full pd-chart"><h3 id="pdAsigT">Pedidos asignados por día y motivo</h3><p class="q">Últimos 15 días según la fecha del pedido. Clic en una barra para ver ese día (se marca, el gráfico no se mueve); clic de nuevo para volver a hoy. Línea discontinua = tendencia (promedio de 7 días); el día en curso se ve más claro y no cuenta. Lunes y martes resaltados.</p>

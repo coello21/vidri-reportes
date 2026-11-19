@@ -123,7 +123,10 @@ export class PedidosVista {
       k('pdK4', fmtInt(r.fin), (r.fin > r.ini ? '▲ ' + fmtInt(r.fin - r.ini) + ' más que al empezar' : r.fin < r.ini ? '▼ ' + fmtInt(r.ini - r.fin) + ' menos que al empezar' : 'igual que al empezar') +
         (r.cur ? ' · al último corte' : '') +
         '<br>' + fmtInt(r.lFin) + ' SKUs' + (r.cur ? ' · ' + fmtInt(bPp) + ' pedidos en preparación (Procesando) no cuentan aquí' : '') +
-        ((() => { const pl = r.cur && this.pendLin ? this.pendLin(r.d) : null; return pl ? '<br>+ <b>' + fmtInt(pl.l) + '</b> SKUs sin preparador en ' + fmtInt(pl.p) + ' pedidos ya empezados' : ''; })()));
+        '');
+      const pl = r.cur && this.pendLin ? this.pendLin(r.d) : null;
+      $('pdK5C').hidden = !pl; $('pdKpis').classList.toggle('k5', !!pl);
+      if (pl) k('pdK5', fmtInt(pl.p), 'pedidos que ya empezaron con zonas sin preparador<br>' + fmtInt(pl.l) + ' SKUs · total por SKU: ' + fmtInt(r.lFin + pl.l));
     }
 
     // títulos
