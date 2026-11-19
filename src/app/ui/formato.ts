@@ -15,7 +15,7 @@ export const fechaLarga = (d: string): string => new Date(d + 'T12:00:00').toLoc
 /** "17-oct" corto con mes de la lista de la página: "17-oct" */
 export const etiquetaDia = (d: string): string => +d.slice(8) + '-' + MESES_CORTO[+d.slice(5, 7) - 1];
 /** Días con el cambio en el proceso de revisión: sus fechas salen en rojo en gráficos y tablas. */
-export const DIAS_CAMBIO: [string, string] = ['2026-11-12', '2026-11-18'];
+export const DIAS_CAMBIO: [string, string] = ['2026-11-12', '2026-11-17'];
 export const esDiaCambio = (d: string): boolean => d >= DIAS_CAMBIO[0] && d <= DIAS_CAMBIO[1];
 /** ' cb' si el día es de la semana del cambio (para la clase CSS). */
 export const cCambio = (d: string): string => (esDiaCambio(d) ? ' cb' : '');
