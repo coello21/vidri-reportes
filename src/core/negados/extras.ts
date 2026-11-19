@@ -19,6 +19,17 @@ type Store = StoreRadar & {
 /** [pedido, orden, sucursal, sku, descripción, UM, cantidad, disponible, ubicación 1, ubicación 2, preparador, fecha de revisión (ms), motivo de negado registrado (si el Excel lo trae)] */
 export type FilaSinActualizar = [string, string, string, string, string, string, number | null, number | null, string, string, string, number, string?];
 
+/**
+ * Fecha de envío a revisión de una fila. Si viene vacía pero la línea ya tiene cantidad preparada (en R o P) y lleva
+ * 2 días o más así, el ERP no registró el envío (pasó el 14 y 16-nov): se toma la Fecha Creación de la orden.
+ * Solo se usa cuando ninguna fila de esa línea trae la fecha de envío real.
+ */
+export function fechaEnvio(r: Registro, corteArchivo: number): Date | null {
+  if (r.FechaRevision) return r.FechaRevision;
+  if ((r.Estado === 'R' || r.Estado === 'P') && (r.CantPrep || 0) > 0 && r.Fecha && corteArchivo - r.Fecha.getTime() >= 2 * 864e5) return r.Fecha;
+  return null;
+}
+
 function corteDe(records: Registro[]): number {
   let corte = 0;
   records.forEach((r) => { [r.FechaAct, r.FechaRevision, r.Fecha].forEach((x) => { const v = timeOf(x); if (v > corte) corte = v; }); });
@@ -39,12 +50,13 @@ export function contarRevision(store: StoreRadar, records: Registro[], keepDays:
   S.revN = S.revN || {}; S.revK = S.revK || {};
   delete S.rev; delete S.revT;
   const corte = corteDe(records), by = new Map<string, Registro>();
-  const tr = (x?: Date | null) => (x ? x.getTime() : 0);
+  const tr = (x?: Date | null) => (x ? x.getTime() : 0), fe = (r: Registro) => fechaEnvio(r, corte);
   records.forEach((r) => {
     if (r.Pedido == null || r.Pedido === '' || r.SKU == null) return;
     const k = r.Pedido + '|' + r.SKU, o = by.get(k);
     // varias órdenes de la misma línea: manda la última entrega al revisador
-    if (!o || tr(r.FechaRevision) > tr(o.FechaRevision) || (tr(r.FechaRevision) === tr(o.FechaRevision) && r.Estado === 'A' && o.Estado !== 'A')) by.set(k, r);
+    const real = (x: Registro) => Number(!!x.FechaRevision);
+    if (!o || real(r) > real(o) || (real(r) === real(o) && (tr(fe(r)) > tr(fe(o)) || (tr(fe(r)) === tr(fe(o)) && r.Estado === 'A' && o.Estado !== 'A')))) by.set(k, r);
   });
   const newer = corte >= (S.revKT || 0);
   const leer = (o?: Record<string, string>): Map<string, string> => {
@@ -59,7 +71,7 @@ export function contarRevision(store: StoreRadar, records: Registro[], keepDays:
   X.forEach((_d, k) => { if (K.has(k)) X.delete(k); });
   const add = (d: string, n: number) => { N[d] = (N[d] || 0) + n; if (N[d] <= 0) delete N[d]; touched.add(d); };
   by.forEach((r, k) => {
-    const old = K.get(k), d = r.FechaRevision ? ymd(r.FechaRevision) : null;
+    const f = fe(r), old = K.get(k), d = f ? ymd(f) : null;
     if (d && !old) { if (!newer && X.has(k)) return; K.set(k, d); X.delete(k); add(d, 1); }
     else if (d && old && old !== d && newer) { K.set(k, d); add(old, -1); add(d, 1); }
     else if (!d && old && newer) { K.delete(k); X.set(k, old); add(old, -1); }

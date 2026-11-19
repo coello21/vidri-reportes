@@ -13,11 +13,13 @@
 import { ymd, addDays } from '../comun/fechas';
 import { RadarNegados } from './radar';
 import { motClean, recordarMotivos } from './motivos';
+import { fechaEnvio } from './extras';
 import type { Historial, Registro, DiaResumen } from './tipos';
 
 export const DESDE_REVISION = '2026-11-12';
 
 const ms = (x?: Date | null) => (x ? x.getTime() : 0);
+
 function corte(recs: Registro[]): number {
   let c = 0;
   recs.forEach((r) => { c = Math.max(c, ms(r.FechaAct), ms(r.FechaRevision), ms(r.Fecha)); });
@@ -26,9 +28,10 @@ function corte(recs: Registro[]): number {
 
 /** Líneas con la regla de revisión, listas para el cálculo del Radar (estado A y día = primer envío a revisión). */
 export function lineasPorRevision(archivos: Registro[][]): Registro[] {
-  const M = new Map<string, { dia: number; fila: Registro; mot: string }>(), P = new Map<string, Registro>();
+  const M = new Map<string, { dia: number; fila: Registro; mot: string; fb: boolean }>(), P = new Map<string, Registro>();
   const orden = archivos.map((recs) => ({ recs, c: corte(recs) })).sort((a, b) => a.c - b.c);
-  for (const { recs } of orden) {
+  for (const { recs, c } of orden) {
+    const fe = (r: Registro) => fechaEnvio(r, c);
     const porK = new Map<string, Registro[]>();
     for (const r of recs) {
       if (r.Pedido == null || r.Pedido === '' || r.SKU == null) continue;
@@ -36,15 +39,19 @@ export function lineasPorRevision(archivos: Registro[][]): Registro[] {
       (porK.get(k) || porK.set(k, []).get(k)!).push(r);
     }
     porK.forEach((rs, k) => {
-      const ra = rs.filter((r) => (r.Estado === 'R' || r.Estado === 'A') && r.FechaRevision);
+      const real = rs.filter((r) => (r.Estado === 'R' || r.Estado === 'A') && r.FechaRevision);
+      // sin envío registrado pero ya preparada y atorada 2+ días: cuenta desde la creación de la orden
+      const fb = !real.length;
+      const ra = fb ? rs.filter((r) => fe(r)) : real;
       if (!ra.length) { if (!M.has(k)) P.set(k, rs[0]); return; }
       P.delete(k);
       const o = M.get(k);
-      const dia = Math.min(o ? o.dia : Infinity, ...ra.map((r) => ms(r.FechaRevision)));
+      if (o && !o.fb && fb) return; // ya tiene su envío real: una fila atorada no la cambia
+      const dia = Math.min(o && o.fb === fb ? o.dia : Infinity, ...ra.map((r) => ms(fe(r))));
       const fila = ra.slice().sort((a, b) =>
-        Number((b.CantPrep || 0) > 0) - Number((a.CantPrep || 0) > 0) || Number(b.Estado === 'A') - Number(a.Estado === 'A') || ms(b.FechaRevision) - ms(a.FechaRevision))[0];
+        Number((b.CantPrep || 0) > 0) - Number((a.CantPrep || 0) > 0) || Number(b.Estado === 'A') - Number(a.Estado === 'A') || ms(fe(b)) - ms(fe(a)))[0];
       const mot = motClean(fila.Motivo) || ra.map((r) => motClean(r.Motivo)).find(Boolean) || o?.mot || '';
-      M.set(k, { dia, fila, mot });
+      M.set(k, { dia, fila, mot, fb });
     });
   }
   const out: Registro[] = [];

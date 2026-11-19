@@ -86,3 +86,18 @@ describe('Negados sin actualizar', () => {
     expect(fotoSinActualizar(st, [rec(9, 'q', '2026-10-19T10:00:00', 'R', { CantPrep: 0, Fecha: D('2026-10-19T08:00:00') })])).toBe(false);
   });
 });
+
+describe('Líneas preparadas sin fecha de envío (ERP no la registró)', () => {
+  it('una línea preparada y atorada 2+ días cuenta el día de creación de su orden; si tiene envío real, manda el real', () => {
+    const st = {} as StoreRadar;
+    const atorada = rec(1, 'a', null, 'R', { Fecha: D('2026-11-14T09:00:00'), CantPrep: 3, Orden: 'O1' });
+    const reasignada = rec(2, 'b', null, 'P', { Fecha: D('2026-11-14T09:00:00'), CantPrep: 2, Orden: 'O2' });
+    const real = rec(2, 'b', '2026-11-16T10:00:00', 'A', { Fecha: D('2026-11-16T08:00:00'), Orden: 'O3' });
+    const reciente = rec(3, 'c', null, 'R', { Fecha: D('2026-11-17T20:00:00'), CantPrep: 1 });
+    const negadaSinEnvio = rec(4, 'd', null, 'P', { Fecha: D('2026-11-14T09:00:00'), CantPrep: 0 });
+    contarRevision(st, [atorada, reasignada, real, reciente, negadaSinEnvio, conCorte(rec(9, 'z', null), '2026-11-18T12:00:00')], 10);
+    expect(lineasPreparadas(st, '2026-11-14', '2026-11-14')).toBe(1);
+    expect(lineasPreparadas(st, '2026-11-16', '2026-11-16')).toBe(1);
+    expect(lineasPreparadas(st, '2026-11-17', '2026-11-17')).toBeNull();
+  });
+});
