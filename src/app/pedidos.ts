@@ -106,21 +106,21 @@ export class PedidosVista {
     this.renderPorFecha();
     this.renderAvance(DAY || D[n - 1], D, cutDay, lc, pick);
     this.renderSucursales(P.all.filter((x) => { const d = diaDeMin(x[2]); return DAY ? d === DAY : d in di; }));
-    const iLast = DAY ? dI : n - 1, arrHoy = arr[iLast] || 0;
+    const iLast = DAY ? dI : n - 1, arrHoy = BAL ? BAL.ini : arr[iLast] || 0;
 
     // tarjetas del balance
     const k = (id: string, v: string, f: string) => { $(id).textContent = v; $(id + 'F').innerHTML = f; };
     if (BAL) {
       const r = BAL, lbl = dowC(r.d) + ' ' + etiquetaDia(r.d), i = di[r.d];
       $('pdK2L').textContent = '+ Entraron el ' + lbl;
-      $('pdK4L').textContent = r.cur ? '= Sin terminar ahora' : '= Quedaron sin terminar';
-      k('pdK1', fmtInt(r.ini), 'pedidos sin terminar al iniciar el ' + lbl + ' (' + fmtInt(arrS.skus[i] || 0) + ' SKUs)' + (r.sa0 != null ? '<br>de ellos <b>' + fmtInt(r.sa0) + '</b> sin asignar' : ''));
-      k('pdK2', fmtInt(r.ent), fmtInt(sk[i] || 0) + ' SKUs' + (r.cur ? ' · día en curso, siguen cayendo' : '') + (avgW[diaSemana(r.d)] && !r.cur ? ' · un ' + dowL(r.d) + ' promedio tiene ' + fmtInt(Math.round(avgW[diaSemana(r.d)])) : ''));
-      k('pdK3', fmtInt(r.ter), 'pedidos que pasaron a actualizado ese día' + (r.cur ? ' (hasta el corte)' : ''));
+      $('pdK4L').textContent = r.cur ? '= Quedan sin asignar ahora' : '= Quedaron sin asignar';
+      k('pdK1', fmtInt(r.ini), 'pedidos sin asignar al iniciar el ' + lbl + ' (' + fmtInt(r.lIni) + ' SKUs)');
+      k('pdK2', fmtInt(r.ent), fmtInt(r.lEnt) + ' SKUs' + (r.cur ? ' · día en curso, siguen cayendo' : '') + (avgW[diaSemana(r.d)] && !r.cur ? ' · un ' + dowL(r.d) + ' promedio tiene ' + fmtInt(Math.round(avgW[diaSemana(r.d)])) : ''));
+      k('pdK3', fmtInt(r.ter), 'pedidos que se asignaron ese día (' + fmtInt(r.lTer) + ' SKUs)' + (r.cur ? ' hasta el corte' : ''));
       const bR = ped.pendientes(['R'], this.bod).ok.length, bPp = ped.pendientes(['P'], this.bod).ok.length;
       k('pdK4', fmtInt(r.fin), (r.fin > r.ini ? '▲ ' + fmtInt(r.fin - r.ini) + ' más que al empezar' : r.fin < r.ini ? '▼ ' + fmtInt(r.ini - r.fin) + ' menos que al empezar' : 'igual que al empezar') +
         (r.cur ? ' · al último corte' : '') +
-        (r.cur ? '<br><b>' + fmtInt(bR) + '</b> pendientes sin asignar (Recibido) · ' + fmtInt(bPp) + ' en preparación (Procesando)' : r.sa1 != null ? '<br>de ellos <b>' + fmtInt(r.sa1) + '</b> sin asignar' : ''));
+        '<br>' + fmtInt(r.lFin) + ' SKUs' + (r.cur ? ' · ' + fmtInt(bPp) + ' pedidos en preparación (Procesando) no cuentan aquí' : ''));
     }
 
     // títulos
@@ -132,12 +132,12 @@ export class PedidosVista {
         (part.has(dI) ? ' (día en curso)' : dd == null || Math.abs(dd) < 5 ? ', lo normal para un ' + DIAS_LARGO[w] : ', ' + Math.round(Math.abs(dd)) + '% ' + (dd > 0 ? 'más' : 'menos') + ' que un ' + DIAS_LARGO[w] + ' promedio');
       const top = MOTIVOS.map((c) => [c, byCat[c][dI]] as [MotivoVista, number]).sort((a, b) => b[1] - a[1])[0];
       $('pdLead').innerHTML = '<b>' + fmtInt(cnt[dI]) + '</b> pedidos y ' + fmtInt(sk[dI]) + ' SKUs' + (this.bod === 'all' ? '' : ' (bodega ' + BODEGA_NOMBRE[this.bod] + ')') + '. El motivo principal fue ' + MOTIVO_NOMBRE[top[0]] + ' (' + fmtInt(top[1]) +
-        '). Al iniciar ese día quedaban <b>' + fmtInt(arrHoy) + '</b> pedidos sin terminar de días anteriores. El día va marcado en los gráficos; clic de nuevo en él para volver a hoy.';
+        '). Al iniciar ese día quedaban <b>' + fmtInt(arrHoy) + '</b> pedidos sin asignar de días anteriores. El día va marcado en los gráficos; clic de nuevo en él para volver a hoy.';
     } else {
       $('pdTitle').textContent = 'Se asignan ' + fmtInt(Math.round(avgDay)) + ' pedidos por día' + (top2.length ? '; el ' + DIAS_LARGO[top2[0]] + ' es el pico con ' + fmtInt(Math.round(avgW[top2[0]])) + ' en promedio' + (top2[1] != null ? ' y le sigue el ' + DIAS_LARGO[top2[1]] : '') : '');
       $('pdLead').innerHTML = 'Últimos 15 días, del ' + etiquetaDia(P.from) + ' al ' + etiquetaDia(P.to) + (this.bod === 'all' ? ' (Nejapa, Bazinni y Mobu)' : ' (bodega ' + BODEGA_NOMBRE[this.bod] + ')') + ': <b>' + fmtInt(tP) + '</b> pedidos y ' + fmtInt(tS) +
         ' SKUs. Últimos 7 días contra los 7 anteriores: ' + (trT == null ? 'sin datos suficientes' : Math.abs(trT) < 5 ? 'estable' : trT > 0 ? 'suben ' + Math.round(trT) + '%' : 'bajan ' + Math.round(-trT) + '%') +
-        '. Al iniciar el ' + etiquetaDia(D[iLast]) + ' quedaban <b>' + fmtInt(arrHoy) + '</b> pedidos sin terminar del día anterior.';
+        '. Al iniciar el ' + etiquetaDia(D[iLast]) + ' quedaban <b>' + fmtInt(arrHoy) + '</b> pedidos sin asignar de días anteriores.';
     }
 
     // entran vs atendidos
@@ -179,10 +179,10 @@ export class PedidosVista {
     sec.classList.add('pdkhide');
     const g = (id: string) => document.getElementById(id)?.textContent || '—';
     const day = g('pdK2L').replace(/^\+\s*Entraron\s*/, '').replace(/^el\s*/, ''), cur = /ahora/i.test(g('pdK4L'));
-    bx.innerHTML = '<div><span>Inició</span><b>' + g('pdK1') + '</b><span>sin terminar</span></div><div class="op">+</div>' +
+    bx.innerHTML = '<div><span>Venían de antes</span><b>' + g('pdK1') + '</b><span>sin asignar</span></div><div class="op">+</div>' +
       '<div><span>Entraron</span><b>' + g('pdK2') + '</b><span>' + esc(day) + '</span></div><div class="op">−</div>' +
-      '<div><span>Terminados</span><b>' + g('pdK3') + '</b><span>' + esc(day) + '</span></div><div class="op">=</div>' +
-      '<div class="fin"><span>' + (cur ? 'Ahora' : 'Quedaron') + '</span><b>' + g('pdK4') + '</b><span>sin terminar</span></div>';
+      '<div><span>Se asignaron</span><b>' + g('pdK3') + '</b><span>' + esc(day) + '</span></div><div class="op">=</div>' +
+      '<div class="fin"><span>' + (cur ? 'Quedan ahora' : 'Quedaron') + '</span><b>' + g('pdK4') + '</b><span>sin asignar</span></div>';
   }
 
   private renderChips(all: Pedido[], D: string[], cutDay: string) {
@@ -205,9 +205,9 @@ export class PedidosVista {
     // la tabla muestra los últimos 7 días (y el día elegido, si es más viejo); los gráficos siguen con 15
     const rows = todas.filter((x, i) => i >= todas.length - 7 || x.d === ref);
     const r = rows.find((x) => x.d === ref) || rows[rows.length - 1], w = dowL(r.d);
-    $('pdArrT').textContent = r.cur ? 'Hoy se empezó con ' + fmtInt(r.ini) + ' pedidos sin terminar; van ' + fmtInt(r.ter) + ' terminados'
-      : 'El ' + w + ' ' + etiquetaDia(r.d) + ' quedaron ' + fmtInt(r.fin) + ' pedidos para el día siguiente' + (r.fin > r.ini ? ', ' + fmtInt(r.fin - r.ini) + ' más de los que había al empezar' : r.fin < r.ini ? ', ' + fmtInt(r.ini - r.fin) + ' menos de los que había al empezar' : '');
-    el.innerHTML = '<div class="pd-tbl"><table class="bal"><thead><tr><th>Día</th><th>Venían de días anteriores</th><th>+ Entraron ese día</th><th>− Se terminaron</th><th>= Quedaron para el día siguiente</th></tr></thead><tbody>' +
+    $('pdArrT').textContent = r.cur ? 'Hoy se empezó con ' + fmtInt(r.ini) + ' pedidos sin asignar; van ' + fmtInt(r.ter) + ' asignados'
+      : 'El ' + w + ' ' + etiquetaDia(r.d) + ' quedaron ' + fmtInt(r.fin) + ' pedidos sin asignar para el día siguiente' + (r.fin > r.ini ? ', ' + fmtInt(r.fin - r.ini) + ' más de los que había al empezar' : r.fin < r.ini ? ', ' + fmtInt(r.ini - r.fin) + ' menos de los que había al empezar' : '');
+    el.innerHTML = '<div class="pd-tbl"><table class="bal"><thead><tr><th>Día</th><th>Venían de antes sin asignar</th><th>+ Entraron ese día</th><th>− Se asignaron</th><th>= Quedaron sin asignar</th></tr></thead><tbody>' +
       rows.map((x) => '<tr class="clk' + (x.d === ref ? ' sel' : '') + '" data-i="' + x.i + '"><td>' + dowC(x.d) + ' ' + etiquetaDia(x.d) + (x.cur ? ' <span class="tag">en curso</span>' : '') + '</td><td>' + fmtInt(x.ini) + '</td><td>' + fmtInt(x.ent) + '</td><td>' + fmtInt(x.ter) +
         '</td><td class="' + (x.fin > x.ini ? 'up' : x.fin < x.ini ? 'dn' : '') + '"><b>' + (x.cur ? fmtInt(x.fin) + ' hasta ahora' : fmtInt(x.fin)) + '</b> ' + (x.fin > x.ini ? '▲' : x.fin < x.ini ? '▼' : '') + '</td></tr>').join('') + '</tbody></table></div>';
     el.querySelectorAll<HTMLElement>('tr.clk').forEach((tr) => tr.addEventListener('click', () => pick(+tr.dataset.i!)));
@@ -228,7 +228,7 @@ export class PedidosVista {
     el.innerHTML = '<div class="pd-tbl"><table class="bal"><thead><tr><th>Fecha del pedido</th><th>Al empezar el día<br><span class="q">(hoy: entraron)</span></th><th>Terminados hoy</th><th>Siguen sin empezar</th><th>Siguen en proceso</th><th>Sin terminar al corte</th></tr></thead><tbody>' +
       F.map((f) => fila(nombre(f), f, f.hoy ? 'sel' : '')).join('') +
       fila('Total', { inicio: sum('inicio'), terminados: sum('terminados'), sinEmpezar: sum('sinEmpezar'), enProceso: sum('enProceso') }, 'tot') + '</tbody></table></div>' +
-      '<p class="pd-note">Corte: ' + corteTxt(R.lc) + ' · Días anteriores + hoy = Inició + Entraron del balance; la última columna es el "Sin terminar ahora".</p>';
+      '<p class="pd-note">Corte: ' + corteTxt(R.lc) + ' · Sin terminar = recibidos + en proceso (todavía no actualizados); no es lo pendiente de preparar.</p>';
   }
 
   /** Estado al último corte de los pedidos que cayeron el día elegido, y su curva de "sin terminar". */

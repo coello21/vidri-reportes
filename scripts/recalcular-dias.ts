@@ -38,4 +38,8 @@ writeFileSync(salida + '/dias.json.gz', gzipSync(JSON.stringify(dias)));
 const revN: Record<string, number> = {};
 for (const [d, n] of Object.entries(radar.store.revN || {})) if (d >= DESDE) revN[d] = n as number;
 writeFileSync(salida + '/revN.json', JSON.stringify(revN));
+// llaves de los últimos 10 días (como las guarda la página) para que las próximas cargas no cuenten doble
+const S = radar.store as any, kd = Object.keys(S.revK || {}).sort(), lim = kd.length ? kd[kd.length - 1] : '';
+const corta = (o: Record<string, string> = {}) => { const r: Record<string, string> = {}; const keep = lim ? new Date(new Date(lim + 'T12:00:00').getTime() - 10 * 864e5).toISOString().slice(0, 10) : ''; for (const d in o) if (d >= keep) r[d] = o[d]; return r; };
+writeFileSync(salida + '/rev_store.json', JSON.stringify({ revK: corta(S.revK), revX: corta(S.revX), revKT: S.revKT }));
 for (const d of Object.keys(dias)) { const m = (dias[d] as any).meta; console.log(d, m.totalFinal, m.totalPreparados, m.totalNegados, revN[d] ?? '-'); }

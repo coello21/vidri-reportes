@@ -263,16 +263,16 @@ export class Resumen {
   /**
    * Fill rate del CD: líneas preparadas ÷ (preparadas + negadas); todas las negadas cuentan. Abajo, el B2B por pedidos.
    */
-  /** Inició + Entraron − Terminadas = Ahora, en líneas (SKUs de los pedidos de Pedidos CD), del último día elegido. */
+  /** Venían de antes + Entraron − Se asignaron = Quedan sin asignar, en líneas (SKUs de los pedidos de Nejapa), del último día elegido. */
   renderFlujo(vm: VistaAgregada) {
     const el = $('rsFlujo'), F = this.flujo?.() || [];
     const r = F.find((x) => x.d === vm.rangeTo) || (vm.rangeTo > (F[F.length - 1]?.d || '') ? F[F.length - 1] : undefined);
     if (!r) { el.hidden = true; return; }
     const dia = DIAS_C[new Date(r.d + 'T12:00:00').getDay()] + ' ' + (+r.d.slice(8));
     const c = (t: string, l: number, p: number, s: string, cls = '') => '<div class="' + cls + '"><span>' + t + '</span><b>' + fmtInt(l) + '</b><em>líneas · ' + fmtInt(p) + ' pedidos</em><small>' + s + '</small></div>';
-    el.innerHTML = c('Inició', r.lIni, r.ini, 'sin terminar') + '<i>+</i>' + c('Entraron', r.lEnt, r.ent, dia) + '<i>−</i>' +
-      c('Terminadas', r.lTer, r.ter, dia) + '<i>=</i>' + c(r.cur ? 'Ahora' : 'Quedaron', r.lFin, r.fin, 'sin terminar', 'fin');
-    el.title = 'Líneas = SKUs de los pedidos de Pedidos CD. Una línea cuenta como terminada cuando su pedido pasa a actualizado.';
+    el.innerHTML = c('Venían de antes', r.lIni, r.ini, 'sin asignar') + '<i>+</i>' + c('Entraron', r.lEnt, r.ent, dia) + '<i>−</i>' +
+      c('Se asignaron', r.lTer, r.ter, dia) + '<i>=</i>' + c(r.cur ? 'Quedan ahora' : 'Quedaron', r.lFin, r.fin, 'sin asignar', 'fin');
+    el.title = 'Pendiente de preparar (bodega Nejapa): líneas = SKUs de los pedidos recibidos que todavía no tienen orden de preparación.';
     el.hidden = false;
   }
 

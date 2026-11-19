@@ -7,7 +7,7 @@ const LC = D('2026-10-22 07:38');
 const p = (n: number, f: string, est: string, act: string | null): Pedido => [n, 67, D(f), est, 3, 'exi', act ? D(act) : 0, D(f), LC, 'N'] as unknown as Pedido;
 
 describe('Pendiente por fecha del pedido', () => {
-  it('cuadra con el balance del día: días anteriores = Inició, + hoy = Entraron, sin terminar = Al corte', () => {
+  it('agrupa lo sin terminar por fecha del pedido; el balance cuenta solo lo sin asignar', () => {
     const ped = new PedidosCD({
       rows: [
         p(1, '2026-10-22 06:00', 'R', null),               // hoy, sin empezar
@@ -27,9 +27,9 @@ describe('Pendiente por fecha del pedido', () => {
     expect(fila('2026-10-20')).toMatchObject({ inicio: 1, enProceso: 1 });
     expect(fila(null)).toMatchObject({ inicio: 1, enProceso: 1 });
     expect(R.filas.map((f) => f.dia)).toEqual(['2026-10-22', '2026-10-21', '2026-10-20', null]);
+    // desde el 19-nov el balance mide lo pendiente de asignar (Recibido sin orden), no lo sin terminar:
+    // sin horas de asignación, solo cuentan los que siguen en Recibido al último corte (pedidos 1 y 2)
     const b = ped.balance().find((x) => x.cur)!;
-    const ant = R.filas.filter((f) => !f.hoy).reduce((a, f) => a + f.inicio, 0);
-    const sinTerminar = R.filas.reduce((a, f) => a + f.sinEmpezar + f.enProceso, 0);
-    expect([ant, fila('2026-10-22').inicio, sinTerminar]).toEqual([b.ini, b.ent, b.fin]);
+    expect(b.fin).toBe(2);
   });
 });

@@ -43,7 +43,7 @@ function ponerPestana(app: App, t: string) {
 /** Las pestañas comparten el día o rango elegido. */
 function conectarPestanas(app: App) {
   app.resumen.alCambiar = (vm) => app.top.render(vm);
-  app.resumen.flujo = () => app.pedidos.balance('all');
+  app.resumen.flujo = () => app.pedidos.balance('N');
   // Cargar Excel
   const ctx: Contexto = {
     radar: app.radar, pedidos: app.pedidos, almacen: app.almacen, listo: () => app.listo,

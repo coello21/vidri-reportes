@@ -18,12 +18,12 @@ const mediana = (a: number[]): number | null => {
 
 export interface FilaBalance {
   i: number; d: string; cur: boolean;
-  /** venían de días anteriores sin terminar */ ini: number;
+  /** venían de días anteriores sin asignar */ ini: number;
   /** lo mismo en líneas (SKUs de esos pedidos): inició, entraron, terminadas y quedaron */
   lIni: number; lEnt: number; lTer: number; lFin: number;
   /** entraron ese día */ ent: number;
-  /** se terminaron ese día */ ter: number;
-  /** quedaron para el día siguiente (o sin terminar al corte, si es el día en curso) */ fin: number;
+  /** se asignaron ese día (salieron del pendiente) */ ter: number;
+  /** quedaron sin asignar para el día siguiente (o al corte, si es el día en curso) */ fin: number;
   /** sin asignar al empezar y al terminar el día (null si no hay horas de asignación suficientes) */
   sa0: number | null; sa1: number | null;
   /** mediana de horas hasta tener preparador y de preparación */
@@ -144,32 +144,36 @@ export class PedidosCD {
     return { pedidos, skus };
   }
 
-  /** Balance diario: venían de antes + entraron − se terminaron = quedaron para el día siguiente. */
+  /**
+   * Balance diario de lo pendiente de preparar (desde el 19-nov-2026, igual que el dashboard Recorrido):
+   * venían de antes sin asignar + entraron (por hora de recibido) − se asignaron = quedan sin asignar.
+   * Sin asignar a una hora t: recibido antes de t, no actualizado antes de t, y su primera asignación (Rpt) es t o
+   * después; si no tiene hora de asignación, solo cuenta si sigue en Recibido en el último corte.
+   */
   balance(bod: FiltroBodega = 'all'): FilaBalance[] {
     const P = this.periodo(bod);
     if (!P) return [];
-    const all = P.all, D = P.days, lc = this.ultimoCorte(), cutDay = diaDeMin(lc);
-    const AR = PedidosCD.arrastre(all, D), arr = AR.pedidos, arrL = AR.skus;
-    const pendAt = (t: number) => { let c = 0; all.forEach((x) => { if (x[2] >= t) return; if (x[6] ? x[6] >= t : x[3] !== 'A') c++; }); return c; };
-    const pendLAt = (t: number) => { let c = 0; all.forEach((x) => { if (x[2] >= t) return; if (x[6] ? x[6] >= t : x[3] !== 'A') c += x[4] || 0; }); return c; };
-    const asgOf = (x: Pedido) => x[10] || (x[3] === 'R' || x[3] === 'E' ? Infinity : x[6] || lc);
-    const sinAsgAt = (t: number) => {
-      let c = 0;
-      all.forEach((x) => { if (x[2] >= t) return; if (x[6] && x[6] < t) return; if (!x[6] && x[3] === 'A') return; if (asgOf(x) >= t) c++; });
-      return c;
-    };
+    const D = P.days, lc = this.ultimoCorte(), cutDay = diaDeMin(lc);
+    const base = [...this.rows.values()].filter((x) => bod === 'all' || bodegaDe(x) === bod);
+    const rec = (x: Pedido) => x[7] || x[2];
+    const sinAsg = (x: Pedido, t: number) => rec(x) < t && !(x[3] === 'A' && x[6] && x[6] < t) &&
+      (x[10] ? x[10] >= t : (x[3] === 'R' || x[3] === 'E') && x[8] >= lc);
+    const pendAt = (t: number) => { let c = 0; base.forEach((x) => { if (sinAsg(x, t)) c++; }); return c; };
+    const pendLAt = (t: number) => { let c = 0; base.forEach((x) => { if (sinAsg(x, t)) c += x[4] || 0; }); return c; };
+    const all = base, arr = D.map((d) => pendAt(inicioDia(d))), arrL = D.map((d) => pendLAt(inicioDia(d)));
+    const sinAsgAt = pendAt;
     const cobertura = (a: number, b: number) => {
-      const T = all.filter((x) => x[6] && x[6] >= a && x[6] < b);
+      const T = P.all.filter((x) => x[6] && x[6] >= a && x[6] < b);
       return T.length ? T.filter((x) => x[10]).length / T.length : 0;
     };
-    const backlogR = this.pendientes(['R'], bod).ok.length;
+    const backlogR = pendAt(lc + 1);
     return D.map((d, i) => {
       const t0 = inicioDia(d), t1 = t0 + 1440, cur = d === cutDay;
       const ini = arr[i];
-      const ent = all.filter((x) => x[2] >= t0 && x[2] < t1).length;
+      const ent = all.filter((x) => rec(x) >= t0 && rec(x) < t1).length;
       const fin = cur ? pendAt(lc + 1) : i + 1 < D.length ? arr[i + 1] : pendAt(t1);
       const ter = ini + ent - fin;
-      const lIni = arrL[i], lEnt = all.reduce((a, x) => a + (x[2] >= t0 && x[2] < t1 ? x[4] || 0 : 0), 0);
+      const lIni = arrL[i], lEnt = all.reduce((a, x) => a + (rec(x) >= t0 && rec(x) < t1 ? x[4] || 0 : 0), 0);
       const lFin = cur ? pendLAt(lc + 1) : i + 1 < D.length ? arrL[i + 1] : pendLAt(t1), lTer = lIni + lEnt - lFin;
       const tEnd = cur ? lc + 1 : t1;
       let sa0: number | null = sinAsgAt(t0);
