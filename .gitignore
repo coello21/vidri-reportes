@@ -5,3 +5,4 @@ dist
 tests/fixtures/*.local.*
 dist-copia
 limpieza-html/
+dist-artefacto/

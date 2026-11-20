@@ -84,6 +84,15 @@ export async function plantillaPropia(): Promise<string> {
   return propia;
 }
 
+/** En el artefacto: la plantilla de la copia va dentro del archivo (gzip + base64), sin pedir nada a internet. */
+export async function plantillaIncrustada(): Promise<string> {
+  const el = document.getElementById('plantilla-copia'), b64 = el ? (el.textContent || '').trim() : '';
+  if (!b64) throw new Error('no se encontró la plantilla');
+  const bin = atob(b64), buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+}
+
 /* ---------------- botón ---------------- */
 export async function descargarHtml(btn: HTMLButtonElement, radar: RadarNegados, pedidos: PedidosCD, plantilla: () => Promise<string>) {
   const t0 = btn.textContent;

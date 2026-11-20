@@ -11,10 +11,13 @@ import { $ } from './ui/formato';
 import { cargarNegados, cargarPedidos, type Contexto } from './carga';
 import { aviso } from './ui/avisos';
 import { clavePedido, esViejo } from '../core/pedidos/catalogos';
-import { descargarHtml, plantillaEnLinea, plantillaPropia, guardarPropia, leerB64, textoCopia, type DatosCopia } from './compartir';
+import { descargarHtml, plantillaEnLinea, plantillaPropia, plantillaIncrustada, guardarPropia, leerB64, textoCopia, type DatosCopia } from './compartir';
+import { usarGuardado } from './ui/avisos';
 
 /** true en el HTML que se comparte (se arma con `vite build --mode copia`): sin base de datos ni inicio de sesión. */
 const COPIA = import.meta.env.MODE === 'copia';
+/** true en el Radar publicado como artefacto de Claude (`--mode artefacto`): lee Supabase por el conector, solo lectura. */
+const ARTEFACTO = import.meta.env.MODE === 'artefacto';
 
 /** Estado de la aplicación: los mismos módulos que ya están probados contra el tablero original. */
 export interface App {
@@ -82,14 +85,14 @@ function montar(E: { history?: DatosCopia['history']; store?: ConstructorParamet
   conectarPestanas(app);
   app.resumen.iniciar();
   // Descargar HTML (en la página y en la copia)
-  const plantilla = COPIA ? plantillaPropia : plantillaEnLinea;
+  const plantilla = COPIA ? plantillaPropia : ARTEFACTO ? plantillaIncrustada : plantillaEnLinea;
   document.querySelectorAll<HTMLButtonElement>('#shareBtn, #pedShareBtn').forEach((b) => b.addEventListener('click', async () => {
     if (!(await esperarTodo(app))) return;
     descargarHtml(b, app.radar, app.pedidos, plantilla);
   }));
   // Reporte ejecutivo (solo en la página)
   const R = (window as unknown as { VidriReporte?: { usarFuente: (f: () => unknown, a: (t: string) => void) => void; ponerBotones: () => void } }).VidriReporte;
-  if (R && !COPIA) {
+  if (R && !COPIA && !ARTEFACTO) {
     // el reporte espera a que estén los días anteriores (compara contra la semana pasada y el promedio)
     (window as unknown as { pedEnsure: () => Promise<void> }).pedEnsure = async () => { if (!(await app.listo)) throw new Error('faltan los días anteriores; recarga la página'); };
     R.usarFuente(() => ({
@@ -171,8 +174,66 @@ async function arrancarPrueba(): Promise<boolean> {
   return true;
 }
 
+/** Aviso sin datos (el artefacto nunca muestra datos viejos si no responde la base). */
+function sinConexion(motivo: string) {
+  document.body.classList.remove('esq', 'esq-ped');
+  document.body.classList.add('nodata');
+  document.getElementById('acceso')?.remove();
+  document.body.insertAdjacentHTML('beforeend', '<div id="acceso"><div class="caja"><h1>Sin conexión con Supabase</h1><p></p></div></div>');
+  const p = document.querySelector('#acceso p');
+  if (p) p.textContent = motivo + '. Los datos solo se muestran cuando la consulta a Supabase responde.';
+}
+
+const MOTIVO_MCP: Record<string, string> = {
+  needs_reauth: 'Reconecta Supabase en Configuración → Conectores',
+  server_not_connected: 'Agrega Supabase en Configuración → Conectores',
+  not_in_manifest: 'No se concedió el permiso para usar Supabase',
+  approval_required: 'Falta aprobar el permiso para usar Supabase',
+  blocked_by_policy: 'Supabase está bloqueado por la organización',
+};
+
+/** Radar como artefacto de Claude: mismos datos y cálculos de la página, leídos por el conector de Supabase. */
+async function arrancarArtefacto() {
+  // sin Cargar Excel (los archivos se suben por la página de carga), sin Resúmenes, sin sesión ni «ver todo»
+  ['selectBtn', 'pedSelectBtn', 'fileInput', 'pedFile', 'salir', 'todoBtn'].forEach((id) => document.getElementById(id)?.remove());
+  $('pdEmpty').textContent = 'Todavía no se ha cargado el reporte de transferencias de pedidos. Se sube por la página de carga.';
+  const claude = (window as unknown as { claude?: { use: (n: string) => Promise<unknown> } }).claude;
+  const mcp = claude ? await claude.use('mcp') as ConstructorParameters<typeof import('../nube/baseMcp').BaseMcp>[0] | null : null;
+  if (!mcp) { sinConexion('El conector de Supabase solo está disponible en el artefacto publicado'); return; }
+  const dl = await claude!.use('downloads') as { save: (a: { filename: string; data: Blob }) => Promise<unknown> } | null;
+  if (dl) usarGuardado(async (blob, nombre) => { await dl.save({ filename: nombre, data: blob }); });
+  const [{ BaseMcp }, { CONFIG }, { Almacen }] = await Promise.all([import('../nube/baseMcp'), import('../nube/config'), import('../nube/almacen')]);
+  const almacen = new Almacen(new BaseMcp(mcp));
+  document.body.classList.remove('nodata');
+  document.body.classList.add('esq', 'esq-ped');
+  let datos;
+  try {
+    datos = await almacen.leer({ diasRadar: CONFIG.DIAS_RADAR, diasPedidos: CONFIG.DIAS_PEDIDOS, rapido: { dias: 8, pedidos: 16 }, pedidosLuego: true });
+  } catch (e) {
+    console.error(e);
+    const c = (e as { code?: string })?.code || '';
+    sinConexion(MOTIVO_MCP[c] || ('No se pudo consultar Supabase (' + ((e as Error)?.message || c || 'error') + ')'));
+    return;
+  }
+  const app = montar(datos, almacen, '');
+  document.body.classList.remove('esq');
+  if (almacen.pedidosLuego) {
+    almacen.pedidosLuego.then((rows) => {
+      rows.forEach((x) => { if (!esViejo(x)) app.pedidos.rows.set(clavePedido(x), x); });
+      app.ped.render();
+      if (app.resumen.vm) app.resumen.renderFlujo(app.resumen.vm);
+    }).catch((e) => {
+      console.error(e);
+      aviso('err', 'No se pudieron leer los pedidos: ' + ((e as Error)?.message || 'error') + '. Recarga la página.', 30000);
+    }).finally(() => document.body.classList.remove('esq-ped'));
+  } else document.body.classList.remove('esq-ped');
+  const u = document.getElementById('usuario'); if (u) u.textContent = 'Supabase';
+  completarDespues(app);
+}
+
 async function arrancar() {
   if (COPIA) { await arrancarCopia(); return; }
+  if (ARTEFACTO) { await arrancarArtefacto(); return; }
   // Solo en la página (no en el HTML descargado): enlace a Resúmenes y sin «Cargar Excel»,
   // porque los archivos se suben por la página de carga y los procesa el pipeline. La copia conserva sus botones.
   $('resumenesLnk').hidden = false;
