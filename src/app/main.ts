@@ -197,10 +197,17 @@ async function arrancarArtefacto() {
   // sin Cargar Excel (los archivos se suben por la página de carga), sin Resúmenes, sin sesión ni «ver todo»
   ['selectBtn', 'pedSelectBtn', 'fileInput', 'pedFile', 'salir', 'todoBtn'].forEach((id) => document.getElementById(id)?.remove());
   $('pdEmpty').textContent = 'Todavía no se ha cargado el reporte de transferencias de pedidos. Se sube por la página de carga.';
-  const claude = (window as unknown as { claude?: { use: (n: string) => Promise<unknown> } }).claude;
-  const mcp = claude ? await claude.use('mcp') as ConstructorParameters<typeof import('../nube/baseMcp').BaseMcp>[0] | null : null;
+  // el visor de Claude pone window.claude.use un momento después de abrir: se espera hasta 10 s
+  type Rt = { use?: (n: string) => Promise<unknown> };
+  let claude: Rt | undefined;
+  for (let i = 0; i < 100; i++) {
+    const c = (window as unknown as { claude?: Rt }).claude;
+    if (c && typeof c.use === 'function') { claude = c; break; }
+    await new Promise((ok) => setTimeout(ok, 100));
+  }
+  const mcp = claude ? await claude.use!('mcp') as ConstructorParameters<typeof import('../nube/baseMcp').BaseMcp>[0] | null : null;
   if (!mcp) { sinConexion('El conector de Supabase solo está disponible en el artefacto publicado'); return; }
-  const dl = await claude!.use('downloads') as { save: (a: { filename: string; data: Blob }) => Promise<unknown> } | null;
+  const dl = await claude!.use!('downloads').catch(() => null) as { save: (a: { filename: string; data: Blob }) => Promise<unknown> } | null;
   if (dl) usarGuardado(async (blob, nombre) => { await dl.save({ filename: nombre, data: blob }); });
   const [{ BaseMcp }, { CONFIG }, { Almacen }] = await Promise.all([import('../nube/baseMcp'), import('../nube/config'), import('../nube/almacen')]);
   const almacen = new Almacen(new BaseMcp(mcp));
