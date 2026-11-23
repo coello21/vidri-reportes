@@ -240,8 +240,8 @@ export function aplicarMotivos(history: Historial, porDia: Record<string, Motivo
     const viejas = h.mot ? lineasDe(h.mot) : null;
     if (h.mot && viejas) {
       // si la línea ya tenía motivo y el archivo nuevo la trae sin motivo, se conserva el que tenía
-      // y si el archivo nuevo no trae el pasillo, se conserva el que tenía
-      lineasDe(nuevo)!.forEach((x, key) => { const v = viejas.get(key); viejas.set(key, { ...x, ...(!x.mot && v?.mot ? { mot: v.mot } : {}), ...(!x.pas && v?.pas ? { pas: v.pas } : {}) }); });
+      // y si el archivo nuevo no trae el pasillo o la cantidad, se conserva lo que tenía
+      lineasDe(nuevo)!.forEach((x, key) => { const v = viejas.get(key); viejas.set(key, { ...x, ...(!x.mot && v?.mot ? { mot: v.mot } : {}), ...(!x.pas && v?.pas ? { pas: v.pas } : {}), ...(x.cant == null && v?.cant != null ? { cant: v.cant } : {}) }); });
       // pedidos en cero: los de antes y los nuevos, menos los que este archivo muestra con algo preparado o abierto
       const zp: Record<string, 1> = { ...(h.mot.zp || {}), ...(nuevo.zp || {}) }, bp2 = { ...(h.mot.bp2 || {}), ...(nuevo.bp2 || {}) };
       nz.forEach((x) => { if (!nuevo.zp?.[x]) delete zp[x]; });
