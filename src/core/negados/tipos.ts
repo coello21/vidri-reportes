@@ -65,8 +65,10 @@ export interface MotivosDia {
   /** B2B del día (pedidos corporativos cerrados ese día): [pedidos, completos sin contar lo negado por "Existencia a cero"] */
   b?: [number, number];
   /** líneas negadas del día: "pedido|código" -> [motivo (índice en k), preparador (índice en p), pasillo (índice en s) o null,
-   *  cantidad solicitada = unidades negadas (desde el 23 nov 2026)]; para juntar archivos */
-  l?: Record<string, [number, number] | [number, number, number | null] | [number, number, number | null, number]>;
+   *  cantidad solicitada = unidades negadas o null, Ubicación 1 del ERP (índice en u)] (los dos últimos desde el 23 nov 2026); para juntar archivos */
+  l?: Record<string, [number, number] | [number, number, number | null] | [number, number, number | null, number | null] | [number, number, number | null, number | null, number]>;
+  /** Ubicación 1 tal cual la trae el ERP (quinto valor de l), desde el 23 nov 2026 */
+  u?: string[];
   /** pasillos de las líneas (tercer valor de l), desde el 17 nov 2026 */
   s?: string[];
   /** preparadores de las líneas (l) */

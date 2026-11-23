@@ -41,6 +41,8 @@ describe('Motivo de negado registrado', () => {
     expect(mot.l!['5|q'][3]).toBe(7);
     expect(mot.s![mot.l!['6|w'][2] as number]).toBe('02');
     expect(mot.l!['6|w'][3]).toBe(3);
+    expect(mot.u![mot.l!['6|w'][4] as number]).toBe('02B20N0206');
+    expect(mot.l!['5|q'].length).toBe(4);
     // al juntar otro archivo se conserva
     R.integrar([r(7, 'e', 0, '')]);
     expect((R.history['2026-11-03'] as DiaResumen).mot!.l!['5|q'][3]).toBe(7);

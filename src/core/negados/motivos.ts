@@ -63,7 +63,7 @@ export function recordarMotivos(store: StoreRadar, records: Registro[]): number 
 }
 
 /** Línea negada de un día: motivo, preparador y código (la clave es pedido|código). */
-type LineaMot = { mot: string; prep: string; sku: string; pas?: string; cant?: number };
+type LineaMot = { mot: string; prep: string; sku: string; pas?: string; cant?: number; ub?: string };
 
 /**
  * Pasillo del CD según la Ubicación 1 (ej. 02B20N0206 → 02). Las ubicaciones que no son de pasillo se agrupan por
@@ -91,12 +91,15 @@ function armarDia(lineas: Map<string, LineaMot>, bp: Record<string, number>, zp:
   k.forEach((x, i) => { ix[x] = i; });
   const p: string[] = [], px: Record<string, number> = {};
   const q: MotivosDia['q'] = {}, l: NonNullable<MotivosDia['l']> = {}, s: string[] = [], sx: Record<string, number> = {};
+  const u: string[] = [], ux: Record<string, number> = {};
   lineas.forEach((x, key) => {
     if (!(x.prep in px)) { px[x.prep] = p.length; p.push(x.prep); }
     const v: (number | null)[] = [ix[x.mot], px[x.prep]];
     if (x.pas) { if (!(x.pas in sx)) { sx[x.pas] = s.length; s.push(x.pas); } v.push(sx[x.pas]); }
     // cantidad solicitada de la línea negada (= unidades negadas: no se preparó nada); sin pasillo va null en su lugar
-    if (x.cant != null) { if (v.length < 3) v.push(null); v.push(x.cant); }
+    if (x.cant != null) { while (v.length < 3) v.push(null); v.push(x.cant); }
+    // Ubicación 1 tal cual la trae el ERP (índice en u); sin cantidad va null en su lugar
+    if (x.ub) { if (!(x.ub in ux)) { ux[x.ub] = u.length; u.push(x.ub); } while (v.length < 4) v.push(null); v.push(ux[x.ub]); }
     l[key] = v as NonNullable<MotivosDia['l']>[string];
     const pq = q[x.prep] || (q[x.prep] = {}), a = pq[x.sku] || (pq[x.sku] = []);
     for (let i = a.length; i < k.length; i++) a[i] = 0;
@@ -106,6 +109,7 @@ function armarDia(lineas: Map<string, LineaMot>, bp: Record<string, number>, zp:
   for (const pr in q) for (const sku in q[pr]) { const a = q[pr][sku]; while (a.length && !a[a.length - 1]) a.pop(); }
   const out: MotivosDia = { n: lineas.size, m, k, q, l, p };
   if (s.length) out.s = s;
+  if (u.length) out.u = u;
   const peds = Object.keys(bp);
   if (peds.length) { out.b = [peds.length, peds.reduce((a, x) => a + (bp[x] ? 1 : 0), 0)]; out.bp = bp; }
   if (Object.keys(zp).length) {
@@ -123,9 +127,10 @@ function lineasDe(mo: MotivosDia): Map<string, LineaMot> | null {
   if (!mo.l || !mo.p) return null;
   const L = new Map<string, LineaMot>();
   for (const key in mo.l) {
-    const [mi, pi, si, ci] = mo.l[key], x: LineaMot = { mot: mo.k[mi], prep: mo.p[pi], sku: key.slice(key.lastIndexOf('|') + 1) };
+    const [mi, pi, si, ci, ui] = mo.l[key] as (number | null)[], x: LineaMot = { mot: mo.k[mi as number], prep: mo.p[pi as number], sku: key.slice(key.lastIndexOf('|') + 1) };
     if (si != null && mo.s) x.pas = mo.s[si];
     if (ci != null) x.cant = ci;
+    if (ui != null && mo.u) x.ub = mo.u[ui];
     L.set(key, x);
   }
   return L;
@@ -183,7 +188,7 @@ export function motivosDeRegistros(records: Registro[]): Record<string, MotivosD
     if (!fin) continue;
     const d = ymd(fin);
     const pas = pasilloDe(r.Ubic1);
-    (L[d] || (L[d] = new Map())).set(r.Pedido + '|' + r.SKU, { mot: motClean(r.Motivo), prep: r.Preparador, sku: r.SKU, ...(pas ? { pas } : {}), ...(r.Cantidad != null ? { cant: r.Cantidad } : {}) });
+    (L[d] || (L[d] = new Map())).set(r.Pedido + '|' + r.SKU, { mot: motClean(r.Motivo), prep: r.Preparador, sku: r.SKU, ...(pas ? { pas } : {}), ...(r.Cantidad != null ? { cant: r.Cantidad } : {}), ...(String(r.Ubic1 ?? '').trim() ? { ub: String(r.Ubic1).trim() } : {}) });
   }
   const ZP: Record<string, Record<string, 1>> = {};
   for (const d in L) L[d].forEach((_, key) => { const pd = pedidoDe(key); if (enCero.has(pd)) (ZP[d] || (ZP[d] = {}))[pd] = 1; });
@@ -241,7 +246,7 @@ export function aplicarMotivos(history: Historial, porDia: Record<string, Motivo
     if (h.mot && viejas) {
       // si la línea ya tenía motivo y el archivo nuevo la trae sin motivo, se conserva el que tenía
       // y si el archivo nuevo no trae el pasillo o la cantidad, se conserva lo que tenía
-      lineasDe(nuevo)!.forEach((x, key) => { const v = viejas.get(key); viejas.set(key, { ...x, ...(!x.mot && v?.mot ? { mot: v.mot } : {}), ...(!x.pas && v?.pas ? { pas: v.pas } : {}), ...(x.cant == null && v?.cant != null ? { cant: v.cant } : {}) }); });
+      lineasDe(nuevo)!.forEach((x, key) => { const v = viejas.get(key); viejas.set(key, { ...x, ...(!x.mot && v?.mot ? { mot: v.mot } : {}), ...(!x.pas && v?.pas ? { pas: v.pas } : {}), ...(x.cant == null && v?.cant != null ? { cant: v.cant } : {}), ...(!x.ub && v?.ub ? { ub: v.ub } : {}) }); });
       // pedidos en cero: los de antes y los nuevos, menos los que este archivo muestra con algo preparado o abierto
       const zp: Record<string, 1> = { ...(h.mot.zp || {}), ...(nuevo.zp || {}) }, bp2 = { ...(h.mot.bp2 || {}), ...(nuevo.bp2 || {}) };
       nz.forEach((x) => { if (!nuevo.zp?.[x]) delete zp[x]; });
