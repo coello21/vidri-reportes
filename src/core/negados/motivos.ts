@@ -63,7 +63,7 @@ export function recordarMotivos(store: StoreRadar, records: Registro[]): number 
 }
 
 /** Línea negada de un día: motivo, preparador y código (la clave es pedido|código). */
-type LineaMot = { mot: string; prep: string; sku: string; pas?: string };
+type LineaMot = { mot: string; prep: string; sku: string; pas?: string; cant?: number };
 
 /**
  * Pasillo del CD según la Ubicación 1 (ej. 02B20N0206 → 02). Las ubicaciones que no son de pasillo se agrupan por
@@ -93,8 +93,11 @@ function armarDia(lineas: Map<string, LineaMot>, bp: Record<string, number>, zp:
   const q: MotivosDia['q'] = {}, l: NonNullable<MotivosDia['l']> = {}, s: string[] = [], sx: Record<string, number> = {};
   lineas.forEach((x, key) => {
     if (!(x.prep in px)) { px[x.prep] = p.length; p.push(x.prep); }
-    l[key] = [ix[x.mot], px[x.prep]];
-    if (x.pas) { if (!(x.pas in sx)) { sx[x.pas] = s.length; s.push(x.pas); } l[key].push(sx[x.pas]); }
+    const v: (number | null)[] = [ix[x.mot], px[x.prep]];
+    if (x.pas) { if (!(x.pas in sx)) { sx[x.pas] = s.length; s.push(x.pas); } v.push(sx[x.pas]); }
+    // cantidad solicitada de la línea negada (= unidades negadas: no se preparó nada); sin pasillo va null en su lugar
+    if (x.cant != null) { if (v.length < 3) v.push(null); v.push(x.cant); }
+    l[key] = v as NonNullable<MotivosDia['l']>[string];
     const pq = q[x.prep] || (q[x.prep] = {}), a = pq[x.sku] || (pq[x.sku] = []);
     for (let i = a.length; i < k.length; i++) a[i] = 0;
     a[ix[x.mot]]++;
@@ -120,8 +123,9 @@ function lineasDe(mo: MotivosDia): Map<string, LineaMot> | null {
   if (!mo.l || !mo.p) return null;
   const L = new Map<string, LineaMot>();
   for (const key in mo.l) {
-    const [mi, pi, si] = mo.l[key], x: LineaMot = { mot: mo.k[mi], prep: mo.p[pi], sku: key.slice(key.lastIndexOf('|') + 1) };
+    const [mi, pi, si, ci] = mo.l[key], x: LineaMot = { mot: mo.k[mi], prep: mo.p[pi], sku: key.slice(key.lastIndexOf('|') + 1) };
     if (si != null && mo.s) x.pas = mo.s[si];
+    if (ci != null) x.cant = ci;
     L.set(key, x);
   }
   return L;
@@ -179,7 +183,7 @@ export function motivosDeRegistros(records: Registro[]): Record<string, MotivosD
     if (!fin) continue;
     const d = ymd(fin);
     const pas = pasilloDe(r.Ubic1);
-    (L[d] || (L[d] = new Map())).set(r.Pedido + '|' + r.SKU, { mot: motClean(r.Motivo), prep: r.Preparador, sku: r.SKU, ...(pas ? { pas } : {}) });
+    (L[d] || (L[d] = new Map())).set(r.Pedido + '|' + r.SKU, { mot: motClean(r.Motivo), prep: r.Preparador, sku: r.SKU, ...(pas ? { pas } : {}), ...(r.Cantidad != null ? { cant: r.Cantidad } : {}) });
   }
   const ZP: Record<string, Record<string, 1>> = {};
   for (const d in L) L[d].forEach((_, key) => { const pd = pedidoDe(key); if (enCero.has(pd)) (ZP[d] || (ZP[d] = {}))[pd] = 1; });
@@ -336,7 +340,7 @@ export function motivosPorPasillo(history: Historial, dias: string[]): { pas: Re
     if (!mo || !mo.l || !mo.s) continue;
     n++;
     for (const key in mo.l) {
-      const v: number[] = mo.l[key], ps = v[2] != null ? mo.s[v[2]] : 'Sin ubicación', k = mo.k[v[0]], t = pas[ps] || (pas[ps] = {});
+      const v: (number | null)[] = mo.l[key], ps = v[2] != null ? mo.s[v[2]] : 'Sin ubicación', k = mo.k[v[0] as number], t = pas[ps] || (pas[ps] = {});
       t[k] = (t[k] || 0) + 1;
     }
   }
@@ -350,7 +354,7 @@ export function codigosDePasillo(history: Historial, dias: string[], pasillo: st
     const mo = (history[d] as DiaResumen | undefined)?.mot;
     if (!mo || !mo.l || !mo.s) continue;
     for (const key in mo.l) {
-      const v: number[] = mo.l[key], ps = v[2] != null ? mo.s[v[2]] : 'Sin ubicación', k = mo.k[v[0]];
+      const v: (number | null)[] = mo.l[key], ps = v[2] != null ? mo.s[v[2]] : 'Sin ubicación', k = mo.k[v[0] as number];
       if (ps !== pasillo || !mots.includes(k)) continue;
       const sku = key.slice(key.lastIndexOf('|') + 1), id = sku + '|' + k, x = M.get(id) || { sku, mot: k, n: 0 };
       x.n++; M.set(id, x);

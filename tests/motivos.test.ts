@@ -31,6 +31,20 @@ describe('Motivo de negado registrado', () => {
     R.integrar([r(9, 'z', 0, 'Pasillo bloqueado'), r(2, 'a', 0, 'Existencia a cero')]);
     expect((R.history['2026-11-03'] as DiaResumen).mot!.n).toBe(4);
   });
+  it('guarda la cantidad solicitada de cada línea negada (unidades negadas), con o sin pasillo', () => {
+    const R = new RadarNegados();
+    const x = r(5, 'q', 0, 'Físico no se encuentra'); x.Cantidad = 7;
+    const y = r(6, 'w', 0, 'Pasillo bloqueado'); y.Cantidad = 3; y.Ubic1 = '02B20N0206';
+    R.integrar([x, y]);
+    const mot = (R.history['2026-11-03'] as DiaResumen).mot!;
+    expect(mot.l!['5|q'][2]).toBeNull();
+    expect(mot.l!['5|q'][3]).toBe(7);
+    expect(mot.s![mot.l!['6|w'][2] as number]).toBe('02');
+    expect(mot.l!['6|w'][3]).toBe(3);
+    // al juntar otro archivo se conserva
+    R.integrar([r(7, 'e', 0, '')]);
+    expect((R.history['2026-11-03'] as DiaResumen).mot!.l!['5|q'][3]).toBe(7);
+  });
   it('sin la columna no agrega nada', () => {
     const R = new RadarNegados();
     expect(R.integrar([r(1, 'a', 0, undefined, false)]).motDias).toBeUndefined();
