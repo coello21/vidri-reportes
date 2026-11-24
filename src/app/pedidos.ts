@@ -31,7 +31,6 @@ export class PedidosVista {
   est = new Set<Estado>(['R']);
 
   /** líneas sin preparador de pedidos ya empezados (las pone main.ts desde el estado del Radar) */
-  pendLin: ((dia: string) => { l: number; p: number } | null) | null = null;
   constructor(private ped: PedidosCD) { this.conectar(); }
 
   private conectar() {
@@ -124,9 +123,6 @@ export class PedidosVista {
         (r.cur ? ' · al último corte' : '') +
         '<br>' + fmtInt(r.lFin) + ' SKUs' + (r.cur ? ' · ' + fmtInt(bPp) + ' pedidos en preparación (Procesando) no cuentan aquí' : '') +
         '');
-      const pl = r.cur && this.pendLin ? this.pendLin(r.d) : null;
-      $('pdK5C').hidden = !pl; $('pdKpis').classList.toggle('k5', !!pl);
-      if (pl) k('pdK5', fmtInt(pl.p), 'pedidos en proceso con líneas sin preparador<br>' + fmtInt(pl.l) + ' SKUs · total por SKU: ' + fmtInt(r.lFin + pl.l));
     }
 
     // títulos

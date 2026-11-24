@@ -19,14 +19,6 @@ type FilaPrep = PreparadorVista;
 
 const DIAS_C = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 
-/** Líneas sin preparador de pedidos ya empezados (rptPreparacionesPendientes), si la carga es de ese día. */
-export function pendLinDe(store: unknown, dia: string): { l: number; p: number } | null {
-  const v = (store as { pendLin?: { t: number; l: number; p: number } }).pendLin;
-  if (!v || !v.t) return null;
-  const d = new Date(v.t - 6 * 3600e3).toISOString().slice(0, 10);   // día en hora de El Salvador
-  return d === dia ? { l: v.l, p: v.p } : null;
-}
-
 export class Resumen {
   vm: VistaAgregada | null = null;
   desde: string | null = null;
@@ -278,10 +270,8 @@ export class Resumen {
     if (!r) { el.hidden = true; return; }
     const dia = DIAS_C[new Date(r.d + 'T12:00:00').getDay()] + ' ' + (+r.d.slice(8));
     const c = (t: string, l: number, p: number, s: string, cls = '') => '<div class="' + cls + '"><span>' + t + '</span><b>' + fmtInt(l) + '</b><em>líneas · ' + fmtInt(p) + ' pedidos</em><small>' + s + '</small></div>';
-    const pl = r.cur ? pendLinDe(this.radar.store, r.d) : null;
     el.innerHTML = c('Venían de antes', r.lIni, r.ini, 'sin asignar') + '<i>+</i>' + c('Entraron', r.lEnt, r.ent, dia) + '<i>−</i>' +
-      c('Se asignaron', r.lTer, r.ter, dia) + '<i>=</i>' + c(r.cur ? 'Quedan ahora' : 'Quedaron', r.lFin, r.fin, 'sin asignar', 'fin') +
-      (pl ? c('Por asignar en pedidos en proceso', pl.l, pl.p, 'total por línea: ' + fmtInt(r.lFin + pl.l), 'aparte') : '');
+      c('Se asignaron', r.lTer, r.ter, dia) + '<i>=</i>' + c(r.cur ? 'Quedan ahora' : 'Quedaron', r.lFin, r.fin, 'sin asignar', 'fin');
     el.title = 'Pendiente de preparar (bodega Nejapa): líneas = SKUs de los pedidos recibidos que todavía no tienen orden de preparación.';
     el.hidden = false;
   }
