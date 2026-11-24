@@ -1,5 +1,6 @@
 // Radar como artefacto de Claude: un solo archivo HTML que lee Supabase por el conector (solo lectura).
 // Lleva adentro la plantilla de la copia (gzip + base64) para «Descargar HTML».
+// SheetJS 0.18.5 se carga desde cdnjs en la página y en la copia (XLSX_CDN=1), para que el archivo sea liviano.
 // Uso: node scripts/artefacto.mjs  →  dist-artefacto/Radar_de_Preparacion.html
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -15,11 +16,11 @@ const juntar = (h) => h
   .replace(/<script[^>]*src="\.\.\/nube\/reporte\.js"[^>]*><\/script>/, '');
 
 mkdirSync('dist-artefacto', { recursive: true });
-sh('npx vite build --config vite.copia.config.ts --mode copia --logLevel error', { PAGINA: 'app' });
+sh('npx vite build --config vite.copia.config.ts --mode copia --logLevel error', { PAGINA: 'app', XLSX_CDN: '1' });
 sh('node scripts/plantilla.mjs', { PAGINA: 'app', SALIDA: 'dist-artefacto/.copia.html' });
 const copia = juntar(readFileSync('dist-artefacto/.copia.html', 'utf8'));
 
-sh('npx vite build --config vite.copia.config.ts --mode artefacto --logLevel error', { PAGINA: 'app' });
+sh('npx vite build --config vite.copia.config.ts --mode artefacto --logLevel error', { PAGINA: 'app', XLSX_CDN: '1' });
 sh('node scripts/plantilla.mjs', { PAGINA: 'app', SALIDA: 'dist-artefacto/.artefacto.html' });
 let html = juntar(readFileSync('dist-artefacto/.artefacto.html', 'utf8'));
 if (/\.\.\/nube\//.test(html) || /\.\.\/nube\//.test(copia)) throw new Error('quedó un archivo de ../nube sin juntar');
