@@ -46,7 +46,6 @@ function ponerPestana(app: App, t: string) {
 /** Las pestañas comparten el día o rango elegido. */
 function conectarPestanas(app: App) {
   app.resumen.alCambiar = (vm) => app.top.render(vm);
-  app.resumen.flujo = () => app.pedidos.balance('N');
   // Cargar Excel
   const ctx: Contexto = {
     radar: app.radar, pedidos: app.pedidos, almacen: app.almacen, listo: () => app.listo,
@@ -54,7 +53,6 @@ function conectarPestanas(app: App) {
       const r = app.resumen;
       if (dia) r.elegir(dia, dia); else if (r.desde && r.hasta) r.elegir(r.desde, r.hasta); else r.iniciar();
       app.ped.render();
-      if (app.resumen.vm) app.resumen.renderFlujo(app.resumen.vm);
     },
   };
   const archivo = (btn: string, inp: string, fn: (c: Contexto, f: File[]) => Promise<void>) => {
@@ -73,7 +71,7 @@ function montar(E: { history?: DatosCopia['history']; store?: ConstructorParamet
   const pedidos = new PedidosCD(E.pedidos as ConstructorParameters<typeof PedidosCD>[0]);
   const app: App = {
     radar, pedidos, almacen, usuario, resumen: new Resumen(radar), top: new TopNegados(radar), ped: new PedidosVista(pedidos), listo: Promise.resolve(true),
-    redibujar: () => { const r = app.resumen; if (r.desde && r.hasta) r.elegir(r.desde, r.hasta); else r.iniciar(); app.ped.render(); if (app.resumen.vm) app.resumen.renderFlujo(app.resumen.vm); },
+    redibujar: () => { const r = app.resumen; if (r.desde && r.hasta) r.elegir(r.desde, r.hasta); else r.iniciar(); app.ped.render(); },
   };
   (window as unknown as { __APP: App }).__APP = app;
   document.querySelectorAll<HTMLAnchorElement>('#vxNav a').forEach((a) => a.addEventListener('click', (e) => {
@@ -227,7 +225,6 @@ async function arrancarArtefacto() {
     almacen.pedidosLuego.then((rows) => {
       rows.forEach((x) => { if (!esViejo(x)) app.pedidos.rows.set(clavePedido(x), x); });
       app.ped.render();
-      if (app.resumen.vm) app.resumen.renderFlujo(app.resumen.vm);
     }).catch((e) => {
       console.error(e);
       aviso('err', 'No se pudieron leer los pedidos: ' + ((e as Error)?.message || 'error') + '. Recarga la página.', 30000);
@@ -273,7 +270,6 @@ async function arrancar() {
       almacen.pedidosLuego.then((rows) => {
         rows.forEach((x) => { if (!esViejo(x)) app.pedidos.rows.set(clavePedido(x), x); });
         app.ped.render();
-        if (app.resumen.vm) app.resumen.renderFlujo(app.resumen.vm);
       }).catch((e) => {
         console.error(e);
         aviso('err', 'No se pudieron leer los pedidos: ' + ((e as Error)?.message || 'error') + '. Recarga la página.', 30000);
