@@ -4,7 +4,7 @@
  * vienen de PedidosCD (src/core), probados contra el tablero original.
  */
 import * as XLSX from 'xlsx';
-import { PedidosCD, horaAsig, type FiltroBodega, type FilaPorFecha } from '../core/pedidos/cd';
+import { PedidosCD, type FiltroBodega, type FilaPorFecha } from '../core/pedidos/cd';
 import { MOTIVOS, MOTIVO_NOMBRE, ESTADO_NOMBRE, BODEGA_NOMBRE, bodegaDe, motivoVista, nombreSucursal, type Bodega, type Estado, type MotivoVista, type Pedido } from '../core/pedidos/catalogos';
 import { diaDeMin, sumarDiasUTC, diaSemana, DIAS_CORTO, DIAS_LARGO, MESES_CORTO } from '../core/comun/fechas';
 import { $, esc, fmtInt, etiquetaDia, cCambio } from './ui/formato';
@@ -144,8 +144,7 @@ export class PedidosVista {
 
     // entran vs atendidos
     const ing = z(), ate = z();
-    const lcA = ped.ultimoCorte();
-    P.all.forEach((x) => { const d = diaDeMin(x[7] || x[2]); if (d in di) ing[di[d]] += x[4]; const h = horaAsig(x, lcA); if (h) { const a = diaDeMin(h); if (a in di) ate[di[a]] += x[4]; } });
+    P.all.forEach((x) => { const d = diaDeMin(x[7] || x[2]); if (d in di) ing[di[d]] += x[4]; if (x[10]) { const a = diaDeMin(x[10]); if (a in di) ate[di[a]] += x[4]; } });
     lineas($('pdFlow'), D7, [{ name: 'Entran', color: '#1E3A6E', vals: ing.slice(k7), off: -6 }, { name: 'Atendidos', color: '#E0262B', vals: ate.slice(k7), off: 8 }], { partial: p7 });
     const avg = (a: number[]) => { const xs = fi.map((i) => a[i]).filter((v) => v > 0); return xs.length ? sum(xs) / xs.length : 0; };
     $('pdFlowT').textContent = avg(ate) >= avg(ing) ? 'Se asigna al ritmo de lo que entra' : 'Entra más de lo que se asigna';
