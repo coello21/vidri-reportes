@@ -10,6 +10,10 @@ export type FiltroBodega = 'all' | Bodega;
 /** Días que se muestran en la pestaña de pedidos. */
 export const VENTANA_DIAS = 15;
 
+/** Hora de asignación válida (Rpt). Si en el último corte el Document dice Recibido, el pedido sigue pendiente aunque
+ *  el Rpt traiga una hora (desde el 26-nov-2026: el estado del Document manda, igual que el libro de preparación). */
+export const horaAsig = (x: Pedido, lc: number): number => ((x[3] === 'R' || x[3] === 'E') && x[8] >= lc ? 0 : x[10] || 0);
+
 const mediana = (a: number[]): number | null => {
   if (!a.length) return null;
   a = a.slice().sort((x, y) => x - y);
@@ -148,7 +152,8 @@ export class PedidosCD {
    * Balance diario de lo pendiente de preparar (desde el 19-nov-2026, igual que el dashboard Recorrido):
    * venían de antes sin asignar + entraron (por hora de recibido) − se asignaron = quedan sin asignar.
    * Sin asignar a una hora t: recibido antes de t, no actualizado antes de t, y su primera asignación (Rpt) es t o
-   * después; si no tiene hora de asignación, solo cuenta si sigue en Recibido en el último corte.
+   * después; si no tiene hora de asignación, solo cuenta si sigue en Recibido en el último corte. Si en el último corte
+   * sigue en Recibido, cuenta como sin asignar aunque el Rpt traiga hora (horaAsig, desde el 26-nov-2026).
    */
   balance(bod: FiltroBodega = 'all'): FilaBalance[] {
     const P = this.periodo(bod);
@@ -157,7 +162,7 @@ export class PedidosCD {
     const base = [...this.rows.values()].filter((x) => bod === 'all' || bodegaDe(x) === bod);
     const rec = (x: Pedido) => x[7] || x[2];
     const sinAsg = (x: Pedido, t: number) => rec(x) < t && !(x[3] === 'A' && x[6] && x[6] < t) &&
-      (x[10] ? x[10] >= t : (x[3] === 'R' || x[3] === 'E') && x[8] >= lc);
+      (horaAsig(x, lc) ? horaAsig(x, lc) >= t : (x[3] === 'R' || x[3] === 'E') && x[8] >= lc);
     const pendAt = (t: number) => { let c = 0; base.forEach((x) => { if (sinAsg(x, t)) c++; }); return c; };
     const pendLAt = (t: number) => { let c = 0; base.forEach((x) => { if (sinAsg(x, t)) c += x[4] || 0; }); return c; };
     const all = base, arr = D.map((d) => pendAt(inicioDia(d))), arrL = D.map((d) => pendLAt(inicioDia(d)));
@@ -183,8 +188,9 @@ export class PedidosCD {
       if (!ok1 && !cur) sa1 = null;
       const esp: number[] = [], eje: number[] = [];
       all.forEach((x) => {
-        if (x[10] && x[10] >= t0 && x[10] < t1) esp.push((x[10] - (x[7] || x[2])) / 60);
-        if (x[10] && x[6] && x[6] >= t0 && x[6] < t1) eje.push((x[6] - x[10]) / 60);
+        const a = horaAsig(x, lc);
+        if (a && a >= t0 && a < t1) esp.push((a - (x[7] || x[2])) / 60);
+        if (a && x[6] && x[6] >= t0 && x[6] < t1) eje.push((x[6] - a) / 60);
       });
       return {
         i, d, cur, ini, ent, ter, fin, sa0, sa1, lIni, lEnt, lTer, lFin,
@@ -208,7 +214,7 @@ export class PedidosCD {
     // misma regla que el balance: pendiente = sin asignar (desde el 19-nov-2026)
     const rec = (x: Pedido) => x[7] || x[2];
     const sinAsg = (x: Pedido, t: number) => rec(x) < t && !(x[3] === 'A' && x[6] && x[6] < t) &&
-      (x[10] ? x[10] >= t : (x[3] === 'R' || x[3] === 'E') && x[8] >= lc);
+      (horaAsig(x, lc) ? horaAsig(x, lc) >= t : (x[3] === 'R' || x[3] === 'E') && x[8] >= lc);
     const M = new Map<string, FilaPorFecha>();
     for (const x of this.rows.values()) {
       if (bod !== 'all' && bodegaDe(x) !== bod) continue;
@@ -244,7 +250,7 @@ export class PedidosCD {
       const t = base + h * 60;
       let c = 0;
       // sin asignar a esa hora (sin orden de preparación todavía), igual que el balance
-      rows.forEach((x) => { if (x[2] <= t && !(x[3] === 'A' && x[6] && x[6] <= t) && (x[10] ? x[10] > t : x[3] === 'R' || x[3] === 'E')) c++; });
+      rows.forEach((x) => { const a = horaAsig(x, lc); if (x[2] <= t && !(x[3] === 'A' && x[6] && x[6] <= t) && (a ? a > t : x[3] === 'R' || x[3] === 'E')) c++; });
       return c;
     };
     const v1 = hs.map((h) => pend(C, t0, h));
